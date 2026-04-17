@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Payment — Alshumookh</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+  :root { --bg:#0a0a0f;--surface:#111118;--surface2:#1a1a26;--border:#2a2a40;--gold:#c9a84c;--teal:#2dd4bf;--red:#f87171;--green:#4ade80;--text:#e8e6f0;--muted:#6b6888; }
+  * { box-sizing:border-box;margin:0;padding:0; }
+  body { font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:3rem 1rem; }
+
+  .container { width:520px;max-width:100%; }
+  .logo { font-size:0.9rem;font-weight:800;letter-spacing:0.1em;color:var(--gold);margin-bottom:2rem;display:flex;align-items:center;gap:0.5rem; }
+  h1 { font-size:1.8rem;font-weight:800;margin-bottom:0.4rem; }
+  .subtitle { color:var(--muted);font-size:0.9rem;margin-bottom:2.5rem; }
+
+  /* Type Toggle */
+  .type-toggle { display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:2rem; }
+  .type-btn {
+    padding:1rem;border-radius:12px;border:2px solid var(--border);
+    background:var(--surface);cursor:pointer;transition:all 0.2s;
+    display:flex;flex-direction:column;align-items:center;gap:0.4rem;
+    font-family:'Syne',sans-serif;
+  }
+  .type-btn:hover { border-color:var(--gold-dim); }
+  .type-btn.active { border-color:var(--gold);background:var(--surface2); }
+  .type-icon { font-size:1.8rem; }
+  .type-label { font-size:0.82rem;font-weight:700; }
+  .type-desc { font-size:0.7rem;color:var(--muted);font-weight:400; }
+
+  /* Form */
+  .field { margin-bottom:1.5rem; }
+  label { display:block;font-size:0.72rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem; }
+
+  input, select, textarea {
+    width:100%;background:var(--surface);border:1px solid var(--border);
+    color:var(--text);font-family:'DM Mono',monospace;font-size:0.9rem;
+    padding:0.8rem 1rem;border-radius:8px;outline:none;transition:border-color 0.15s;
+    -webkit-appearance:none;
+  }
+  select { font-family:'Syne',sans-serif; }
+  input:focus, select:focus { border-color:var(--gold); }
+  input::placeholder { color:var(--muted); }
+
+  .amount-wrap { position:relative; }
+  .amount-wrap input { padding-left:2.5rem; }
+  .currency-prefix { position:absolute;left:1rem;top:50%;transform:translateY(-50%);color:var(--muted);font-family:'DM Mono',monospace;font-size:0.9rem;pointer-events:none; }
+
+  /* Token Grid */
+  .token-grid { display:grid;grid-template-columns:repeat(5,1fr);gap:0.5rem; }
+  .token-btn {
+    padding:0.6rem 0.2rem;border:2px solid var(--border);border-radius:8px;
+    background:var(--surface);cursor:pointer;text-align:center;
+    font-family:'Syne',sans-serif;font-size:0.72rem;font-weight:700;
+    transition:all 0.15s;display:flex;flex-direction:column;align-items:center;gap:0.2rem;
+  }
+  .token-btn:hover { border-color:var(--teal); }
+  .token-btn.active { border-color:var(--teal);background:var(--surface2);color:var(--teal); }
+  .token-symbol { font-size:0.65rem;color:var(--muted); }
+
+  /* Submit */
+  .submit-btn {
+    width:100%;padding:1rem;border-radius:10px;border:none;
+    background:linear-gradient(135deg,var(--gold),#e0a82e);
+    color:#000;font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;
+    cursor:pointer;transition:all 0.2s;margin-top:0.5rem;
+    letter-spacing:0.02em;
+  }
+  .submit-btn:hover { transform:translateY(-1px);box-shadow:0 8px 24px rgba(201,168,76,0.3); }
+  .submit-btn:disabled { opacity:0.5;cursor:not-allowed;transform:none; }
+
+  /* Result */
+  .result-card {
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    padding:2rem;margin-top:1.5rem;display:none;
+  }
+  .result-card.show { display:block; }
+  .result-title { font-size:1rem;font-weight:800;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem; }
+
+  .info-row { display:flex;justify-content:space-between;padding:0.6rem 0;border-bottom:1px solid var(--border);font-size:0.82rem; }
+  .info-row:last-of-type { border-bottom:none; }
+  .info-label { color:var(--muted);font-weight:600; }
+  .info-value { font-family:'DM Mono',monospace;font-size:0.79rem; }
+
+  .address-display {
+    background:var(--bg);border:1px solid var(--border);border-radius:8px;
+    padding:1rem;margin:1rem 0;
+  }
+  .addr-text { font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--teal);word-break:break-all; }
+  .copy-row { display:flex;justify-content:flex-end;margin-top:0.4rem; }
+  .copy-link { font-size:0.72rem;color:var(--muted);cursor:pointer; }
+  .copy-link:hover { color:var(--gold); }
+
+  .alert { border-radius:8px;padding:0.8rem 1rem;font-size:0.82rem;margin-bottom:1.2rem;display:none; }
+  .alert.show { display:block; }
+  .alert-error { background:#450a0a;color:var(--red);border:1px solid #7f1d1d; }
+  .alert-info { background:#1e3a5f20;color:#60a5fa;border:1px solid #1e3a5f; }
+
+  .status-link {
+    display:block;text-align:center;margin-top:1rem;
+    color:var(--gold);font-size:0.84rem;font-weight:700;text-decoration:none;
+  }
+  .status-link:hover { text-decoration:underline; }
+
+  /* Login prompt */
+  .login-prompt {
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;
+    text-align:center;margin-bottom:1.5rem;display:none;
+  }
+  .login-prompt.show { display:block; }
+
+  .seg { display:flex;gap:0.5rem;margin-bottom:1.5rem;background:var(--surface2);padding:0.3rem;border-radius:8px; }
+  .seg-btn { flex:1;padding:0.5rem;border:none;background:transparent;color:var(--muted);font-family:'Syne',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;border-radius:6px;transition:all 0.15s; }
+  .seg-btn.active { background:var(--surface);color:var(--text); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">◈ Alshumookh</div>
+  <h1>Create Payment</h1>
+  <p class="subtitle">Generate a new payment link or deposit address</p>
+
+  <div id="alert" class="alert alert-error"></div>
+
+  <!-- Auth -->
+  <div class="seg">
+    <button class="seg-btn active" onclick="setAuthMode('token')">API Token</button>
+    <button class="seg-btn" onclick="setAuthMode('login')">Email/Password</button>
+  </div>
+  <div id="auth-token" class="field">
+    <label>Bearer Token</label>
+    <input type="text" id="bearer-token" placeholder="Paste your access token…" />
+  </div>
+  <div id="auth-login" style="display:none">
+    <div class="field"><label>Email</label><input type="text" id="auth-email" /></div>
+    <div class="field"><label>Password</label><input type="password" id="auth-password" /></div>
+    <button class="submit-btn" style="margin-bottom:1.5rem;background:var(--surface2);color:var(--text);border:1px solid var(--border)" onclick="doAuthLogin()">Sign In</button>
+  </div>
+
+  <!-- Payment Type -->
+  <div class="type-toggle">
+    <div class="type-btn active" id="btn-crypto" onclick="setType('crypto')">
+      <div class="type-icon">₿</div>
+      <div class="type-label">Crypto</div>
+      <div class="type-desc">ETH, USDT, USDC…</div>
+    </div>
+    <div class="type-btn" id="btn-fiat" onclick="setType('fiat')">
+      <div class="type-icon">💳</div>
+      <div class="type-label">Fiat</div>
+      <div class="type-desc">Card via Stripe</div>
+    </div>
+  </div>
+
+  <!-- Amount -->
+  <div class="field">
+    <label>Amount</label>
+    <div class="amount-wrap">
+      <span class="currency-prefix" id="currency-prefix">Ξ</span>
+      <input type="number" id="amount" placeholder="0.00" min="0.000001" step="any" />
+    </div>
+  </div>
+
+  <!-- Crypto: Token selector -->
+  <div id="crypto-fields">
+    <div class="field">
+      <label>Token</label>
+      <div class="token-grid">
+        <div class="token-btn active" onclick="setToken('ETH')"><div>Ξ</div><div class="token-symbol">ETH</div></div>
+        <div class="token-btn" onclick="setToken('USDT')"><div>₮</div><div class="token-symbol">USDT</div></div>
+        <div class="token-btn" onclick="setToken('USDC')"><div>$</div><div class="token-symbol">USDC</div></div>
+        <div class="token-btn" onclick="setToken('DAI')"><div>◈</div><div class="token-symbol">DAI</div></div>
+        <div class="token-btn" onclick="setToken('MATIC')"><div>⬡</div><div class="token-symbol">MATIC</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fiat: Currency -->
+  <div id="fiat-fields" style="display:none">
+    <div class="field">
+      <label>Currency</label>
+      <select id="fiat-currency">
+        <option value="usd">USD — US Dollar</option>
+        <option value="eur">EUR — Euro</option>
+        <option value="gbp">GBP — British Pound</option>
+        <option value="aed">AED — UAE Dirham</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Common -->
+  <div class="field">
+    <label>Description (optional)</label>
+    <input type="text" id="description" placeholder="e.g. Order #1234" />
+  </div>
+
+  <div class="field">
+    <label>Callback URL (optional)</label>
+    <input type="text" id="callback-url" placeholder="https://yoursite.com/payment-webhook" />
+  </div>
+
+  <button class="submit-btn" id="submit-btn" onclick="createPayment()">
+    Create Payment →
+  </button>
+
+  <!-- Result -->
+  <div class="result-card" id="result-card">
+    <div class="result-title">✓ Payment Created</div>
+    <div id="result-content"></div>
+    <a id="status-link" class="status-link" href="#">View Payment Status →</a>
+  </div>
+</div>
+
+<script>
+let paymentType = 'crypto';
+let selectedToken = 'ETH';
+let authToken = localStorage.getItem('als_token') || '';
+
+document.getElementById('bearer-token').value = authToken;
+
+function setAuthMode(mode) {
+  document.querySelectorAll('.seg-btn').forEach((b,i) => b.classList.toggle('active', (mode==='token'?0:1) === i));
+  document.getElementById('auth-token').style.display = mode==='token'?'block':'none';
+  document.getElementById('auth-login').style.display = mode==='login'?'block':'none';
+}
+
+async function doAuthLogin() {
+  const email = document.getElementById('auth-email').value;
+  const pass = document.getElementById('auth-password').value;
+  showAlert('');
+  try {
+    const res = await fetch('/api/v1/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email, password:pass})
+    });
+    const data = await res.json();
+    if (!res.ok) { showAlert(data.detail || 'Login failed'); return; }
+    authToken = data.access_token;
+    localStorage.setItem('als_token', authToken);
+    document.getElementById('bearer-token').value = authToken;
+    setAuthMode('token');
+    showAlert('Signed in successfully!', 'info');
+  } catch(e) { showAlert('Connection error'); }
+}
+
+function setType(t) {
+  paymentType = t;
+  document.getElementById('btn-crypto').classList.toggle('active', t==='crypto');
+  document.getElementById('btn-fiat').classList.toggle('active', t==='fiat');
+  document.getElementById('crypto-fields').style.display = t==='crypto'?'block':'none';
+  document.getElementById('fiat-fields').style.display = t==='fiat'?'block':'none';
+  document.getElementById('currency-prefix').textContent = t==='fiat' ? '$' : 'Ξ';
+}
+
+function setToken(t) {
+  selectedToken = t;
+  document.querySelectorAll('.token-btn').forEach(b => b.classList.toggle('active', b.querySelector('.token-symbol')?.textContent === t));
+  const prefixes = {ETH:'Ξ',USDT:'₮',USDC:'$',DAI:'◈',MATIC:'⬡'};
+  document.getElementById('currency-prefix').textContent = prefixes[t] || t[0];
+}
+
+function showAlert(msg, type='error') {
+  const el = document.getElementById('alert');
+  el.textContent = msg;
+  el.className = `alert alert-${type}` + (msg ? ' show' : '');
+}
+
+async function createPayment() {
+  const token = document.getElementById('bearer-token').value.trim() || authToken;
+  if (!token) { showAlert('Please provide a Bearer token or sign in.'); return; }
+
+  const amount = parseFloat(document.getElementById('amount').value);
+  if (!amount || amount <= 0) { showAlert('Please enter a valid amount.'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  showAlert('');
+
+  const payload = {
+    amount: amount,
+    currency: paymentType === 'crypto' ? selectedToken : document.getElementById('fiat-currency').value.toUpperCase(),
+    payment_type: paymentType,
+    token_symbol: paymentType === 'crypto' ? selectedToken : undefined,
+    description: document.getElementById('description').value || undefined,
+    callback_url: document.getElementById('callback-url').value || undefined,
+  };
+
+  try {
+    const res = await fetch('/api/v1/payments/', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showAlert(data.detail || JSON.stringify(data));
+      return;
+    }
+
+    renderResult(data);
+  } catch(e) {
+    showAlert('Network error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Payment →';
+  }
+}
+
+function renderResult(p) {
+  const card = document.getElementById('result-card');
+  const content = document.getElementById('result-content');
+  card.classList.add('show');
+
+  let html = `
+    <div class="info-row"><span class="info-label">Reference</span><span class="info-value" style="color:var(--gold)">${p.reference}</span></div>
+    <div class="info-row"><span class="info-label">Amount</span><span class="info-value">${p.amount} ${p.currency}</span></div>
+    <div class="info-row"><span class="info-label">Type</span><span class="info-value">${p.payment_type}</span></div>
+    <div class="info-row"><span class="info-label">Status</span><span class="info-value">${p.status}</span></div>
+  `;
+
+  if (p.deposit_address) {
+    html += `
+      <div class="address-display">
+        <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Deposit Address</div>
+        <div class="addr-text" id="result-addr">${p.deposit_address}</div>
+        <div class="copy-row"><span class="copy-link" onclick="navigator.clipboard.writeText(document.getElementById('result-addr').textContent)">📋 Copy</span></div>
+      </div>
+    `;
+  }
+
+  if (p.provider_client_secret) {
+    html += `<div class="info-row"><span class="info-label">Client Secret</span><span class="info-value" style="font-size:0.68rem;color:var(--muted)">${p.provider_client_secret.slice(0,30)}…</span></div>`;
+  }
+
+  if (p.expires_at) {
+    html += `<div class="info-row"><span class="info-label">Expires</span><span class="info-value">${new Date(p.expires_at).toLocaleString()}</span></div>`;
+  }
+
+  content.innerHTML = html;
+  const statusLink = document.getElementById('status-link');
+  statusLink.href = `/static/payment-status.html?id=${p.id}`;
+
+  card.scrollIntoView({ behavior:'smooth' });
+}
+</script>
+</body>
+</html>

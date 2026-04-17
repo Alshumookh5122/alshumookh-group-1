@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment Status — Alshumookh</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+  :root {
+    --bg:#0a0a0f;--surface:#111118;--border:#2a2a40;
+    --gold:#c9a84c;--teal:#2dd4bf;--red:#f87171;--green:#4ade80;
+    --text:#e8e6f0;--muted:#6b6888;
+  }
+  * { box-sizing:border-box;margin:0;padding:0; }
+  body { font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center; }
+
+  .card {
+    background:var(--surface);border:1px solid var(--border);border-radius:20px;
+    padding:2.5rem;width:460px;max-width:95vw;
+  }
+
+  .logo { font-size:0.9rem;font-weight:800;letter-spacing:0.1em;color:var(--gold);margin-bottom:2rem; }
+
+  .status-icon {
+    width:80px;height:80px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:2rem;margin:0 auto 1.5rem;
+    transition:all 0.5s;
+  }
+  .icon-pending { background:#451a0320;border:2px solid #fb923c; animation:spin 2s linear infinite; }
+  .icon-confirming { background:#1e3a5f20;border:2px solid #60a5fa; animation:spin 2s linear infinite; }
+  .icon-completed { background:#052e1620;border:2px solid var(--green); }
+  .icon-failed { background:#450a0a20;border:2px solid var(--red); }
+  .icon-expired { background:#1c1c1c;border:2px solid var(--muted); }
+  @keyframes spin { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }
+
+  .status-title { font-size:1.4rem;font-weight:800;text-align:center;margin-bottom:0.3rem; }
+  .status-sub { font-size:0.84rem;color:var(--muted);text-align:center;margin-bottom:2rem; }
+
+  .detail-row {
+    display:flex;justify-content:space-between;align-items:center;
+    padding:0.8rem 0;border-bottom:1px solid var(--border);font-size:0.84rem;
+  }
+  .detail-row:last-of-type { border-bottom:none; }
+  .detail-label { color:var(--muted);font-weight:600; }
+  .detail-value { font-family:'DM Mono',monospace;font-size:0.82rem; }
+
+  .address-box {
+    background:var(--bg);border:1px solid var(--border);border-radius:10px;
+    padding:1.2rem;margin:1.5rem 0;text-align:center;
+  }
+  .address-label { font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem; }
+  .address-value { font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--teal);word-break:break-all; }
+  .copy-btn { font-size:0.72rem;color:var(--muted);cursor:pointer;margin-top:0.5rem;display:inline-block; }
+  .copy-btn:hover { color:var(--gold); }
+
+  .amount-big {
+    font-size:2.8rem;font-weight:800;font-family:'DM Mono',monospace;
+    text-align:center;margin:1rem 0;
+    color:var(--gold);
+  }
+  .token-label { font-size:0.9rem;color:var(--muted);text-align:center;margin-top:-0.8rem;margin-bottom:1rem; }
+
+  .progress-bar { height:4px;background:var(--border);border-radius:999px;margin:1rem 0;overflow:hidden; }
+  .progress-fill { height:100%;background:linear-gradient(90deg,var(--teal),var(--gold));border-radius:999px;transition:width 1s; }
+
+  .conf-label { font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.3rem; }
+  .conf-count { font-family:'DM Mono',monospace;font-size:1.1rem;font-weight:800;color:var(--teal); }
+
+  .btn { font-family:'Syne',sans-serif;font-size:0.84rem;font-weight:700;padding:0.7rem 1.5rem;border-radius:8px;border:1px solid var(--border);background:var(--border);color:var(--text);cursor:pointer;transition:all 0.15s;width:100%;margin-top:1.5rem; }
+  .btn:hover { border-color:var(--gold);color:var(--gold); }
+
+  .expiry { font-size:0.78rem;color:var(--muted);text-align:center;margin-top:1rem; }
+  .expiry span { color:#fb923c;font-family:'DM Mono',monospace; }
+
+  .qr-wrap { text-align:center;margin:1rem 0; }
+  .qr-wrap img { max-width:160px;border-radius:8px;border:2px solid var(--border); }
+
+  #error-msg { color:var(--red);font-size:0.82rem;text-align:center;margin-top:1rem; }
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="logo">◈ Alshumookh</div>
+  <div id="content">
+    <div class="status-icon icon-pending">⟳</div>
+    <div class="status-title">Loading Payment…</div>
+  </div>
+</div>
+<script>
+const params = new URLSearchParams(location.search);
+const paymentId = params.get('id') || params.get('payment_id');
+const token = localStorage.getItem('als_token') || params.get('token') || '';
+
+let pollInterval;
+
+async function fetchPayment() {
+  if (!paymentId) {
+    document.getElementById('content').innerHTML = '<div class="status-title" style="color:var(--red)">No payment ID</div>';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/v1/payments/${paymentId}`, {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const p = await res.json();
+    renderPayment(p);
+    if (['completed','failed','cancelled','expired'].includes(p.status)) {
+      clearInterval(pollInterval);
+    }
+  } catch(e) {
+    document.getElementById('error-msg') && (document.getElementById('error-msg').textContent = 'Error: ' + e.message);
+  }
+}
+
+function fmtDate(s) {
+  return new Date(s).toLocaleString();
+}
+
+function countdown(expiresAt) {
+  if (!expiresAt) return '';
+  const diff = new Date(expiresAt) - Date.now();
+  if (diff <= 0) return 'Expired';
+  const m = Math.floor(diff/60000), s = Math.floor((diff%60000)/1000);
+  return `${m}m ${s.toString().padStart(2,'0')}s`;
+}
+
+function renderPayment(p) {
+  const isCrypto = p.payment_type === 'crypto';
+  const maxConfs = 6;
+  const confs = p.confirmation_count || 0;
+  const confPct = Math.min(100, (confs / maxConfs) * 100);
+
+  const iconMap = {
+    pending:'⟳', awaiting_payment:'⟳', confirming:'⟳',
+    completed:'✓', failed:'✗', cancelled:'✗', expired:'⌛'
+  };
+  const iconClassMap = {
+    pending:'icon-pending', awaiting_payment:'icon-pending', confirming:'icon-confirming',
+    completed:'icon-completed', failed:'icon-failed', cancelled:'icon-failed', expired:'icon-expired'
+  };
+  const titleMap = {
+    pending:'Payment Pending', awaiting_payment:'Awaiting Payment',
+    confirming:'Confirming on Chain', completed:'Payment Complete!',
+    failed:'Payment Failed', cancelled:'Payment Cancelled', expired:'Payment Expired'
+  };
+  const subMap = {
+    pending:'Your payment is being processed.',
+    awaiting_payment: isCrypto ? 'Send the exact amount to the address below.' : 'Complete your payment below.',
+    confirming:`Waiting for ${maxConfs} blockchain confirmations.`,
+    completed:'Your payment has been confirmed. Thank you!',
+    failed:'Something went wrong. Please try again.',
+    cancelled:'This payment was cancelled.',
+    expired:'This payment request has expired.'
+  };
+
+  let html = `
+    <div class="status-icon ${iconClassMap[p.status] || 'icon-pending'}">${iconMap[p.status] || '?'}</div>
+    <div class="status-title">${titleMap[p.status] || p.status}</div>
+    <div class="status-sub">${subMap[p.status] || ''}</div>
+    <div class="amount-big">${parseFloat(p.amount).toFixed(p.payment_type==='crypto'?6:2)}</div>
+    <div class="token-label">${p.currency}</div>
+  `;
+
+  // Crypto deposit address
+  if (isCrypto && p.deposit_address && ['awaiting_payment','pending','confirming'].includes(p.status)) {
+    html += `
+      <div class="address-box">
+        <div class="address-label">Send ${p.token_symbol} to this address</div>
+        <div class="address-value" id="deposit-addr">${p.deposit_address}</div>
+        <div class="copy-btn" onclick="copyAddr()">📋 Copy Address</div>
+      </div>
+    `;
+  }
+
+  // Confirmation progress
+  if (p.status === 'confirming') {
+    html += `
+      <div>
+        <div class="conf-label">Confirmations</div>
+        <div class="conf-count">${confs} / ${maxConfs}</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${confPct}%"></div></div>
+      </div>
+    `;
+  }
+
+  // Details
+  html += `
+    <div style="margin-top:1.5rem">
+      <div class="detail-row"><span class="detail-label">Reference</span><span class="detail-value" style="color:var(--gold)">${p.reference || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">${p.payment_type}</span></div>
+      ${p.tx_hash ? `<div class="detail-row"><span class="detail-label">Tx Hash</span><span class="detail-value" style="color:var(--teal);font-size:0.72rem">${p.tx_hash.slice(0,12)}…${p.tx_hash.slice(-6)}</span></div>` : ''}
+      <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${fmtDate(p.created_at)}</span></div>
+      ${p.completed_at ? `<div class="detail-row"><span class="detail-label">Completed</span><span class="detail-value">${fmtDate(p.completed_at)}</span></div>` : ''}
+    </div>
+  `;
+
+  // Expiry countdown
+  if (p.expires_at && ['awaiting_payment','pending'].includes(p.status)) {
+    html += `<div class="expiry" id="expiry-text">Expires in <span>${countdown(p.expires_at)}</span></div>`;
+    // Start countdown timer
+    setTimeout(() => {
+      const el = document.querySelector('#expiry-text span');
+      if (el) setInterval(() => { el.textContent = countdown(p.expires_at); }, 1000);
+    }, 100);
+  }
+
+  html += `<button class="btn" onclick="history.back()">← Back</button>`;
+  html += `<div id="error-msg"></div>`;
+
+  document.getElementById('content').innerHTML = html;
+}
+
+function copyAddr() {
+  const addr = document.getElementById('deposit-addr')?.textContent;
+  if (addr) { navigator.clipboard.writeText(addr); }
+}
+
+fetchPayment();
+if (paymentId) pollInterval = setInterval(fetchPayment, 8000);
+</script>
+</body>
+</html>
