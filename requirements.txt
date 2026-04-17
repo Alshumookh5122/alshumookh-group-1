@@ -28,4 +28,3 @@ APScheduler==3.10.4
 slowapi==0.1.9
 prometheus-fastapi-instrumentator==7.0.0
 structlog==24.1.0
-sentry-sdk==2.1.1
