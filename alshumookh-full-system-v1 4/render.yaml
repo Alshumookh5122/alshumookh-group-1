@@ -1,0 +1,92 @@
+services:
+  - type: web
+    name: alshumookh-api
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alshumookh-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: alshumookh-redis
+          type: redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.11.7"
+      - key: ADMIN_EMAIL
+        value: admin@alshumookh.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ALCHEMY_API_KEY
+        sync: false
+      - key: ALCHEMY_WEBHOOK_SECRET
+        sync: false
+      - key: ALCHEMY_NETWORK
+        value: ETH_MAINNET
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: TREASURY_WALLET_ADDRESS
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"
+
+  - type: worker
+    name: alshumookh-worker
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A worker.celery_app worker --loglevel=info --concurrency=2
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alshumookh-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: alshumookh-redis
+          type: redis
+          property: connectionString
+      - key: SECRET_KEY
+        fromService:
+          name: alshumookh-api
+          type: web
+          envVarKey: SECRET_KEY
+      - key: JWT_SECRET_KEY
+        fromService:
+          name: alshumookh-api
+          type: web
+          envVarKey: JWT_SECRET_KEY
+      - key: ALCHEMY_API_KEY
+        fromService:
+          name: alshumookh-api
+          type: web
+          envVarKey: ALCHEMY_API_KEY
+
+  - type: redis
+    name: alshumookh-redis
+    region: oregon
+    plan: starter
+    maxmemoryPolicy: noeviction
+
+databases:
+  - name: alshumookh-db
+    databaseName: alshumookh
+    region: oregon
+    plan: starter
