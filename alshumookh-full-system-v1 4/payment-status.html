@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment Status — Alshumookh</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+:root{--bg:#0a0a0f;--surface:#111118;--border:#2a2a40;--gold:#c9a84c;--teal:#2dd4bf;--red:#f87171;--green:#4ade80;--text:#e8e6f0;--muted:#6b6888}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2.5rem;width:460px;max-width:95vw}
+.logo{font-size:.9rem;font-weight:800;letter-spacing:.1em;color:var(--gold);margin-bottom:2rem}
+.status-icon{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem;margin:0 auto 1.5rem;transition:all .5s}
+.icon-pending{background:#451a0320;border:2px solid #fb923c;animation:spin 2s linear infinite}.icon-confirming{background:#1e3a5f20;border:2px solid #60a5fa;animation:spin 2s linear infinite}
+.icon-completed{background:#052e1620;border:2px solid var(--green)}.icon-failed{background:#450a0a20;border:2px solid var(--red)}.icon-expired{background:#1c1c1c;border:2px solid var(--muted)}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.status-title{font-size:1.4rem;font-weight:800;text-align:center;margin-bottom:.3rem}.status-sub{font-size:.84rem;color:var(--muted);text-align:center;margin-bottom:2rem}
+.detail-row{display:flex;justify-content:space-between;align-items:center;padding:.8rem 0;border-bottom:1px solid var(--border);font-size:.84rem}.detail-row:last-of-type{border-bottom:none}
+.detail-label{color:var(--muted);font-weight:600}.detail-value{font-family:'DM Mono',monospace;font-size:.82rem}
+.address-box{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1.2rem;margin:1.5rem 0;text-align:center}
+.address-label{font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+.address-value{font-family:'DM Mono',monospace;font-size:.78rem;color:var(--teal);word-break:break-all}
+.copy-btn{font-size:.72rem;color:var(--muted);cursor:pointer;margin-top:.5rem;display:inline-block}.copy-btn:hover{color:var(--gold)}
+.amount-big{font-size:2.8rem;font-weight:800;font-family:'DM Mono',monospace;text-align:center;margin:1rem 0;color:var(--gold)}
+.token-label{font-size:.9rem;color:var(--muted);text-align:center;margin-top:-.8rem;margin-bottom:1rem}
+.progress-bar{height:4px;background:var(--border);border-radius:999px;margin:1rem 0;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--gold));border-radius:999px;transition:width 1s}
+.conf-label{font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.3rem}
+.conf-count{font-family:'DM Mono',monospace;font-size:1.1rem;font-weight:800;color:var(--teal)}
+.btn{font-family:'Syne',sans-serif;font-size:.84rem;font-weight:700;padding:.7rem 1.5rem;border-radius:8px;border:1px solid var(--border);background:var(--border);color:var(--text);cursor:pointer;transition:all .15s;width:100%;margin-top:1.5rem}
+.btn:hover{border-color:var(--gold);color:var(--gold)}
+.expiry{font-size:.78rem;color:var(--muted);text-align:center;margin-top:1rem}.expiry span{color:#fb923c;font-family:'DM Mono',monospace}
+#error-msg{color:var(--red);font-size:.82rem;text-align:center;margin-top:1rem}
+</style>
+</head>
+<body>
+<div class="card" id="card"><div class="logo">◈ Alshumookh</div><div id="content"><div class="status-icon icon-pending">⟳</div><div class="status-title">Loading Payment…</div></div></div>
+<script>
+const params=new URLSearchParams(location.search),paymentId=params.get('id')||params.get('payment_id'),token=localStorage.getItem('als_token')||params.get('token')||'';let pollInterval;
+async function fetchPayment(){if(!paymentId){document.getElementById('content').innerHTML='<div class="status-title" style="color:var(--red)">No payment ID</div>';return}try{const r=await fetch(`/api/v1/payments/${paymentId}`,{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw new Error(await r.text());const p=await r.json();renderPayment(p);if(['completed','failed','cancelled','expired'].includes(p.status))clearInterval(pollInterval)}catch(e){const el=document.getElementById('error-msg');if(el)el.textContent='Error: '+e.message}}
+function fmtDate(s){return new Date(s).toLocaleString()}
+function countdown(e){if(!e)return'';const d=new Date(e)-Date.now();if(d<=0)return'Expired';const m=Math.floor(d/60000),s=Math.floor((d%60000)/1000);return`${m}m ${s.toString().padStart(2,'0')}s`}
+function renderPayment(p){const ic=p.payment_type==='crypto',mx=6,cn=p.confirmation_count||0,cp=Math.min(100,(cn/mx)*100);const im={pending:'⟳',awaiting_payment:'⟳',confirming:'⟳',completed:'✓',failed:'✗',cancelled:'✗',expired:'⌛'};const icm={pending:'icon-pending',awaiting_payment:'icon-pending',confirming:'icon-confirming',completed:'icon-completed',failed:'icon-failed',cancelled:'icon-failed',expired:'icon-expired'};const tm={pending:'Payment Pending',awaiting_payment:'Awaiting Payment',confirming:'Confirming on Chain',completed:'Payment Complete!',failed:'Payment Failed',cancelled:'Payment Cancelled',expired:'Payment Expired'};const sm={pending:'Your payment is being processed.',awaiting_payment:ic?'Send the exact amount to the address below.':'Complete your payment below.',confirming:`Waiting for ${mx} blockchain confirmations.`,completed:'Your payment has been confirmed. Thank you!',failed:'Something went wrong. Please try again.',cancelled:'This payment was cancelled.',expired:'This payment request has expired.'};
+let h=`<div class="status-icon ${icm[p.status]||'icon-pending'}">${im[p.status]||'?'}</div><div class="status-title">${tm[p.status]||p.status}</div><div class="status-sub">${sm[p.status]||''}</div><div class="amount-big">${parseFloat(p.amount).toFixed(p.payment_type==='crypto'?6:2)}</div><div class="token-label">${p.currency}</div>`;
+if(ic&&p.deposit_address&&['awaiting_payment','pending','confirming'].includes(p.status)){h+=`<div class="address-box"><div class="address-label">Send ${p.token_symbol} to this address</div><div class="address-value" id="deposit-addr">${p.deposit_address}</div><div class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('deposit-addr').textContent)">📋 Copy Address</div></div>`}
+if(p.status==='confirming'){h+=`<div><div class="conf-label">Confirmations</div><div class="conf-count">${cn} / ${mx}</div><div class="progress-bar"><div class="progress-fill" style="width:${cp}%"></div></div></div>`}
+h+=`<div style="margin-top:1.5rem"><div class="detail-row"><span class="detail-label">Reference</span><span class="detail-value" style="color:var(--gold)">${p.reference||'—'}</span></div><div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">${p.payment_type}</span></div>${p.tx_hash?`<div class="detail-row"><span class="detail-label">Tx Hash</span><span class="detail-value" style="color:var(--teal);font-size:.72rem">${p.tx_hash.slice(0,12)}…${p.tx_hash.slice(-6)}</span></div>`:''}<div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${fmtDate(p.created_at)}</span></div>${p.completed_at?`<div class="detail-row"><span class="detail-label">Completed</span><span class="detail-value">${fmtDate(p.completed_at)}</span></div>`:''}</div>`;
+if(p.expires_at&&['awaiting_payment','pending'].includes(p.status)){h+=`<div class="expiry" id="expiry-text">Expires in <span>${countdown(p.expires_at)}</span></div>`;setTimeout(()=>{const el=document.querySelector('#expiry-text span');if(el)setInterval(()=>{el.textContent=countdown(p.expires_at)},1000)},100)}
+h+=`<button class="btn" onclick="history.back()">← Back</button><div id="error-msg"></div>`;document.getElementById('content').innerHTML=h}
+fetchPayment();if(paymentId)pollInterval=setInterval(fetchPayment,8000);
+</script>
+</body></html>
