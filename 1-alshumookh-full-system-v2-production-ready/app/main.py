@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.admin import router as admin_router
-from app.config import get_settings
+from app.config import settings
 from app.crypto import router as crypto_router
 from app.database import Base, engine
 from app.fiat import router as fiat_router
