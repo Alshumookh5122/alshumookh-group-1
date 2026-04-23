@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 import httpx
 
-from app.config import get_settings
+from app.config import settings
 from app.models import Provider
 
 settings = get_settings()
