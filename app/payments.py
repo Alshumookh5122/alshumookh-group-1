@@ -7,10 +7,11 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit_service import log_event
+from app.config import settings
 from app.database import get_db
 from app.deps import AdminKey
 from app.ledger_service import confirm_ledger_order, create_ledger_order, get_order, qr_url
-from app.models import OrderStatus, PaymentOrder, Provider
+from app.models import PaymentOrder, Provider
 from app.provider_service import get_provider
 from app.schemas import (
     LedgerManualConfirm,
@@ -24,6 +25,26 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/payments", tags=["payments"])
+
+
+def treasury_address_for_network(network) -> str | None:
+    network_value = network.value if hasattr(network, "value") else str(network)
+
+    if network_value.lower() == "ethereum":
+        return (
+            getattr(settings, "eth_treasury_address", None)
+            or getattr(settings, "treasury_wallet_address", None)
+            or getattr(settings, "default_wallet_address", None)
+        )
+
+    if network_value.lower() == "tron":
+        return (
+            getattr(settings, "tron_treasury_address", None)
+            or getattr(settings, "treasury_wallet_address", None)
+            or getattr(settings, "default_wallet_address", None)
+        )
+
+    return getattr(settings, "treasury_wallet_address", None)
 
 
 def order_to_read(order: PaymentOrder) -> OrderRead:
@@ -55,6 +76,14 @@ async def create_transak_widget_url(payload: WidgetUrlRequest):
 
 @router.post("/orders", response_model=OrderRead)
 async def create_order(payload: OrderCreate, db: AsyncSession = Depends(get_db)):
+    treasury_wallet_address = treasury_address_for_network(payload.network)
+
+    if not treasury_wallet_address:
+        raise HTTPException(
+            status_code=400,
+            detail="Treasury wallet address is not configured. Add ETH_TREASURY_ADDRESS or TREASURY_WALLET_ADDRESS in Render Environment.",
+        )
+
     order = PaymentOrder(
         external_id=payload.external_id,
         provider=payload.provider,
@@ -63,14 +92,28 @@ async def create_order(payload: OrderCreate, db: AsyncSession = Depends(get_db))
         fiat_currency=payload.fiat_currency,
         crypto_currency=payload.crypto_currency,
         fiat_amount=payload.fiat_amount,
-        crypto_amount=payload.crypto_amount,
+        crypto_amount=payload.crypto_amount or payload.fiat_amount,
         user_wallet_address=payload.user_wallet_address,
+        treasury_wallet_address=treasury_wallet_address,
         payer_email=str(payload.payer_email) if payload.payer_email else None,
+        payment_reference=payload.external_id,
     )
+
     db.add(order)
     await db.commit()
     await db.refresh(order)
-    await log_event(db, "ORDER_CREATED", {"external_id": order.external_id}, order.id)
+
+    await log_event(
+        db,
+        "ORDER_CREATED",
+        {
+            "external_id": order.external_id,
+            "network": order.network.value,
+            "treasury_wallet_address": order.treasury_wallet_address,
+        },
+        order.id,
+    )
+
     return order_to_read(order)
 
 
@@ -106,15 +149,18 @@ async def ledger_manual_confirm(payload: LedgerManualConfirm, _: AdminKey, db: A
 def payment_page_html(order: PaymentOrder) -> str:
     if not order.treasury_wallet_address:
         raise HTTPException(status_code=400, detail="Order has no treasury wallet address")
-    amount = order.crypto_amount or Decimal("0")
+
+    amount = order.crypto_amount or order.fiat_amount or Decimal("0")
     qr = qr_url(order.treasury_wallet_address, amount, order.network, order.crypto_currency)
     status = order.status.value
     explorer = ""
+
     if order.tx_hash:
         if order.network.value == "ethereum":
             explorer = f"https://etherscan.io/tx/{order.tx_hash}"
         elif order.network.value == "tron":
             explorer = f"https://tronscan.org/#/transaction/{order.tx_hash}"
+
     return f"""
 <!doctype html>
 <html lang="en">
@@ -123,20 +169,20 @@ def payment_page_html(order: PaymentOrder) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AL SHUMOOKH Secure Payment</title>
   <style>
-    :root {{ --bg:#07111f; --card:#101c2f; --muted:#8ea0b8; --text:#eef5ff; --gold:#d7b46a; --green:#37d67a; --red:#ff5b68; }}
+    :root {{ --bg:#07111f; --card:#101c2f; --muted:#8ea0b8; --text:#eef5ff; --gold:#d7b46a; --green:#37d67a; }}
     * {{ box-sizing:border-box; }}
-    body {{ margin:0; font-family: Inter, Arial, sans-serif; background: radial-gradient(circle at top, #1a3156 0%, var(--bg) 45%, #050a12 100%); color:var(--text); }}
+    body {{ margin:0; font-family:Inter, Arial, sans-serif; background:radial-gradient(circle at top,#1a3156 0%,var(--bg) 45%,#050a12 100%); color:var(--text); }}
     .wrap {{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:28px; }}
-    .card {{ width:100%; max-width:980px; background:rgba(16,28,47,.94); border:1px solid rgba(255,255,255,.08); border-radius:28px; overflow:hidden; box-shadow:0 30px 90px rgba(0,0,0,.45); }}
-    .hero {{ padding:34px; background:linear-gradient(135deg, rgba(215,180,106,.20), rgba(26,49,86,.55)); display:flex; justify-content:space-between; gap:20px; align-items:flex-start; }}
-    .brand {{ font-size:14px; letter-spacing:.16em; color:var(--gold); font-weight:700; }}
-    h1 {{ margin:10px 0 0; font-size:34px; line-height:1.1; }}
-    .badge {{ display:inline-block; padding:8px 12px; border-radius:999px; background:rgba(55,214,122,.15); color:var(--green); font-weight:700; }}
-    .content {{ display:grid; grid-template-columns: 1fr 320px; gap:28px; padding:34px; }}
+    .card {{ width:100%; max-width:980px; background:rgba(16,28,47,.95); border:1px solid rgba(255,255,255,.08); border-radius:28px; overflow:hidden; box-shadow:0 30px 90px rgba(0,0,0,.45); }}
+    .hero {{ padding:34px; background:linear-gradient(135deg,rgba(215,180,106,.22),rgba(26,49,86,.55)); display:flex; justify-content:space-between; gap:20px; }}
+    .brand {{ font-size:14px; letter-spacing:.16em; color:var(--gold); font-weight:800; }}
+    h1 {{ margin:10px 0 0; font-size:34px; }}
+    .badge {{ padding:8px 12px; border-radius:999px; background:rgba(55,214,122,.15); color:var(--green); font-weight:800; height:max-content; }}
+    .content {{ display:grid; grid-template-columns:1fr 320px; gap:28px; padding:34px; }}
     .box {{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:20px; padding:22px; margin-bottom:18px; }}
     .label {{ color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; }}
     .value {{ font-size:22px; font-weight:800; word-break:break-word; }}
-    .address {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:15px; line-height:1.55; color:#d8e6ff; }}
+    .address {{ font-family:ui-monospace, Menlo, monospace; font-size:15px; line-height:1.55; color:#d8e6ff; word-break:break-all; }}
     button {{ cursor:pointer; border:none; border-radius:14px; padding:13px 16px; font-weight:800; background:var(--gold); color:#111; margin-top:12px; }}
     .qr {{ text-align:center; }}
     .qr img {{ width:260px; height:260px; background:white; padding:12px; border-radius:18px; }}
@@ -144,35 +190,58 @@ def payment_page_html(order: PaymentOrder) -> str:
     .muted {{ color:var(--muted); font-size:14px; line-height:1.6; }}
     .footer {{ padding:0 34px 34px; color:var(--muted); font-size:13px; }}
     a {{ color:#8bc7ff; }}
-    @media (max-width: 820px) {{ .content {{ grid-template-columns:1fr; }} .hero {{ display:block; }} h1 {{ font-size:28px; }} }}
+    @media (max-width:820px) {{ .content {{ grid-template-columns:1fr; }} .hero {{ display:block; }} h1 {{ font-size:28px; }} }}
   </style>
 </head>
 <body>
 <div class="wrap"><div class="card">
   <div class="hero">
-    <div><div class="brand">AL SHUMOOKH GROUP</div><h1>Secure Ledger Payment</h1><p class="muted">Send only the exact token and network shown below. This payment address belongs to the company Ledger treasury wallet.</p></div>
+    <div>
+      <div class="brand">AL SHUMOOKH GROUP</div>
+      <h1>Secure Ledger Payment</h1>
+      <p class="muted">Send only the exact token and network shown below.</p>
+    </div>
     <div class="badge">{status}</div>
   </div>
+
   <div class="content">
     <div>
       <div class="box"><div class="label">Amount</div><div class="value">{amount} {order.crypto_currency}</div></div>
       <div class="box"><div class="label">Network</div><div class="value">{order.network.value.upper()}</div></div>
-      <div class="box"><div class="label">Ledger Treasury Address</div><div class="address" id="addr">{order.treasury_wallet_address}</div><button onclick="copyAddress()">Copy Address</button></div>
+      <div class="box">
+        <div class="label">Ledger Treasury Address</div>
+        <div class="address" id="addr">{order.treasury_wallet_address}</div>
+        <button onclick="copyAddress()">Copy Address</button>
+      </div>
       <div class="box"><div class="label">Payment Reference</div><div class="value">{order.payment_reference or str(order.id)}</div></div>
-      <div class="box warning">Important: Do not send funds from an unsupported network. USDT on Ethereum must be ERC-20. USDT on Tron must be TRC-20.</div>
+      <div class="box warning">Important: USDT on Ethereum must be ERC-20. USDT on Tron must be TRC-20.</div>
       {f'<div class="box"><div class="label">Transaction</div><a href="{explorer}" target="_blank">View transaction</a></div>' if explorer else ''}
     </div>
-    <div class="qr"><img src="{qr}" alt="Payment QR"/><p class="muted">Scan or copy the address. Keep this page open until payment is confirmed.</p></div>
+
+    <div class="qr">
+      <img src="{qr}" alt="Payment QR"/>
+      <p class="muted">Scan or copy the address. Keep this page open until payment is confirmed.</p>
+    </div>
   </div>
-  <div class="footer">Order ID: {order.id} • Status refresh endpoint: /api/v1/payments/ledger/status/{order.id}</div>
+
+  <div class="footer">Order ID: {order.id} • Status endpoint: /api/v1/payments/ledger/status/{order.id}</div>
 </div></div>
+
 <script>
-function copyAddress() {{ navigator.clipboard.writeText(document.getElementById('addr').innerText); alert('Address copied'); }}
+function copyAddress() {{
+  navigator.clipboard.writeText(document.getElementById('addr').innerText);
+  alert('Address copied');
+}}
 setInterval(async () => {{
-  try {{ const r = await fetch('/api/v1/payments/ledger/status/{order.id}'); const j = await r.json(); if (j.status === 'COMPLETED') location.reload(); }} catch(e) {{}}
+  try {{
+    const r = await fetch('/api/v1/payments/ledger/status/{order.id}');
+    const j = await r.json();
+    if (j.status === 'COMPLETED') location.reload();
+  }} catch(e) {{}}
 }}, 15000);
 </script>
-</body></html>
+</body>
+</html>
 """
 
 
