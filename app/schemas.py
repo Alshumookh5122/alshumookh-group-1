@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 from app.models import Network, OrderSide, OrderStatus, Provider
 
@@ -28,34 +28,39 @@ class WidgetUrlResponse(BaseModel):
 
 
 class OrderCreate(BaseModel):
-    amount: Decimal = Field(gt=0)
-    currency: str = "USDT"
-    network: Network = Network.ETHEREUM
-    customer_email: EmailStr | None = None
-    side: OrderSide = OrderSide.BUY
-    user_wallet_address: str
     external_id: str | None = None
     provider: Provider = Provider.TRANSAK
+    side: OrderSide = OrderSide.BUY
+    network: Network = Network.ETHEREUM
 
-    @property
-    def fiat_currency(self) -> str:
-        return "USD"
+    fiat_currency: str = "USD"
+    crypto_currency: str = "USDT"
 
-    @property
-    def crypto_currency(self) -> str:
-        return self.currency.upper()
+    fiat_amount: Decimal | None = None
+    crypto_amount: Decimal | None = None
 
-    @property
-    def fiat_amount(self) -> Decimal | None:
-        return None
+    amount: Decimal | None = Field(default=None, gt=0)
+    currency: str | None = None
 
-    @property
-    def crypto_amount(self) -> Decimal:
-        return self.amount
+    user_wallet_address: str = Field(min_length=8)
+    payer_email: EmailStr | None = None
+    customer_email: EmailStr | None = None
 
-    @property
-    def payer_email(self) -> EmailStr | None:
-        return self.customer_email
+    @model_validator(mode="after")
+    def normalize_fields(self):
+        if self.amount is not None and self.crypto_amount is None:
+            self.crypto_amount = self.amount
+
+        if self.currency:
+            self.crypto_currency = self.currency.upper()
+
+        if self.customer_email and not self.payer_email:
+            self.payer_email = self.customer_email
+
+        if self.crypto_amount is None:
+            raise ValueError("amount or crypto_amount is required")
+
+        return self
 
 
 class LedgerOrderCreate(BaseModel):
