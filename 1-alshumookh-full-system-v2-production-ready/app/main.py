@@ -48,6 +48,16 @@ app.include_router(admin_router, prefix=settings.api_prefix)
 app.include_router(webhooks_router)
 
 
+@app.get("/")
+async def root():
+    return {
+        "message": "Alshumookh API is running 🚀",
+        "status": "live",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "env": settings.app_env}
