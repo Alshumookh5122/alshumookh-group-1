@@ -12,6 +12,32 @@ from app.config import settings
 from app.models import Network, OrderStatus, PaymentOrder
 
 
+def alchemy_rpc_url(network: Network | str = Network.ETHEREUM) -> str:
+    """
+    Used by wallet_service.py to get the Alchemy RPC URL.
+    """
+    if isinstance(network, str):
+        network_value = network.lower()
+    else:
+        network_value = network.value.lower()
+
+    if network_value in {"ethereum", "eth", "erc20"}:
+        url = (
+            getattr(settings, "alchemy_eth_rpc_url", None)
+            or getattr(settings, "alchemy_rpc_url", None)
+            or getattr(settings, "ethereum_rpc_url", None)
+        )
+
+        if url:
+            return url
+
+        api_key = getattr(settings, "alchemy_api_key", None)
+        if api_key:
+            return f"https://eth-mainnet.g.alchemy.com/v2/{api_key}"
+
+    raise ValueError(f"Alchemy RPC URL is not configured for network: {network_value}")
+
+
 def verify_alchemy_signature(raw_body: bytes, signature: str | None) -> bool:
     signing_key = getattr(settings, "alchemy_webhook_signing_key", None)
 
