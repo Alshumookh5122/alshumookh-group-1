@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from typing import Any
-
 import httpx
+
+from fastapi import HTTPException
 
 from app.config import settings
 from app.models import Provider
@@ -11,52 +12,64 @@ from app.models import Provider
 class TransakProvider:
     def __init__(self) -> None:
         self.base_url = (
-            settings.transak_staging_base_url.rstrip("/")
+            settings.transak_staging_base_url
             if settings.transak_env.lower() == "staging"
-            else settings.transak_base_url.rstrip("/")
+            else settings.transak_base_url
         )
 
     async def refresh_access_token(self) -> str:
-        """
-        Create/refresh a Transak partner access token.
-        """
-
-        url = f"{self.base_url}/refresh-token"
-
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "api-key": settings.transak_api_key,
-        }
-
-        payload = {
-            "apiSecret": settings.transak_api_secret,
-        }
+        url = f"{self.base_url}/api/v2/refresh-token/"
 
         async with httpx.AsyncClient(timeout=30) as client:
-            res = await client.post(url, headers=headers, json=payload)
-            res.raise_for_status()
+            try:
+                res = await client.post(
+                    url,
+                    headers={
+                        "accept": "application/json",
+                        "api-secret": settings.transak_api_secret,
+                        "content-type": "application/json",
+                    },
+                    json={"apiKey": settings.transak_api_key},
+                )
 
-        body = res.json()
-        return body.get("data", {}).get("accessToken") or body.get("accessToken")
+                if res.status_code != 200:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Transak auth failed: {res.text}",
+                    )
+
+                body = res.json()
+                return body.get("data", {}).get("accessToken") or body.get("accessToken")
+
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
 
     async def create_widget_url(self, payload: dict[str, Any]) -> str:
         token = await self.refresh_access_token()
-
-        url = f"{self.base_url}/widgets/create-widget-url"
-
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "Authorization": f"Bearer {token}",
-        }
+        url = f"{self.base_url}/api/v2/widgets/create-widget-url"
 
         async with httpx.AsyncClient(timeout=30) as client:
-            res = await client.post(url, headers=headers, json=payload)
-            res.raise_for_status()
+            try:
+                res = await client.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
 
-        body = res.json()
-        return body.get("data", {}).get("widgetUrl") or body.get("widgetUrl")
+                if res.status_code != 200:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Widget creation failed: {res.text}",
+                    )
+
+                body = res.json()
+                return body.get("data", {}).get("widgetUrl") or body.get("widgetUrl")
+
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
 
 
 async def get_provider(provider: Provider | str):
