@@ -22,3 +22,4 @@ itsdangerous==2.2.0
 orjson==3.10.16
 structlog==25.3.0
 sentry-sdk[fastapi]==2.27.0
+aiosqlite
