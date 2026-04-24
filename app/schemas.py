@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+
 from pydantic import BaseModel, EmailStr, Field
 
 from app.models import Network, OrderSide, OrderStatus, Provider
@@ -27,16 +28,34 @@ class WidgetUrlResponse(BaseModel):
 
 
 class OrderCreate(BaseModel):
+    amount: Decimal = Field(gt=0)
+    currency: str = "USDT"
+    network: Network = Network.ETHEREUM
+    customer_email: EmailStr | None = None
+    side: OrderSide = OrderSide.BUY
+    user_wallet_address: str
     external_id: str | None = None
     provider: Provider = Provider.TRANSAK
-    side: OrderSide
-    network: Network
-    fiat_currency: str = "USD"
-    crypto_currency: str = "USDT"
-    fiat_amount: Decimal | None = None
-    crypto_amount: Decimal | None = None
-    user_wallet_address: str
-    payer_email: EmailStr | None = None
+
+    @property
+    def fiat_currency(self) -> str:
+        return "USD"
+
+    @property
+    def crypto_currency(self) -> str:
+        return self.currency.upper()
+
+    @property
+    def fiat_amount(self) -> Decimal | None:
+        return None
+
+    @property
+    def crypto_amount(self) -> Decimal:
+        return self.amount
+
+    @property
+    def payer_email(self) -> EmailStr | None:
+        return self.customer_email
 
 
 class LedgerOrderCreate(BaseModel):
