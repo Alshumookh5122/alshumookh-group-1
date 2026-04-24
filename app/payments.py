@@ -29,15 +29,16 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 
 def treasury_address_for_network(network) -> str | None:
     network_value = network.value if hasattr(network, "value") else str(network)
+    network_value = network_value.lower()
 
-    if network_value.lower() == "ethereum":
+    if network_value == "ethereum":
         return (
             getattr(settings, "eth_treasury_address", None)
             or getattr(settings, "treasury_wallet_address", None)
             or getattr(settings, "default_wallet_address", None)
         )
 
-    if network_value.lower() == "tron":
+    if network_value == "tron":
         return (
             getattr(settings, "tron_treasury_address", None)
             or getattr(settings, "treasury_wallet_address", None)
@@ -45,6 +46,12 @@ def treasury_address_for_network(network) -> str | None:
         )
 
     return getattr(settings, "treasury_wallet_address", None)
+
+
+def clean_amount(value: Decimal | None) -> str:
+    if value is None:
+        return "0"
+    return format(value.normalize(), "f")
 
 
 def order_to_read(order: PaymentOrder) -> OrderRead:
@@ -70,7 +77,9 @@ def order_to_read(order: PaymentOrder) -> OrderRead:
 @router.post("/transak/widget-url", response_model=WidgetUrlResponse)
 async def create_transak_widget_url(payload: WidgetUrlRequest):
     provider = await get_provider(Provider.TRANSAK)
-    widget_url = await provider.create_widget_url(payload.model_dump(mode="json", exclude_none=True))
+    widget_url = await provider.create_widget_url(
+        payload.model_dump(mode="json", exclude_none=True)
+    )
     return WidgetUrlResponse(widget_url=widget_url)
 
 
@@ -81,7 +90,7 @@ async def create_order(payload: OrderCreate, db: AsyncSession = Depends(get_db))
     if not treasury_wallet_address:
         raise HTTPException(
             status_code=400,
-            detail="Treasury wallet address is not configured. Add ETH_TREASURY_ADDRESS or TREASURY_WALLET_ADDRESS in Render Environment.",
+            detail="Treasury wallet address is not configured.",
         )
 
     order = PaymentOrder(
@@ -92,7 +101,7 @@ async def create_order(payload: OrderCreate, db: AsyncSession = Depends(get_db))
         fiat_currency=payload.fiat_currency,
         crypto_currency=payload.crypto_currency,
         fiat_amount=payload.fiat_amount,
-        crypto_amount=payload.crypto_amount or payload.fiat_amount,
+        crypto_amount=payload.crypto_amount,
         user_wallet_address=payload.user_wallet_address,
         treasury_wallet_address=treasury_wallet_address,
         payer_email=str(payload.payer_email) if payload.payer_email else None,
@@ -109,6 +118,8 @@ async def create_order(payload: OrderCreate, db: AsyncSession = Depends(get_db))
         {
             "external_id": order.external_id,
             "network": order.network.value,
+            "crypto_amount": str(order.crypto_amount),
+            "crypto_currency": order.crypto_currency,
             "treasury_wallet_address": order.treasury_wallet_address,
         },
         order.id,
@@ -123,7 +134,9 @@ async def read_order(order_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/ledger/order", response_model=LedgerOrderResponse)
-async def create_ledger_payment_order(payload: LedgerOrderCreate, db: AsyncSession = Depends(get_db)):
+async def create_ledger_payment_order(
+    payload: LedgerOrderCreate, db: AsyncSession = Depends(get_db)
+):
     return await create_ledger_order(db, payload)
 
 
@@ -141,7 +154,11 @@ async def ledger_payment_status(order_id: str, db: AsyncSession = Depends(get_db
 
 
 @router.post("/ledger/confirm", response_model=OrderRead)
-async def ledger_manual_confirm(payload: LedgerManualConfirm, _: AdminKey, db: AsyncSession = Depends(get_db)):
+async def ledger_manual_confirm(
+    payload: LedgerManualConfirm,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
     order = await confirm_ledger_order(db, payload.order_id, payload.tx_hash, payload.note)
     return order_to_read(order)
 
@@ -150,11 +167,13 @@ def payment_page_html(order: PaymentOrder) -> str:
     if not order.treasury_wallet_address:
         raise HTTPException(status_code=400, detail="Order has no treasury wallet address")
 
-    amount = order.crypto_amount or order.fiat_amount or Decimal("0")
-    qr = qr_url(order.treasury_wallet_address, amount, order.network, order.crypto_currency)
-    status = order.status.value
-    explorer = ""
+    raw_amount = order.crypto_amount or Decimal("0")
+    amount = clean_amount(raw_amount)
 
+    qr = qr_url(order.treasury_wallet_address, raw_amount, order.network, order.crypto_currency)
+    status = order.status.value
+
+    explorer = ""
     if order.tx_hash:
         if order.network.value == "ethereum":
             explorer = f"https://etherscan.io/tx/{order.tx_hash}"
