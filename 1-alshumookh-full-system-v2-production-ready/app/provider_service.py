@@ -6,7 +6,6 @@ import httpx
 from app.config import settings
 from app.models import Provider
 
-settings = get_settings()
 
 
 class TransakProvider:
