@@ -30,6 +30,12 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 def clean_amount(value: Decimal | None) -> str:
     if value is None:
         return "0"
+
+    value = Decimal(str(value))
+
+    if value == value.to_integral():
+        return str(value.to_integral())
+
     return format(value.normalize(), "f")
 
 
@@ -130,7 +136,8 @@ async def create_order(payload: OrderCreate, db: AsyncSession = Depends(get_db))
 
 @router.get("/orders/{order_id}", response_model=OrderRead)
 async def read_order(order_id: str, db: AsyncSession = Depends(get_db)):
-    return order_to_read(await get_order(db, order_id))
+    order = await get_order(db, order_id)
+    return order_to_read(order)
 
 
 @router.post("/ledger/order", response_model=LedgerOrderResponse)
@@ -144,6 +151,7 @@ async def create_ledger_payment_order(
 @router.get("/ledger/status/{order_id}", response_model=LedgerPaymentStatus)
 async def ledger_payment_status(order_id: str, db: AsyncSession = Depends(get_db)):
     order = await get_order(db, order_id)
+
     return LedgerPaymentStatus(
         id=str(order.id),
         status=order.status,
@@ -160,13 +168,21 @@ async def ledger_manual_confirm(
     _: AdminKey,
     db: AsyncSession = Depends(get_db),
 ):
-    order = await confirm_ledger_order(db, payload.order_id, payload.tx_hash, payload.note)
+    order = await confirm_ledger_order(
+        db,
+        payload.order_id,
+        payload.tx_hash,
+        payload.note,
+    )
     return order_to_read(order)
 
 
 def payment_page_html(order: PaymentOrder) -> str:
     if not order.treasury_wallet_address:
-        raise HTTPException(status_code=400, detail="Order has no treasury wallet address")
+        raise HTTPException(
+            status_code=400,
+            detail="Order has no treasury wallet address",
+        )
 
     raw_amount = order.crypto_amount or Decimal("0")
     amount = clean_amount(raw_amount)
@@ -195,76 +211,253 @@ def payment_page_html(order: PaymentOrder) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AL SHUMOOKH Secure Payment</title>
   <style>
-    :root {{ --bg:#07111f; --card:#101c2f; --muted:#8ea0b8; --text:#eef5ff; --gold:#d7b46a; --green:#37d67a; }}
-    * {{ box-sizing:border-box; }}
-    body {{ margin:0; font-family:Inter, Arial, sans-serif; background:radial-gradient(circle at top,#1a3156 0%,var(--bg) 45%,#050a12 100%); color:var(--text); }}
-    .wrap {{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:28px; }}
-    .card {{ width:100%; max-width:980px; background:rgba(16,28,47,.95); border:1px solid rgba(255,255,255,.08); border-radius:28px; overflow:hidden; box-shadow:0 30px 90px rgba(0,0,0,.45); }}
-    .hero {{ padding:34px; background:linear-gradient(135deg,rgba(215,180,106,.22),rgba(26,49,86,.55)); display:flex; justify-content:space-between; gap:20px; }}
-    .brand {{ font-size:14px; letter-spacing:.16em; color:var(--gold); font-weight:800; }}
-    h1 {{ margin:10px 0 0; font-size:34px; }}
-    .badge {{ padding:8px 12px; border-radius:999px; background:rgba(55,214,122,.15); color:var(--green); font-weight:800; height:max-content; }}
-    .content {{ display:grid; grid-template-columns:1fr 320px; gap:28px; padding:34px; }}
-    .box {{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:20px; padding:22px; margin-bottom:18px; }}
-    .label {{ color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; }}
-    .value {{ font-size:22px; font-weight:800; word-break:break-word; }}
-    .address {{ font-family:ui-monospace, Menlo, monospace; font-size:15px; line-height:1.55; color:#d8e6ff; word-break:break-all; }}
-    button {{ cursor:pointer; border:none; border-radius:14px; padding:13px 16px; font-weight:800; background:var(--gold); color:#111; margin-top:12px; }}
-    .qr {{ text-align:center; }}
-    .qr img {{ width:260px; height:260px; background:white; padding:12px; border-radius:18px; }}
-    .warning {{ color:#ffcf7a; font-size:14px; line-height:1.55; }}
-    .muted {{ color:var(--muted); font-size:14px; line-height:1.6; }}
-    .footer {{ padding:0 34px 34px; color:var(--muted); font-size:13px; }}
-    a {{ color:#8bc7ff; }}
-    @media (max-width:820px) {{ .content {{ grid-template-columns:1fr; }} .hero {{ display:block; }} h1 {{ font-size:28px; }} }}
+    :root {{
+      --bg:#07111f;
+      --card:#101c2f;
+      --muted:#8ea0b8;
+      --text:#eef5ff;
+      --gold:#d7b46a;
+      --green:#37d67a;
+    }}
+
+    * {{
+      box-sizing:border-box;
+    }}
+
+    body {{
+      margin:0;
+      font-family:Inter, Arial, sans-serif;
+      background:radial-gradient(circle at top,#1a3156 0%,var(--bg) 45%,#050a12 100%);
+      color:var(--text);
+    }}
+
+    .wrap {{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:28px;
+    }}
+
+    .card {{
+      width:100%;
+      max-width:980px;
+      background:rgba(16,28,47,.95);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:28px;
+      overflow:hidden;
+      box-shadow:0 30px 90px rgba(0,0,0,.45);
+    }}
+
+    .hero {{
+      padding:34px;
+      background:linear-gradient(135deg,rgba(215,180,106,.22),rgba(26,49,86,.55));
+      display:flex;
+      justify-content:space-between;
+      gap:20px;
+    }}
+
+    .brand {{
+      font-size:14px;
+      letter-spacing:.16em;
+      color:var(--gold);
+      font-weight:800;
+    }}
+
+    h1 {{
+      margin:10px 0 0;
+      font-size:34px;
+    }}
+
+    .badge {{
+      padding:8px 12px;
+      border-radius:999px;
+      background:rgba(55,214,122,.15);
+      color:var(--green);
+      font-weight:800;
+      height:max-content;
+    }}
+
+    .content {{
+      display:grid;
+      grid-template-columns:1fr 320px;
+      gap:28px;
+      padding:34px;
+    }}
+
+    .box {{
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:20px;
+      padding:22px;
+      margin-bottom:18px;
+    }}
+
+    .label {{
+      color:var(--muted);
+      font-size:13px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      margin-bottom:8px;
+    }}
+
+    .value {{
+      font-size:22px;
+      font-weight:800;
+      word-break:break-word;
+    }}
+
+    .address {{
+      font-family:ui-monospace, Menlo, monospace;
+      font-size:15px;
+      line-height:1.55;
+      color:#d8e6ff;
+      word-break:break-all;
+    }}
+
+    button {{
+      cursor:pointer;
+      border:none;
+      border-radius:14px;
+      padding:13px 16px;
+      font-weight:800;
+      background:var(--gold);
+      color:#111;
+      margin-top:12px;
+    }}
+
+    .qr {{
+      text-align:center;
+    }}
+
+    .qr img {{
+      width:260px;
+      height:260px;
+      background:white;
+      padding:12px;
+      border-radius:18px;
+    }}
+
+    .warning {{
+      color:#ffcf7a;
+      font-size:14px;
+      line-height:1.55;
+    }}
+
+    .muted {{
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.6;
+    }}
+
+    .footer {{
+      padding:0 34px 34px;
+      color:var(--muted);
+      font-size:13px;
+    }}
+
+    a {{
+      color:#8bc7ff;
+    }}
+
+    @media (max-width:820px) {{
+      .content {{
+        grid-template-columns:1fr;
+      }}
+
+      .hero {{
+        display:block;
+      }}
+
+      h1 {{
+        font-size:28px;
+      }}
+    }}
   </style>
 </head>
 <body>
-<div class="wrap"><div class="card">
-  <div class="hero">
-    <div>
-      <div class="brand">AL SHUMOOKH GROUP</div>
-      <h1>Secure Ledger Payment</h1>
-      <p class="muted">Send only the exact token and network shown below.</p>
-    </div>
-    <div class="badge">{status}</div>
-  </div>
-
-  <div class="content">
-    <div>
-      <div class="box"><div class="label">Amount</div><div class="value">{amount} {order.crypto_currency}</div></div>
-      <div class="box"><div class="label">Network</div><div class="value">{order.network.value.upper()}</div></div>
-      <div class="box">
-        <div class="label">Ledger Treasury Address</div>
-        <div class="address" id="addr">{order.treasury_wallet_address}</div>
-        <button onclick="copyAddress()">Copy Address</button>
+<div class="wrap">
+  <div class="card">
+    <div class="hero">
+      <div>
+        <div class="brand">AL SHUMOOKH GROUP</div>
+        <h1>Secure Ledger Payment</h1>
+        <p class="muted">Send only the exact token and network shown below.</p>
       </div>
-      <div class="box"><div class="label">Payment Reference</div><div class="value">{order.payment_reference or str(order.id)}</div></div>
-      <div class="box warning">Important: USDT on Ethereum must be ERC-20. USDT on Tron must be TRC-20.</div>
-      {f'<div class="box"><div class="label">Transaction</div><a href="{explorer}" target="_blank">View transaction</a></div>' if explorer else ''}
+      <div class="badge">{status}</div>
     </div>
 
-    <div class="qr">
-      <img src="{qr}" alt="Payment QR"/>
-      <p class="muted">Scan or copy the address. Keep this page open until payment is confirmed.</p>
+    <div class="content">
+      <div>
+        <div class="box">
+          <div class="label">Amount</div>
+          <div class="value">{amount} {order.crypto_currency}</div>
+        </div>
+
+        <div class="box">
+          <div class="label">Network</div>
+          <div class="value">{order.network.value.upper()}</div>
+        </div>
+
+        <div class="box">
+          <div class="label">Ledger Treasury Address</div>
+          <div class="address" id="addr">{order.treasury_wallet_address}</div>
+          <button onclick="copyAddress()">Copy Address</button>
+        </div>
+
+        <div class="box">
+          <div class="label">Payment Reference</div>
+          <div class="value">{order.payment_reference or str(order.id)}</div>
+        </div>
+
+        <div class="box warning">
+          Important: USDT on Ethereum must be ERC-20. USDT on Tron must be TRC-20.
+        </div>
+
+        {f'<div class="box"><div class="label">Transaction</div><a href="{explorer}" target="_blank">View transaction</a></div>' if explorer else ''}
+      </div>
+
+      <div class="qr">
+        <img src="{qr}" alt="Payment QR"/>
+        <p class="muted">Scan or copy the address. Keep this page open until payment is confirmed.</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      Order ID: {order.id} • Status endpoint: /api/v1/payments/ledger/status/{order.id}
     </div>
   </div>
-
-  <div class="footer">Order ID: {order.id} • Status endpoint: /api/v1/payments/ledger/status/{order.id}</div>
-</div></div>
+</div>
 
 <script>
 function copyAddress() {{
   navigator.clipboard.writeText(document.getElementById('addr').innerText);
   alert('Address copied');
 }}
+
 setInterval(async () => {{
   try {{
     const r = await fetch('/api/v1/payments/ledger/status/{order.id}');
+
+    if (r.status === 404) {{
+      console.log("Waiting for order status...");
+      return;
+    }}
+
+    if (!r.ok) {{
+      console.log("Status check failed:", r.status);
+      return;
+    }}
+
     const j = await r.json();
-    if (j.status === 'COMPLETED') location.reload();
-  }} catch(e) {{}}
-}}, 15000);
+
+    if (j.status === "COMPLETED") {{
+      location.reload();
+    }}
+  }} catch (e) {{
+    console.log("Polling error:", e);
+  }}
+}}, 10000);
 </script>
 </body>
 </html>
@@ -279,4 +472,6 @@ async def public_payment_page(order_id: str, db: AsyncSession = Depends(get_db))
 
 @router.get("/pay/mock", response_class=HTMLResponse, include_in_schema=False)
 async def mock_payment_page():
-    return HTMLResponse("<h1>Transak Mock Payment</h1><p>Transak is in mock mode until partner approval is completed.</p>")
+    return HTMLResponse(
+        "<h1>Transak Mock Payment</h1><p>Transak is in mock mode until partner approval is completed.</p>"
+    )
