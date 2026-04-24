@@ -18,7 +18,7 @@ class TransakProvider:
         The returned access token is used for Create Widget URL API and for
         decoding Transak webhook JWT payloads.
         """
-        url = f'{self.base_url}/partners/api/v2/refresh-token'
+        url = f'{self.base_url}/api/v2/refresh-token/'
         async with httpx.AsyncClient(timeout=30) as client:
             res = await client.post(
                 url,
