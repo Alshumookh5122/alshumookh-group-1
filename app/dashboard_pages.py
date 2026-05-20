@@ -407,16 +407,20 @@ _OVERVIEW_BODY = """
       <h3>📥 Settlement Payloads — إجراءات سريعة</h3>
       <button class="btn btn-ghost" onclick="loadOvPayloads()" style="font-size:11px;padding:4px 10px;">تحديث</button>
     </div>
-    <!-- Detail panel inside overview -->
-    <div id="ovPlDetail" style="display:none;padding:16px;border-bottom:1px solid var(--line);">
+    <!-- Detail modal like legacy dashboard -->
+    <div id="ovPlDetail" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.70);overflow-y:auto;padding:24px;">
+      <div style="max-width:1180px;margin:0 auto;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.55);overflow:hidden;">
+      <div style="padding:16px 18px;border-bottom:1px solid var(--line);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h4 id="ovPlRef" style="margin:0;font-size:13px;color:var(--brand);"></h4>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" id="ovBtnVerify" onclick="ovVerify()">Verify with Alchemy</button>
           <button class="btn btn-ghost"   id="ovBtnManual" onclick="ovManual()">Manual Review</button>
-          <button class="btn btn-ghost"   onclick="document.getElementById('ovPlDetail').style.display='none'" style="font-size:11px;">✕ إغلاق</button>
+          <button class="btn btn-ghost"   onclick="ovClosePayload()" style="font-size:11px;">✕ إغلاق</button>
         </div>
       </div>
+      </div>
+      <div style="padding:16px 18px;">
       <!-- Info grid -->
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:14px;" id="ovPlInfoGrid"></div>
       <!-- Operational Controls -->
@@ -454,6 +458,8 @@ _OVERVIEW_BODY = """
         <button class="ov-tab" onclick="ovTab('audit')" id="tab-audit" style="padding:8px 16px;font-size:12px;background:none;border:none;color:var(--muted);cursor:pointer;">Audit</button>
       </div>
       <div id="ovTabContent" style="font-size:11px;font-family:monospace;background:rgba(0,0,0,.3);border-radius:8px;padding:12px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;"></div>
+      </div>
+      </div>
     </div>
     <div id="ovPlBody" style="padding:0;"><div class="empty-state"><div class="icon">📥</div>جاري التحميل...</div></div>
   </div>
@@ -540,9 +546,10 @@ async function loadOvPayloads() {
     }
     var th='<th>Reference</th><th>Amount</th><th>Network</th><th>Status</th><th>Security</th><th>TX Hash</th><th>التاريخ</th><th>إجراء</th>';
     var tb=rows.map(function(r){
-      var ref=r.transaction_reference||r.id.slice(0,12)+'...';
-      var eid=encodeURIComponent(r.id);
-      return '<tr>'
+      var rid=r.id||r.payload_id;
+      var ref=r.transaction_reference||(rid?rid.slice(0,12)+'...':'—');
+      var eid=encodeURIComponent(rid);
+      return '<tr data-plid="'+eid+'" onclick="ovViewPayload(this.dataset.plid)" style="cursor:pointer;">'
         +'<td><span style="font-size:10px;font-family:monospace;color:var(--brand);cursor:pointer;" data-plid="'+eid+'" onclick="ovViewPayload(this.dataset.plid)">'+ref+'</span></td>'
         +'<td><strong>'+fmtNum(r.amount)+'</strong> <span style="color:var(--muted);">'+(r.asset||'USDT')+'</span></td>'
         +'<td>'+(r.network||r.network_name||'—').toUpperCase()+'</td>'
@@ -551,9 +558,9 @@ async function loadOvPayloads() {
         +'<td style="font-size:10px;font-family:monospace;">'+(r.tx_hash?r.tx_hash.slice(0,16)+'...':'—')+'</td>'
         +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
         +'<td><div style="display:flex;gap:4px;">'
-          +'<button class="btn btn-success" data-plid="'+eid+'" data-act="approve" onclick="ovQuickAction(this.dataset.plid,this.dataset.act)" style="font-size:10px;padding:3px 8px;">✅</button>'
-          +'<button class="btn btn-danger"  data-plid="'+eid+'" data-act="reject"  onclick="ovQuickAction(this.dataset.plid,this.dataset.act)" style="font-size:10px;padding:3px 8px;">❌</button>'
-          +'<button class="btn btn-ghost"   data-plid="'+eid+'"                    onclick="ovViewPayload(this.dataset.plid)"                   style="font-size:10px;padding:3px 8px;">🔍</button>'
+          +'<button class="btn btn-ghost"   data-plid="'+eid+'"                    onclick="event.stopPropagation();ovViewPayload(this.dataset.plid)" style="font-size:10px;padding:3px 8px;">🔍</button>'
+          +'<button class="btn btn-success" data-plid="'+eid+'" data-act="approve" onclick="event.stopPropagation();ovQuickAction(this.dataset.plid,this.dataset.act)" style="font-size:10px;padding:3px 8px;">✅</button>'
+          +'<button class="btn btn-danger"  data-plid="'+eid+'" data-act="reject"  onclick="event.stopPropagation();ovQuickAction(this.dataset.plid,this.dataset.act)" style="font-size:10px;padding:3px 8px;">❌</button>'
         +'</div></td>'
         +'</tr>';
     }).join('');
@@ -591,8 +598,13 @@ async function ovViewPayload(id) {
     // Show raw JSON tab by default
     ovTab('raw');
     document.getElementById('ovPlDetail').style.display='block';
-    document.getElementById('ovPlDetail').scrollIntoView({behavior:'smooth'});
+    document.body.style.overflow='hidden';
   } catch(e){ showToast('خطأ: '+e.message,'error'); }
+}
+
+function ovClosePayload(){
+  document.getElementById('ovPlDetail').style.display='none';
+  document.body.style.overflow='';
 }
 
 function ovTab(tab) {
@@ -604,57 +616,68 @@ function ovTab(tab) {
     if(el){ el.style.borderBottom=t===tab?'2px solid var(--brand)':'none'; el.style.color=t===tab?'var(--brand)':'var(--muted)'; }
   });
   if(tab==='raw'){
-    var raw={transaction_reference:p.transaction_reference,tx_hash:p.tx_hash,sender_wallet:p.sender_wallet,receiver_wallet:p.receiver_wallet,amount:p.amount,asset:p.asset,network:p.network,token_contract:p.token_contract,timestamp:p.created_at,settlement_type:p.settlement_type,smart_contract:p.smart_contract};
-    content=JSON.stringify(raw,null,2);
+    content=p.pretty_payload||p.raw_payload||JSON.stringify(p,null,2);
   } else if(tab==='parsed'){
-    var parsed={id:p.id,status:p.verification_status,security_level:p.security_level,auth_method:p.auth_method,jws_verified:p.jws_verified,mtls_verified:p.mtls_verified,review_priority:p.review_priority,review_decision:p.review_decision,reviewed_by:p.reviewed_by,callback_url:p.callback_url};
-    content=JSON.stringify(parsed,null,2);
+    content=JSON.stringify(p.parsed_payload||{},null,2);
   } else if(tab==='blockchain'){
-    content=JSON.stringify({tx_hash:p.tx_hash||null,confirmations:p.confirmations||0,block_number:p.block_number||null,network:p.network,on_chain_status:p.verification_status},null,2);
+    content=JSON.stringify(p.blockchain_result||{tx_hash:p.tx_hash||null,confirmations:p.confirmations||0,block_number:p.block_number||null,network:p.network,explorer_url:p.explorer_url||null,on_chain_status:p.verification_status},null,2);
   } else if(tab==='headers'){
-    content=JSON.stringify({security_level:p.security_level,auth_method:p.auth_method,jws_verified:p.jws_verified,mtls_verified:p.mtls_verified,client_ip:p.client_ip},null,2);
+    content=JSON.stringify(p.headers||{security_level:p.security_level,auth_method:p.auth_method,jws_verified:p.jws_verified,mtls_verified:p.mtls_verified,client_ip:p.client_ip},null,2);
   } else if(tab==='audit'){
-    content=JSON.stringify({created_at:p.created_at,updated_at:p.updated_at,reviewed_by:p.reviewed_by,review_note:p.review_note,review_decision:p.review_decision},null,2);
+    content=JSON.stringify({payload_id:p.payload_id||p.id,created_at:p.created_at,updated_at:p.updated_at,reviewed_by:p.reviewed_by,review_note:p.review_note,review_decision:p.review_decision,hold_reason:p.hold_reason,error_message:p.error_message},null,2);
   }
   document.getElementById('ovTabContent').textContent=content;
 }
 
 async function ovVerify(){
   if(!_ovCurrentPl){return;}
-  try{await api('/api/v1/admin/payloads/'+_ovCurrentPl.id+'/verify',{method:'POST'});showToast('تم إرسال طلب التحقق','ok');loadOvPayloads();ovViewPayload(_ovCurrentPl.id);}
+  var pid=_ovCurrentPl.id||_ovCurrentPl.payload_id;
+  try{await api('/api/v1/admin/payloads/'+pid+'/verify',{method:'POST'});showToast('تم إرسال طلب التحقق','ok');loadOvPayloads();ovViewPayload(pid);}
   catch(e){showToast('خطأ: '+e.message,'error');}
 }
 async function ovManual(){
   if(!_ovCurrentPl){return;}
-  try{await api('/api/v1/admin/payloads/'+_ovCurrentPl.id+'/mark-manual-review',{method:'POST'});showToast('تم التحديد للمراجعة','ok');loadOvPayloads();ovViewPayload(_ovCurrentPl.id);}
+  var pid=_ovCurrentPl.id||_ovCurrentPl.payload_id;
+  try{await api('/api/v1/admin/payloads/'+pid+'/mark-manual-review',{method:'POST'});showToast('تم التحديد للمراجعة','ok');loadOvPayloads();ovViewPayload(pid);}
   catch(e){showToast('خطأ: '+e.message,'error');}
 }
 async function ovReview(decision){
   if(!_ovCurrentPl){return;}
   var note=document.getElementById('ovReviewNote').value||'';
-  try{await api('/api/v1/admin/payloads/'+_ovCurrentPl.id+'/review',{method:'POST',body:JSON.stringify({decision:decision,note:note})});showToast(decision==='approve'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();document.getElementById('ovPlDetail').style.display='none';}
+  var action=(decision||'').toUpperCase();
+  var priority=document.getElementById('ovPriority').value||'NORMAL';
+  try{await api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:action,note:note,priority:priority})});showToast(action==='APPROVE'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();ovClosePayload();}
   catch(e){showToast('خطأ: '+e.message,'error');}
 }
 async function ovHold(){
   if(!_ovCurrentPl){return;}
   var reason=document.getElementById('ovHoldReason').value;
   var note='HOLD: '+(reason||document.getElementById('ovReviewNote').value||'on hold');
-  try{await api('/api/v1/admin/payloads/'+_ovCurrentPl.id+'/review',{method:'POST',body:JSON.stringify({decision:'reject',note:note})});showToast('تم وضع الـ Payload في الانتظار','ok');loadOvPayloads();}
+  var priority=document.getElementById('ovPriority').value||'NORMAL';
+  try{await api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:'HOLD',note:note,hold_reason:reason||note,priority:priority})});showToast('تم وضع الـ Payload في الانتظار','ok');loadOvPayloads();}
   catch(e){showToast('خطأ: '+e.message,'error');}
 }
 async function ovSaveNote(){
   if(!_ovCurrentPl){return;}
   var note=document.getElementById('ovReviewNote').value;
   if(!note){showToast('اكتب ملاحظة أولاً','error');return;}
-  try{await api('/api/v1/admin/payloads/'+_ovCurrentPl.id+'/mark-manual-review',{method:'POST'});showToast('تم حفظ الملاحظة','ok');}
+  var priority=document.getElementById('ovPriority').value||'NORMAL';
+  try{await api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:'NOTE',note:note,priority:priority})});showToast('تم حفظ الملاحظة','ok');}
   catch(e){showToast('خطأ: '+e.message,'error');}
 }
 async function ovQuickAction(id,decision){
   var note=decision==='approve'?'Quick approval from dashboard':'Quick rejection from dashboard';
-  try{await api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({decision:decision,note:note})});showToast(decision==='approve'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();}
+  var action=(decision||'').toUpperCase();
+  try{await api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})});showToast(action==='APPROVE'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();}
   catch(e){showToast('خطأ: '+e.message,'error');}
 }
 loadOvPayloads();
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){
+    var d=document.getElementById('ovPlDetail');
+    if(d && d.style.display==='block'){ ovClosePayload(); }
+  }
+});
 </script>
 """
 
@@ -757,8 +780,8 @@ async function loadPayloads() {
       return;
     }
     var th = '<th>ID</th><th>Amount</th><th>Network</th><th>Sender</th><th>TX Hash</th><th>Security</th><th>الحالة</th><th>التاريخ</th><th>عرض</th>';
-    var tb = rows.map(function(r){return '<tr>'
-      +'<td><code style="font-size:10px;cursor:pointer;color:var(--brand);" onclick="viewPayload(\\''+r.id+'\\')">'+r.id.slice(0,10)+'...</code></td>'
+    var tb = rows.map(function(r){var rid=r.id||r.payload_id;return '<tr onclick="viewPayload(\\''+rid+'\\')" style="cursor:pointer;">'
+      +'<td><code style="font-size:10px;cursor:pointer;color:var(--brand);">'+rid.slice(0,10)+'...</code></td>'
       +'<td>'+fmtNum(r.amount)+' '+(r.asset||'USDT')+'</td>'
       +'<td>'+((r.network_name||r.network||'').toUpperCase())+'</td>'
       +'<td>'+(r.sender_wallet?'<code style="font-size:10px;" title="'+r.sender_wallet+'">'+r.sender_wallet.slice(0,14)+'...</code>':'—')+'</td>'
@@ -766,7 +789,7 @@ async function loadPayloads() {
       +'<td><span style="font-size:10px;color:var(--muted);">'+(r.security_level||'—')+'</span></td>'
       +'<td>'+badge(r.verification_status)+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><button class="btn btn-ghost" onclick="viewPayload(\\''+r.id+'\\')" style="font-size:11px;padding:4px 10px;">عرض</button></td>'
+      +'<td><button class="btn btn-ghost" onclick="event.stopPropagation();viewPayload(\\''+rid+'\\')" style="font-size:11px;padding:4px 10px;">عرض</button></td>'
       +'</tr>';}).join('');
     document.getElementById('plBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   } catch(e) {
@@ -823,7 +846,8 @@ async function markManual(id){
 }
 async function reviewPl(id,decision){
   var note=prompt('ملاحظة ('+(decision==='approve'?'موافقة':'رفض')+'): ')||'';
-  try{await api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({decision:decision,note:note})});showToast('تم '+(decision==='approve'?'القبول':'الرفض'),'ok');loadPayloads();}
+  var action=(decision||'').toUpperCase();
+  try{await api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})});showToast('تم '+(action==='APPROVE'?'القبول':'الرفض'),'ok');loadPayloads();}
   catch(e){showToast('خطأ: '+e.message,'error');}
 }
 loadPayloads();
