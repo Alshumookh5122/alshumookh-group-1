@@ -96,7 +96,11 @@ def _topbar(title: str, subtitle: str = "Admin Panel") -> str:
     <p class="eyebrow">{subtitle}</p>
     <h2 style="margin:0;font-size:18px;font-weight:800;color:var(--gold);">{title}</h2>
   </div>
-  <div style="display:flex;gap:10px;align-items:center;">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+    <input id="_top_ak_inp" type="password" placeholder="Admin API Key"
+           style="width:220px;max-width:38vw;background:var(--panel-solid);border:1px solid var(--line-strong);
+                  border-radius:8px;padding:7px 10px;color:var(--ink);font-size:11px;outline:none;" />
+    <button class="btn btn-primary" onclick="saveTopAK()" style="padding:7px 10px;font-size:11px;">حفظ المفتاح</button>
     <span id="_liveTime" style="color:var(--muted);font-size:12px;"></span>
     <span style="width:8px;height:8px;border-radius:50%;background:#34d399;
                  display:inline-block;box-shadow:0 0 6px #34d39988;"></span>
@@ -162,6 +166,13 @@ _SHARED_JS = """
 <script>
 var AK = (sessionStorage.getItem('als_admin_key')||localStorage.getItem('als_admin_key')||'');
 
+function syncAKInputs(){
+  var top=document.getElementById('_top_ak_inp');
+  var banner=document.getElementById('_ak_inp');
+  if(top && AK) top.value=AK;
+  if(banner && AK) banner.value=AK;
+}
+
 // ── API Key Banner ────────────────────────────────────────────────────────────
 (function(){
   var banner = document.createElement('div');
@@ -173,6 +184,7 @@ var AK = (sessionStorage.getItem('als_admin_key')||localStorage.getItem('als_adm
     +'<button onclick="saveAK()" style="padding:7px 18px;border-radius:8px;background:#fff;color:#1d4ed8;font-weight:700;border:none;cursor:pointer;font-size:13px;">حفظ ✓</button>'
     +'<button onclick="document.getElementById(\'_ak_banner\').style.display=\'none\'" style="padding:7px 14px;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer;font-size:12px;">✕</button>';
   document.body.insertBefore(banner, document.body.firstChild);
+  syncAKInputs();
   if(AK){
     banner.style.display='none';
     // Show small indicator instead
@@ -194,6 +206,17 @@ function saveAK(){
   document.getElementById('_ak_banner').style.display='none';
   showToast('تم حفظ API Key ✓ جاري تحديث البيانات...','ok');
   setTimeout(function(){ location.reload(); }, 1200);
+}
+
+function saveTopAK(){
+  var v = document.getElementById('_top_ak_inp').value.trim();
+  if(!v){ alert('أدخل API Key أولاً'); return; }
+  AK = v;
+  sessionStorage.setItem('als_admin_key', v);
+  localStorage.setItem('als_admin_key', v);
+  syncAKInputs();
+  showToast('تم حفظ API Key ✓ جاري تحديث البيانات...','ok');
+  setTimeout(function(){ location.reload(); }, 900);
 }
 
 function H(extra) {

@@ -1375,8 +1375,8 @@ async def dashboard_logout():
 async def dashboard(request: Request):
     if not is_admin_request_authenticated(request):
         return RedirectResponse("/login?type=admin", status_code=status.HTTP_303_SEE_OTHER)
-    from app.dashboard_pages import _page, _topbar, OVERVIEW_HTML
-    return HTMLResponse(_page("Overview — ALSHUMOOKH GLOBAL", _topbar("🏠 Overview", "Dashboard Home") + OVERVIEW_HTML))
+    from app.dashboard_pages import _OVERVIEW_BODY, _page
+    return HTMLResponse(_page("نظرة عامة", "/dashboard", _OVERVIEW_BODY))
 
 @app.get("/dashboard/legacy", tags=["dashboard"])
 async def dashboard_legacy(request: Request):
