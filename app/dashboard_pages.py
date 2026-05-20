@@ -182,7 +182,7 @@ function syncAKInputs(){
     +'<input id="_ak_inp" type="password" placeholder="أدخل Admin API Key..." '
     +'style="flex:1;max-width:420px;padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:13px;outline:none;" />'
     +'<button onclick="saveAK()" style="padding:7px 18px;border-radius:8px;background:#fff;color:#1d4ed8;font-weight:700;border:none;cursor:pointer;font-size:13px;">حفظ ✓</button>'
-    +'<button onclick="document.getElementById(\\'_ak_banner\\').style.display=\\'none\\'" style="padding:7px 14px;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer;font-size:12px;">✕</button>';
+    +'<button onclick="document.getElementById(\'_ak_banner\').style.display=\'none\'" style="padding:7px 14px;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer;font-size:12px;">✕</button>';
   document.body.insertBefore(banner, document.body.firstChild);
   syncAKInputs();
   if(AK){
@@ -509,7 +509,7 @@ async function loadOverview() {
       +'<div style="color:#f87171;font-weight:700;margin-bottom:8px;">❌ فشل الاتصال بالـ API</div>'
       +'<div style="color:#fca5a5;font-size:12px;margin-bottom:12px;">الخطأ: '+errMsg+'</div>'
       +'<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">الحل: أدخل Admin API Key في الشريط الأزرق أعلى الصفحة</div>'
-      +'<button onclick="var b=document.getElementById(\\'_ak_banner\\');if(b){b.style.display=\\'flex\\';}" '
+      +'<button onclick="var b=document.getElementById(\'_ak_banner\');if(b){b.style.display=\'flex\';}" '
       +'style="background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">🔑 إدخال API Key</button>'
       +'</div>';
   }
@@ -780,7 +780,7 @@ async function loadPayloads() {
       return;
     }
     var th = '<th>ID</th><th>Amount</th><th>Network</th><th>Sender</th><th>TX Hash</th><th>Security</th><th>الحالة</th><th>التاريخ</th><th>عرض</th>';
-    var tb = rows.map(function(r){var rid=r.id||r.payload_id;return '<tr onclick="viewPayload(\\''+rid+'\\')" style="cursor:pointer;">'
+    var tb = rows.map(function(r){var rid=r.id||r.payload_id;return '<tr data-rid="'+rid+'" onclick="viewPayload(this.dataset.rid)" style="cursor:pointer;">'
       +'<td><code style="font-size:10px;cursor:pointer;color:var(--brand);">'+rid.slice(0,10)+'...</code></td>'
       +'<td>'+fmtNum(r.amount)+' '+(r.asset||'USDT')+'</td>'
       +'<td>'+((r.network_name||r.network||'').toUpperCase())+'</td>'
@@ -789,7 +789,7 @@ async function loadPayloads() {
       +'<td><span style="font-size:10px;color:var(--muted);">'+(r.security_level||'—')+'</span></td>'
       +'<td>'+badge(r.verification_status)+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><button class="btn btn-ghost" onclick="event.stopPropagation();viewPayload(\\''+rid+'\\')" style="font-size:11px;padding:4px 10px;">عرض</button></td>'
+      +'<td><button class="btn btn-ghost" data-rid="'+rid+'" onclick="event.stopPropagation();viewPayload(this.dataset.rid)" style="font-size:11px;padding:4px 10px;">عرض</button></td>'
       +'</tr>';}).join('');
     document.getElementById('plBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   } catch(e) {
@@ -823,13 +823,13 @@ async function viewPayload(id) {
     var acts=[];
     var vstatus=p.verification_status||'';
     if(['RECEIVED','PARSED','AWAITING_TX_HASH'].indexOf(vstatus)>=0){
-      acts.push('<button class="btn btn-primary" onclick="verifyPl(\\''+id+'\\')">Verify On-Chain</button>');
+      acts.push('<button class="btn btn-primary" data-pid="'+id+'" onclick="verifyPl(this.dataset.pid)">Verify On-Chain</button>');
     }
     if(vstatus!=='MANUAL_REVIEW'){
-      acts.push('<button class="btn btn-ghost" onclick="markManual(\\''+id+'\\')">Mark Manual Review</button>');
+      acts.push('<button class="btn btn-ghost" data-pid="'+id+'" onclick="markManual(this.dataset.pid)">Mark Manual Review</button>');
     }
-    acts.push('<button class="btn btn-success" onclick="reviewPl(\\''+id+'\\',\\'approve\\')">Approve</button>');
-    acts.push('<button class="btn btn-danger"  onclick="reviewPl(\\''+id+'\\',\\'reject\\')">Reject</button>');
+    acts.push('<button class="btn btn-success" data-pid="'+id+'" data-act="approve" onclick="reviewPl(this.dataset.pid,this.dataset.act)">Approve</button>');
+    acts.push('<button class="btn btn-danger"  data-pid="'+id+'" data-act="reject"  onclick="reviewPl(this.dataset.pid,this.dataset.act)">Reject</button>');
     document.getElementById('plActions').innerHTML=acts.join('');
     document.getElementById('plDetail').style.display='block';
     document.getElementById('plDetail').scrollIntoView({behavior:'smooth'});
@@ -968,13 +968,13 @@ async function loadTransfers(){
     var tb=rows.map(function(r){
       var btns=[];
       if(['PENDING','AWAITING_APPROVAL'].indexOf(r.status)>=0)
-        btns.push('<button class="btn btn-success" onclick="approveXfer(\\''+r.id+'\\')" style="font-size:11px;padding:3px 8px;">موافقة</button>');
+        btns.push('<button class="btn btn-success" data-xid="'+r.id+'" onclick="approveXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">موافقة</button>');
       if(r.status==='APPROVED')
-        btns.push('<button class="btn btn-primary" onclick="broadcastXfer(\\''+r.id+'\\')" style="font-size:11px;padding:3px 8px;">بث</button>');
+        btns.push('<button class="btn btn-primary" data-xid="'+r.id+'" onclick="broadcastXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">بث</button>');
       if(r.status==='FAILED')
-        btns.push('<button class="btn btn-ghost" onclick="retryXfer(\\''+r.id+'\\')" style="font-size:11px;padding:3px 8px;">اعادة</button>');
+        btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="retryXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">اعادة</button>');
       if(['COMPLETED','CANCELLED'].indexOf(r.status)<0)
-        btns.push('<button class="btn btn-danger" onclick="cancelXfer(\\''+r.id+'\\')" style="font-size:11px;padding:3px 8px;">الغاء</button>');
+        btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="cancelXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">الغاء</button>');
       return '<tr>'
         +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,10)+'...</code></td>'
         +'<td><strong>'+(r.network||'').toUpperCase()+'</strong></td>'
@@ -1087,7 +1087,7 @@ async function loadJobs(){
       +'<td>'+badge(r.status)+'</td>'
       +'<td>'+(r.outbound_transfer_id?'<code style="font-size:10px;">'+r.outbound_transfer_id.slice(0,10)+'...</code>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td>'+(r.status==='QUEUED'?'<button class="btn btn-primary" onclick="processJob(\\''+r.id+'\\')" style="font-size:11px;padding:3px 8px;">تشغيل</button>':'—')+'</td>'
+      +'<td>'+(r.status==='QUEUED'?'<button class="btn btn-primary" data-jid="'+r.id+'" onclick="processJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">تشغيل</button>':'—')+'</td>'
       +'</tr>';}).join('');
     document.getElementById('m1Body').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }catch(e){document.getElementById('m1Body').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';}
@@ -1311,7 +1311,7 @@ async function addClient(){
     var fields=[['Client ID',r.id],['API Key',r.api_key],['HMAC Secret',r.hmac_secret||'—'],['OAuth Client ID',r.oauth_client_id||'—'],['OAuth Client Secret',r.oauth_client_secret||'—']];
     document.getElementById('clCreatedBody').innerHTML=
       '<div style="padding:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;margin-bottom:12px;color:#10b981;font-weight:700;">احفظ هذه المعلومات الان - لن تعرض مرة اخرى</div>'
-      +fields.map(function(f){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);"><span style="color:var(--muted);min-width:160px;">'+f[0]+'</span><code style="word-break:break-all;flex:1;">'+f[1]+'</code><button class="btn btn-ghost" onclick="copyText(\\''+f[1]+'\\')" style="font-size:10px;padding:2px 8px;">نسخ</button></div>';}).join('');
+      +fields.map(function(f){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);"><span style="color:var(--muted);min-width:160px;">'+f[0]+'</span><code style="word-break:break-all;flex:1;" id="fv_'+f[0].replace(/\s/g,'_')+'">'+f[1]+'</code><button class="btn btn-ghost" data-fid="fv_'+f[0].replace(/\s/g,'_')+'" onclick="copyText(document.getElementById(this.dataset.fid).textContent)" style="font-size:10px;padding:2px 8px;">نسخ</button></div>';}).join('');
     document.getElementById('clCreated').style.display='block';
     document.getElementById('clCreated').scrollIntoView({behavior:'smooth'});
     toggleAddCl();loadClients();
@@ -1338,7 +1338,7 @@ async function loadClients(){
       +'<td>'+(r.jws_required?'<span style="color:#10b981;">نعم</span>':'—')+'</td>'
       +'<td>'+((r.allowed_ips||[]).length?r.allowed_ips.join(', '):'اي IP')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" onclick="toggleClient(\\''+r.id+'\\','+(r.is_active?'false':'true')+')" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'تعطيل':'تفعيل')+'</button></td>'
+      +'<td><button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active==='true')" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'تعطيل':'تفعيل')+'</button></td>'
       +'</tr>';}).join('');
     document.getElementById('clBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }catch(e){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';}
