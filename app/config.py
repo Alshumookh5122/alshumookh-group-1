@@ -1,0 +1,304 @@
+from functools import lru_cache
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    app_name: str = Field(
+        default="ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT",
+        alias="APP_NAME",
+    )
+    app_env: str = Field(default="production", alias="APP_ENV")
+    app_debug: bool = Field(default=False, alias="APP_DEBUG")
+    app_host: str = Field(default="0.0.0.0", alias="APP_HOST")
+    app_port: int = Field(default=8000, alias="APP_PORT")
+    api_prefix: str = Field(default="/api/v1", alias="API_PREFIX")
+
+    admin_api_key: str = Field(default="change-this-admin-key", alias="ADMIN_API_KEY")
+    admin_allowed_ips: str | None = Field(default=None, alias="ADMIN_ALLOWED_IPS")
+
+    public_base_url: str = Field(
+        default="https://api.alshumookh-pay.com",
+        alias="PUBLIC_BASE_URL",
+    )
+    public_app_url: str | None = Field(default=None, alias="PUBLIC_APP_URL")
+    company_logo_url: str | None = Field(default=None, alias="COMPANY_LOGO_URL")
+    cors_allowed_origins_raw: str | None = Field(default=None, alias="CORS_ALLOWED_ORIGINS")
+    trusted_proxy_ips_raw: str | None = Field(default=None, alias="TRUSTED_PROXY_IPS")
+    health_allowed_ips_raw: str | None = Field(default=None, alias="HEALTH_ALLOWED_IPS")
+    healthcheck_token: str | None = Field(default=None, alias="HEALTHCHECK_TOKEN")
+    allowed_countries_raw: str | None = Field(default=None, alias="ALLOWED_COUNTRIES")
+    blocked_countries_raw: str | None = Field(default=None, alias="BLOCKED_COUNTRIES")
+    security_probe_threshold: int = Field(default=5, alias="SECURITY_PROBE_THRESHOLD")
+    security_probe_window_seconds: int = Field(default=600, alias="SECURITY_PROBE_WINDOW_SECONDS")
+    security_ban_seconds: int = Field(default=900, alias="SECURITY_BAN_SECONDS")
+    security_silent_probe_blocks: bool = Field(default=True, alias="SECURITY_SILENT_PROBE_BLOCKS")
+    global_rate_limit_window_seconds: int = Field(default=60, alias="GLOBAL_RATE_LIMIT_WINDOW_SECONDS")
+    global_rate_limit_max_requests: int = Field(default=240, alias="GLOBAL_RATE_LIMIT_MAX_REQUESTS")
+
+    database_url: str = Field(
+        default="sqlite+aiosqlite:///./alshumookh.db",
+        alias="DATABASE_URL",
+    )
+    sync_database_url: str = Field(
+        default="sqlite:///./alshumookh.db",
+        alias="SYNC_DATABASE_URL",
+    )
+
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    celery_broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
+    celery_result_backend: str = Field(default="redis://localhost:6379/0", alias="CELERY_RESULT_BACKEND")
+
+    coinbase_api_host: str = Field(default="api.cdp.coinbase.com", alias="COINBASE_API_HOST")
+    coinbase_api_key_id: str | None = Field(default=None, alias="COINBASE_API_KEY_ID")
+    coinbase_api_key_secret: str | None = Field(default=None, alias="COINBASE_API_KEY_SECRET")
+    coinbase_webhook_secret: str | None = Field(default=None, alias="COINBASE_WEBHOOK_SECRET")
+
+    cdp_api_key_id: str | None = Field(default=None, alias="CDP_API_KEY_ID")
+    cdp_api_key_secret: str | None = Field(default=None, alias="CDP_API_KEY_SECRET")
+    cdp_project_id: str | None = Field(default=None, alias="CDP_PROJECT_ID")
+
+    coinbase_default_payment_currency: str = Field(default="USD", alias="COINBASE_DEFAULT_PAYMENT_CURRENCY")
+    coinbase_default_purchase_currency: str = Field(default="USDC", alias="COINBASE_DEFAULT_PURCHASE_CURRENCY")
+    coinbase_default_network: str = Field(default="ethereum", alias="COINBASE_DEFAULT_NETWORK")
+    coinbase_onramp_base_url: str = Field(default="https://api.cdp.coinbase.com", alias="COINBASE_ONRAMP_BASE_URL")
+    onramp_redirect_url: str = Field(
+        default="https://api.alshumookh-pay.com/pay/success",
+        alias="ONRAMP_REDIRECT_URL",
+    )
+    moonpay_api_base_url: str = Field(default="https://api.moonpay.com", alias="MOONPAY_API_BASE_URL")
+    moonpay_api_key: str | None = Field(default=None, alias="MOONPAY_API_KEY")
+    moonpay_api_secret: str | None = Field(default=None, alias="MOONPAY_API_SECRET")
+    moonpay_deposit_id: str | None = Field(default=None, alias="MOONPAY_DEPOSIT_ID")
+    moonpay_webhook_secret: str | None = Field(default=None, alias="MOONPAY_WEBHOOK_SECRET")
+    moonpay_widget_base_url: str = Field(default="https://buy.moonpay.com", alias="MOONPAY_WIDGET_BASE_URL")
+    moonpay_create_customer_path: str = Field(default="/v1/deposit-customers/api-key", alias="MOONPAY_CREATE_CUSTOMER_PATH")
+
+    onramper_api_key: str | None = Field(default=None, alias="ONRAMPER_API_KEY")
+    onramper_widget_base_url: str = Field(default="https://buy.onramper.com", alias="ONRAMPER_WIDGET_BASE_URL")
+    onramper_default_crypto: str = Field(default="USDC", alias="ONRAMPER_DEFAULT_CRYPTO")
+    onramper_default_fiat: str = Field(default="USD", alias="ONRAMPER_DEFAULT_FIAT")
+
+    circle_api_key: str | None = Field(default=None, alias="CIRCLE_API_KEY")
+
+    ledger_base_address: str | None = Field(default=None, alias="LEDGER_BASE_ADDRESS")
+    ledger_ethereum_address: str | None = Field(default=None, alias="LEDGER_ETHEREUM_ADDRESS")
+    ledger_tron_address: str | None = Field(default=None, alias="LEDGER_TRON_ADDRESS")
+
+    treasury_wallet_address: str | None = Field(default=None, alias="TREASURY_WALLET_ADDRESS")
+    default_wallet_address: str | None = Field(default=None, alias="DEFAULT_WALLET_ADDRESS")
+
+    alchemy_api_key: str = Field(default="test", alias="ALCHEMY_API_KEY")
+    alchemy_network: str = Field(default="eth-mainnet", alias="ALCHEMY_NETWORK")
+    alchemy_webhook_signing_key: str = Field(default="test", alias="ALCHEMY_WEBHOOK_SIGNING_KEY")
+    alchemy_rpc_url: str | None = Field(default=None, alias="ALCHEMY_RPC_URL")
+    alchemy_eth_rpc_url: str | None = Field(default=None, alias="ALCHEMY_ETH_RPC_URL")
+    alchemy_base_rpc_url: str | None = Field(default=None, alias="ALCHEMY_BASE_RPC_URL")
+    # Explicit full RPC URLs for the settlement pipeline (preferred over API key)
+    alchemy_ethereum_rpc_url: str | None = Field(default=None, alias="ALCHEMY_ETHEREUM_RPC_URL")
+    ethereum_rpc_url: str | None = Field(default=None, alias="ETHEREUM_RPC_URL")
+    base_rpc_url: str | None = Field(default=None, alias="BASE_RPC_URL")
+
+    # Master wallets — the approved destination addresses for settlement funds
+    master_wallet_ethereum: str | None = Field(default=None, alias="MASTER_WALLET_ETHEREUM")
+    master_wallet_base: str | None = Field(default=None, alias="MASTER_WALLET_BASE")
+    master_wallet_tron: str | None = Field(default=None, alias="MASTER_WALLET_TRON")
+
+    # Enterprise settlement security controls.
+    # JWE private key accepts PEM text or a base64-encoded PEM value.
+    settlement_oauth_issuer: str = Field(default="alshumookh-settlement-api", alias="SETTLEMENT_OAUTH_ISSUER")
+    settlement_oauth_audience: str = Field(default="alshumookh-settlement", alias="SETTLEMENT_OAUTH_AUDIENCE")
+    settlement_oauth_token_ttl_seconds: int = Field(default=900, alias="SETTLEMENT_OAUTH_TOKEN_TTL_SECONDS")
+    settlement_jwe_private_key_pem: str | None = Field(default=None, alias="SETTLEMENT_JWE_PRIVATE_KEY_PEM")
+    settlement_jwe_private_key_passphrase: str | None = Field(default=None, alias="SETTLEMENT_JWE_PRIVATE_KEY_PASSPHRASE")
+    fnfcu_auth_token: str | None = Field(default=None, alias="FNFCU_AUTH_TOKEN")
+
+    eth_treasury_address: str | None = Field(default=None, alias="ETH_TREASURY_ADDRESS")
+    eth_treasury_private_key: str | None = Field(default=None, alias="ETH_TREASURY_PRIVATE_KEY")
+    usdt_eth_contract: str = Field(
+        default="0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        alias="USDT_ETH_CONTRACT",
+    )
+
+    tron_api_url: str = Field(default="https://api.trongrid.io", alias="TRON_API_URL")
+    tron_api_key: str = Field(default="test", alias="TRON_API_KEY")
+    tron_treasury_address: str | None = Field(default=None, alias="TRON_TREASURY_ADDRESS")
+    tron_treasury_private_key: str | None = Field(default=None, alias="TRON_TREASURY_PRIVATE_KEY")
+    usdt_tron_contract: str = Field(default="TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", alias="USDT_TRON_CONTRACT")
+
+    default_network: str = Field(default="ethereum", alias="DEFAULT_NETWORK")
+    default_token_symbol: str = Field(default="USDC", alias="DEFAULT_TOKEN_SYMBOL")
+    auto_payout_enabled: bool = Field(default=False, alias="AUTO_PAYOUT_ENABLED")
+
+    notify_from_email: str = Field(default="no-reply@alshumookhgroup.com", alias="NOTIFY_FROM_EMAIL")
+    notify_to_email: str = Field(default="info@alshumookhgroup.com", alias="NOTIFY_TO_EMAIL")
+
+    smtp_host: str | None = Field(default=None, alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str | None = Field(default=None, alias="SMTP_USER")
+    smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
+    smtp_tls: bool = Field(default=True, alias="SMTP_TLS")
+    sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
+
+    @property
+    def resolved_coinbase_api_key_id(self) -> str | None:
+        return self.coinbase_api_key_id or self.cdp_api_key_id
+
+    @property
+    def resolved_coinbase_api_key_secret(self) -> str | None:
+        return self.coinbase_api_key_secret or self.cdp_api_key_secret
+
+    def get_treasury_address(self, network: str | None = None) -> str:
+        selected_network = (network or self.default_network or "ethereum").lower()
+
+        if selected_network in {"ethereum", "eth", "erc20"}:
+            address = (
+                self.ledger_ethereum_address
+                or self.eth_treasury_address
+                or self.treasury_wallet_address
+                or self.default_wallet_address
+            )
+        elif selected_network in {"base", "base-mainnet"}:
+            address = (
+                self.ledger_base_address
+                or self.eth_treasury_address
+                or self.treasury_wallet_address
+                or self.default_wallet_address
+            )
+        elif selected_network in {"tron", "trx", "trc20"}:
+            address = (
+                self.ledger_tron_address
+                or self.tron_treasury_address
+                or self.treasury_wallet_address
+                or self.default_wallet_address
+            )
+        else:
+            address = self.treasury_wallet_address or self.default_wallet_address
+
+        if not address:
+            raise ValueError(f"Treasury wallet address is not configured for {selected_network}")
+
+        return address
+
+    def cors_allowed_origins(self) -> list[str]:
+        configured = [
+            item.strip().rstrip("/")
+            for item in str(self.cors_allowed_origins_raw or "").split(",")
+            if item.strip()
+        ]
+        derived = [
+            str(self.public_base_url or "").strip().rstrip("/"),
+            str(self.public_app_url or "").strip().rstrip("/"),
+        ]
+        combined: list[str] = []
+        for item in [*configured, *derived]:
+            if item and item not in combined:
+                combined.append(item)
+        # If no origins configured, allow all — prevents blank-list blocking all preflight requests
+        return combined or ["*"]
+
+    def trusted_proxy_ips(self) -> list[str]:
+        configured = [
+            item.strip()
+            for item in str(self.trusted_proxy_ips_raw or "").split(",")
+            if item.strip()
+        ]
+        defaults = ["127.0.0.1", "::1"]
+        combined: list[str] = []
+        for item in [*configured, *defaults]:
+            if item and item not in combined:
+                combined.append(item)
+        return combined
+
+    def health_allowed_ips(self) -> list[str]:
+        return [
+            item.strip()
+            for item in str(self.health_allowed_ips_raw or "").split(",")
+            if item.strip()
+        ]
+
+    def allowed_countries(self) -> list[str]:
+        return [
+            item.strip().upper()
+            for item in str(self.allowed_countries_raw or "").split(",")
+            if item.strip()
+        ]
+
+    def blocked_countries(self) -> list[str]:
+        return [
+            item.strip().upper()
+            for item in str(self.blocked_countries_raw or "").split(",")
+            if item.strip()
+        ]
+
+    def readiness_warnings(self) -> list[str]:
+        warnings: list[str] = []
+
+        if not self.public_base_url.startswith("https://"):
+            warnings.append("PUBLIC_BASE_URL is not using HTTPS.")
+
+        if not self.cors_allowed_origins():
+            warnings.append("CORS allowlist is empty.")
+
+        if str(self.admin_api_key or "") == "change-this-admin-key":
+            warnings.append("ADMIN_API_KEY is still using the default placeholder value.")
+
+        if self.app_debug:
+            warnings.append("APP_DEBUG is enabled.")
+
+        if not (
+            self.master_wallet_ethereum
+            or self.ledger_ethereum_address
+            or self.eth_treasury_address
+            or self.treasury_wallet_address
+            or self.default_wallet_address
+        ):
+            warnings.append("MASTER_WALLET_ETHEREUM is not configured.")
+
+        if not (
+            self.master_wallet_base
+            or self.ledger_base_address
+            or self.eth_treasury_address
+            or self.treasury_wallet_address
+            or self.default_wallet_address
+        ):
+            warnings.append("MASTER_WALLET_BASE is not configured.")
+
+        if not self.alchemy_webhook_signing_key or self.alchemy_webhook_signing_key == "test":
+            warnings.append("ALCHEMY_WEBHOOK_SIGNING_KEY is missing or still set to a test value.")
+
+        if not (
+            self.alchemy_eth_rpc_url
+            or self.alchemy_rpc_url
+            or self.ethereum_rpc_url
+        ):
+            warnings.append("Ethereum RPC is not configured for settlement verification.")
+
+        if not (
+            self.alchemy_base_rpc_url
+            or self.base_rpc_url
+        ):
+            warnings.append("Base RPC is not configured for settlement verification.")
+
+        if not self.trusted_proxy_ips():
+            warnings.append("TRUSTED_PROXY_IPS is not configured.")
+
+        if not self.health_allowed_ips() and not self.healthcheck_token:
+            warnings.append("Health endpoint isolation is not configured via HEALTH_ALLOWED_IPS or HEALTHCHECK_TOKEN.")
+
+        return warnings
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()

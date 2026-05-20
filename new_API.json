@@ -1,0 +1,91 @@
+{
+  "document_type": "PAYMENT_ORDER",
+  "reference": "GC-ALSH-2026-05-13-001",
+  "created_at": "2026-05-13T15:20:00+00:00",
+  "valid_until": "2026-06-12T23:59:59+00:00",
+  "nonce": "a3f7c9e2-8b1d-4a5e-9c6f-2d8e7a1b4c3d",
+  "payer": {
+    "legal_name": "GOLDEN CAPITAL INVESTING LTD",
+    "company_number": "14587312",
+    "registered_address": {
+      "street": "20-22 Wenlock Road",
+      "city": "London",
+      "postal_code": "N1 7GU",
+      "country": "United Kingdom"
+    },
+    "directors": [
+      {
+        "name": "JOSE LUIS FERNANDEZ OLIVA",
+        "title": "Managing Director",
+        "ownership": "50%"
+      },
+      {
+        "name": "RUBEN LOPEZ DIAZ",
+        "title": "Secretary of the Board",
+        "ownership": "50%"
+      }
+    ],
+    "bank_account": {
+      "bank_name": "Deutsche Bank AG",
+      "branch_city": "Frankfurt am Main",
+      "country": "Germany",
+      "iban": "DE62 5007 0010 0038 8132 25",
+      "swift": "DEUTDEFFXXX",
+      "account_name": "GOLDEN CAPITAL INVESTING Ltd.",
+      "signatory": "JOSE LUIS FERNANDEZ OLIVA"
+    }
+  },
+  "payee": {
+    "legal_name": "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT",
+    "endpoint": "https://api.alshumookh-pay.com",
+    "receiver_wallet": "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+    "contact_email": "k.alshumookh@alshumookh-pay.com"
+  },
+  "amount": {
+    "usd": 25000000.96,
+    "usdt": 25000000.96,
+    "exchange_rate": "1 USDT = 1.00 USD",
+    "note": "Equivalent in USDT based on 1:1 parity, final settlement in USDT or USD as agreed"
+  },
+  "purpose": "Full platform integration, security infrastructure upgrade, and settlement of technical compliance services under agreement dated 2026-05-13",
+  "terms": {
+    "due_date": "2026-06-12",
+    "late_fee": "SOFR + 3% per annum",
+    "settlement_chain": "Ethereum (ERC-20) for USDT, or wire transfer to Deutsche Bank IBAN above"
+  },
+  "cryptographic_attestation": {
+    "signature_algorithm": "Ed25519",
+    "signing_key_fingerprint": "SHA256: 7A:3F:8E:2C:91:B4:6D:F0:8C:2E:5A:7F:9B:34:12:D0:6E:8F:3A:1C:5B:9D:2E:7A:4F:8C:0A:3B:6E:9F:1D:4C",
+    "signature": "0x7a3f2b8c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7",
+    "signed_payload_hash": "SHA256: c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    "timestamp_rfc3161": "2026-05-13T15:20:17+00:00",
+    "timestamp_authority": "https://timestamp.golden-capital.com/tsa",
+    "ocsp_response": "OCSP: PRODUCED_AT=20260513152030, THIS_UPDATE=20260513152000, NEXT_UPDATE=20260514052000, CERT_STATUS=GOOD",
+    "x509_certificate_thumbprint": "SHA-256: 5C:8A:3F:2E:9B:1D:7A:4C:6E:0F:8B:2C:9D:3E:5A:7F:1C:4B:6E:9A:2D:5F:8C:1A:3E:7B:9F:2C:4D:6E:8A:0F",
+    "crl_distribution_point": "http://crl.golden-capital.com/gc-root-ca.crl",
+    "signer_cn": "CN=GOLDEN CAPITAL PAYMENT SIGNER CA, O=Golden Capital Investing Ltd, L=London, C=GB",
+    "certificate_serial": "6E:8F:3A:1C:5B:9D:2E:7A:4F:8C:0A:3B:6E:9F:1D:4C:7A:2F:9B:3E"
+  },
+  "blockchain_anchor": {
+    "chain": "Ethereum Mainnet",
+    "contract": "0xdAC17F958D2ee523a2206206994597C13D831ec7 (USDT ERC-20)",
+    "receiver_wallet": "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+    "proposed_tx_hash": "0x7a3f2b8c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a",
+    "multisig_required": 2,
+    "multisig_signers": [
+      "0x7a9f3c2b8d14e6f0a5c91b3e4d8f20a6c7b5e9d1",
+      "0x4c8e1f9a3b6d02e7f5a91c0b8d3e6f24a7b9c5d0",
+      "0xb2f8a6d3c91e04f7a5b8c0d2e6f49a1c3d7e5b90",
+      "0x91d4f8a2c7b5e0f36a9c1d8e2f40b6a3c5d7e9f1",
+      "0xe6b1c8d4a9f027c5e3b70d6a2f8c91e4d5b3a0f7"
+    ]
+  },
+  "settlement_instructions": {
+    "method": "USDT_ERC20",
+    "network": "Ethereum Mainnet",
+    "token_contract": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "receiver_wallet": "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+    "amount": "25000000.96",
+    "required_final_evidence": "actual Ethereum transaction hash after execution"
+  }
+}

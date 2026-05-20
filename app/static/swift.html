@@ -1,0 +1,2333 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SWIFT Terminal v3.1 — ALSHUMOOKH GLOBAL</title>
+  <style>
+/* ═══════════════════════════════════════════════════════════════════
+   SWIFT TERMINAL v3.0 — ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT
+   Professional Transaction Retrieval & Document Management System
+   ═══════════════════════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000000;--bg2:#07070a;--bg3:#0d0d12;--bg4:#111118;
+  --bdr:#1c1c24;--bdr2:#2a2a36;
+  --grn:#00e676;--grn2:#00c853;--grn-d:rgba(0,230,118,.07);
+  --amb:#ffb300;--amb-d:rgba(255,179,0,.08);
+  --red:#f44336;--red-d:rgba(244,67,54,.08);
+  --blu:#40c4ff;--blu-d:rgba(64,196,255,.08);
+  --pur:#ce93d8;
+  --txt:#b8f5c8;--txt2:#5a8060;--txt3:#3a5040;
+  --mono:'Courier New','Lucida Console','Consolas',monospace;
+}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:12px;line-height:1.55;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.12) 2px,rgba(0,0,0,.12) 4px);pointer-events:none;z-index:9000}
+@keyframes flicker{0%{opacity:.85}40%{opacity:1}41%{opacity:.7}42%{opacity:1}100%{opacity:1}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:.9}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes ellipsis{0%{content:'.'}33%{content:'..'}66%{content:'...'}100%{content:'.'}}
+
+.terminal{display:flex;flex-direction:column;min-height:100vh;animation:flicker .4s ease-out}
+.body-row{display:flex;flex:1;overflow:hidden}
+
+/* TOP BAR */
+.top-bar{display:flex;justify-content:space-between;align-items:center;padding:9px 16px;background:var(--bg);border-bottom:1px solid var(--grn);flex-wrap:wrap;gap:6px;flex-shrink:0}
+.tb-left{display:flex;align-items:center;gap:10px}
+.tb-blink{color:var(--grn);font-size:15px;animation:blink 1s step-end infinite}
+.tb-brand{color:var(--amb);font-size:10px;font-weight:700;letter-spacing:.07em}
+.tb-sep{color:#222;margin:0 2px}
+.tb-title{color:var(--grn);font-size:10px;letter-spacing:.12em}
+.tb-right{display:flex;align-items:center;gap:14px}
+.tb-session{color:var(--txt2);font-size:10px}
+.tb-session span{color:var(--amb);font-weight:700}
+.tb-clock{color:var(--amb);font-size:11px;font-weight:700;letter-spacing:.06em;min-width:160px;text-align:right}
+.tb-ver{color:#252530;font-size:10px}
+.btn-back{background:none;border:1px solid #2a2a36;color:var(--txt2);font-family:var(--mono);font-size:10px;padding:4px 10px;cursor:pointer;letter-spacing:.05em;transition:all .2s}
+.btn-back:hover{border-color:var(--grn);color:var(--grn)}
+
+/* CMD BAR */
+.cmd-bar{background:var(--bg2);border-bottom:1px solid var(--bdr);padding:10px 16px;flex-shrink:0}
+.cmd-row1{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cmd-label{color:var(--grn);font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:.05em}
+.cmd-wrap{position:relative;flex:1}
+.cmd-input{width:100%;background:var(--bg3);border:1px solid var(--bdr2);color:var(--grn);font-family:var(--mono);font-size:12px;padding:8px 12px;outline:none;caret-color:var(--grn);letter-spacing:.04em;transition:border-color .2s}
+.cmd-input::placeholder{color:var(--txt3)}
+.cmd-input:focus{border-color:var(--grn)}
+.cmd-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--bg3);border:1px solid var(--bdr2);border-top:none;z-index:200;display:none;max-height:200px;overflow-y:auto}
+.cmd-dropdown.open{display:block}
+.cmd-drop-item{padding:6px 12px;cursor:pointer;color:var(--txt2);font-size:11px;display:flex;justify-content:space-between;align-items:center}
+.cmd-drop-item:hover{background:var(--grn-d);color:var(--grn)}
+.cmd-drop-time{color:var(--txt3);font-size:10px}
+.cmd-drop-clear{padding:5px 12px;cursor:pointer;color:var(--red);font-size:10px;border-top:1px solid var(--bdr);text-align:right}
+.cmd-drop-clear:hover{background:var(--red-d)}
+.btn-exec{background:var(--grn);color:#000;border:none;font-family:var(--mono);font-size:11px;font-weight:900;padding:8px 16px;cursor:pointer;letter-spacing:.08em;transition:background .2s;white-space:nowrap}
+.btn-exec:hover{background:var(--grn2)}
+.btn-exec:disabled{background:#1a3020;color:#3a6040;cursor:not-allowed}
+.btn-clr{background:none;border:1px solid var(--bdr2);color:var(--txt2);font-family:var(--mono);font-size:10px;padding:8px 10px;cursor:pointer;transition:all .2s}
+.btn-clr:hover{border-color:var(--red);color:var(--red)}
+.cmd-row2{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn-hist{background:none;border:1px solid var(--bdr2);color:var(--txt2);font-family:var(--mono);font-size:10px;padding:5px 10px;cursor:pointer;transition:all .2s}
+.btn-hist:hover{border-color:var(--amb);color:var(--amb)}
+.btn-export{background:none;border:1px solid var(--bdr2);color:var(--txt2);font-family:var(--mono);font-size:10px;padding:5px 10px;cursor:pointer;transition:all .2s}
+.btn-export:hover{border-color:var(--blu);color:var(--blu)}
+.btn-import{background:rgba(255,179,0,.12);border:1px solid var(--amb);color:var(--amb);font-family:var(--mono);font-size:10px;padding:5px 12px;cursor:pointer;font-weight:700;letter-spacing:.06em;transition:all .2s}
+.btn-import:hover{background:rgba(255,179,0,.22)}
+.btn-transmit{background:rgba(64,196,255,.12);border:1px solid var(--blu);color:var(--blu);font-family:var(--mono);font-size:10px;padding:5px 14px;cursor:pointer;font-weight:700;letter-spacing:.06em;transition:all .2s}
+.btn-transmit:hover{background:rgba(64,196,255,.25);box-shadow:0 0 8px rgba(64,196,255,.3)}
+.cmd-hint{color:var(--txt3);font-size:10px;margin-left:auto}
+.cmd-hint kbd{background:var(--bg4);border:1px solid var(--bdr2);color:var(--txt2);padding:1px 4px;font-size:9px;font-family:var(--mono)}
+
+/* STATUS BAR */
+.status-bar{background:var(--bg);border-bottom:1px solid var(--bdr);padding:5px 16px;display:flex;align-items:center;flex-wrap:wrap;flex-shrink:0}
+.sb-item{display:flex;align-items:center;gap:5px;padding:0 14px;border-right:1px solid var(--bdr);font-size:10px;color:var(--txt2)}
+.sb-item:first-child{padding-left:0}
+.sb-item:last-child{border-right:none;margin-left:auto}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.dot.ok{background:var(--grn);box-shadow:0 0 6px var(--grn)}
+.dot.warn{background:var(--amb);box-shadow:0 0 6px var(--amb)}
+.dot.bad{background:var(--red);box-shadow:0 0 6px var(--red)}
+.sb-count{color:var(--grn);font-weight:700}
+.sb-lastq{color:var(--amb)}
+
+/* SIDE PANEL */
+.side-panel{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.sp-section{border-bottom:1px solid var(--bdr);padding:12px}
+.sp-head{color:var(--grn);font-size:9px;font-weight:700;letter-spacing:.12em;margin-bottom:8px;text-transform:uppercase}
+.sp-row{display:flex;justify-content:space-between;font-size:10px;color:var(--txt2);margin-bottom:4px;gap:6px}
+.sp-val{color:var(--amb);font-weight:700;text-align:right;word-break:break-all}
+.sp-hist-item{font-size:10px;color:var(--txt2);padding:4px 6px;cursor:pointer;border-radius:2px;display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;gap:4px}
+.sp-hist-item:hover{background:var(--grn-d);color:var(--grn)}
+.sp-hist-q{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.sp-hist-t{color:var(--txt3);font-size:9px;white-space:nowrap}
+.sp-empty{color:var(--txt3);font-size:10px;font-style:italic}
+.sp-kbd{display:flex;justify-content:space-between;font-size:10px;color:var(--txt2);margin-bottom:5px}
+.sp-kbd kbd{background:var(--bg4);border:1px solid var(--bdr2);color:var(--txt2);padding:1px 5px;font-size:9px;font-family:var(--mono)}
+.sp-stat{font-size:10px;color:var(--txt2);margin-bottom:3px;display:flex;justify-content:space-between}
+.sp-stat strong{color:var(--grn)}
+
+/* RESULTS PANE */
+.results-pane{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:20px}
+
+/* IDLE SCREEN */
+.idle-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;opacity:.7}
+.idle-art{color:var(--txt2);font-size:11px;line-height:1.6;white-space:pre;text-align:center}
+.idle-sub{color:var(--txt3);font-size:10px;margin-top:16px;text-align:center;letter-spacing:.06em}
+.idle-cursor{color:var(--grn);animation:pulse 1.2s ease-in-out infinite;display:inline-block;margin-top:8px;font-size:18px}
+
+/* LOADING */
+.loading-screen{display:flex;align-items:center;justify-content:center;min-height:300px;gap:12px;color:var(--grn)}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid var(--txt3);border-top-color:var(--grn);border-radius:50%;animation:spin .8s linear infinite}
+.loading-txt{font-size:12px;letter-spacing:.08em}
+.loading-txt::after{content:'.';animation:ellipsis 1.2s step-end infinite}
+
+/* RESULT CARD */
+.swt-card{background:var(--bg2);border:1px solid var(--bdr2);overflow:hidden}
+.card-header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--bdr2);flex-wrap:wrap}
+.card-msgtype{font-size:10px;color:var(--amb);font-weight:700;letter-spacing:.08em;border:1px solid var(--amb);padding:2px 7px}
+.card-ref{flex:1;color:var(--grn);font-size:12px;font-weight:700;letter-spacing:.04em;word-break:break-all}
+.card-status{font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 9px;border:1px solid}
+.card-status.s-ok{color:var(--grn);border-color:var(--grn);background:var(--grn-d)}
+.card-status.s-bad{color:var(--red);border-color:var(--red);background:var(--red-d)}
+.card-status.s-warn{color:var(--amb);border-color:var(--amb);background:var(--amb-d)}
+.card-status.s-info{color:var(--blu);border-color:var(--blu);background:var(--blu-d)}
+.card-idx{color:var(--txt3);font-size:10px;padding:2px 6px;border:1px solid var(--bdr);margin-left:auto}
+
+.card-body{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--bdr)}
+@media(max-width:900px){.card-body{grid-template-columns:1fr}}
+
+/* MT column */
+.mt-col{padding:14px;border-right:1px solid var(--bdr);overflow:hidden}
+.mt-col-head{color:var(--txt3);font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--bdr)}
+.mt-block{margin-bottom:12px}
+.mt-code{color:var(--amb);font-size:10px;font-weight:700;letter-spacing:.05em}
+.mt-label{color:var(--txt3);font-size:9px;margin-bottom:2px}
+.mt-value{color:var(--grn);font-size:11px;word-break:break-all;line-height:1.5;white-space:pre-wrap}
+.mt-value.empty{color:var(--txt3);font-style:italic;font-size:10px}
+
+/* Detail column */
+.detail-col{padding:14px;overflow:hidden}
+.detail-col-head{color:var(--txt3);font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--bdr)}
+.detail-table{width:100%;border-collapse:collapse}
+.detail-table tr:not(:last-child) td{border-bottom:1px solid var(--bdr)}
+.detail-table .fkey{color:var(--txt2);font-size:9px;letter-spacing:.05em;padding:5px 8px 5px 0;vertical-align:top;white-space:nowrap;width:42%;text-transform:uppercase}
+.detail-table .fval{color:var(--grn);font-size:11px;padding:5px 0;word-break:break-all;vertical-align:top}
+.detail-table .fval.empty{color:var(--txt3);font-style:italic;font-size:10px}
+.detail-table .fval.hi{color:var(--amb);font-weight:700}
+.detail-table .fval.monetary{color:#69f0ae;font-weight:700}
+.detail-table .fval.blockchain{color:var(--blu)}
+.detail-table .fval.identity{color:var(--pur)}
+.detail-table .fval.timing{color:var(--txt2)}
+.detail-table tr.dim .fkey,.detail-table tr.dim .fval{opacity:.3}
+.flink{color:var(--blu);text-decoration:none}
+.flink:hover{text-decoration:underline}
+
+/* Copy button */
+.copy-btn{background:none;border:1px solid var(--bdr);color:var(--txt3);font-family:var(--mono);font-size:9px;padding:1px 5px;cursor:pointer;margin-left:4px;transition:all .15s;vertical-align:middle}
+.copy-btn:hover{border-color:var(--grn);color:var(--grn)}
+.copy-btn.copied{border-color:var(--grn);color:var(--grn);background:var(--grn-d)}
+
+/* Explorer link */
+.explorer-link{display:inline-flex;align-items:center;gap:4px;color:var(--blu);font-size:10px;text-decoration:none;border:1px solid var(--blu-d);padding:3px 9px;margin-top:8px;transition:all .2s}
+.explorer-link:hover{background:var(--blu-d);border-color:var(--blu)}
+
+/* TIMELINE */
+.timeline-section{padding:12px 14px;border-bottom:1px solid var(--bdr);background:var(--bg)}
+.section-head{color:var(--txt3);font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px}
+.timeline{display:flex;align-items:center;overflow-x:auto;padding-bottom:4px}
+.tl-step{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:90px}
+.tl-dot{width:13px;height:13px;border-radius:50%;border:2px solid var(--bdr2);background:var(--bg);position:relative;z-index:1}
+.tl-dot.done{border-color:var(--grn);background:var(--grn);box-shadow:0 0 8px var(--grn)}
+.tl-dot.current{border-color:var(--amb);background:var(--amb);box-shadow:0 0 8px var(--amb);animation:pulse 1.2s ease-in-out infinite}
+.tl-dot.failed{border-color:var(--red);background:var(--red);box-shadow:0 0 8px var(--red)}
+.tl-line{flex:1;height:2px;background:var(--bdr2);margin-top:-7px;position:relative;z-index:0}
+.tl-line.done{background:var(--grn)}
+.tl-label{font-size:9px;color:var(--txt2);text-align:center;white-space:nowrap;letter-spacing:.04em}
+.tl-label.done{color:var(--grn)}
+.tl-label.current{color:var(--amb)}
+.tl-label.failed{color:var(--red)}
+.tl-ts{font-size:8px;color:var(--txt3);text-align:center}
+
+/* STATUS CHANGE */
+.status-change-section{padding:12px 14px;border-bottom:1px solid var(--bdr);background:var(--bg)}
+.sc-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.btn-sc{background:none;border:1px solid;font-family:var(--mono);font-size:10px;font-weight:700;padding:5px 12px;cursor:pointer;letter-spacing:.06em;transition:all .2s}
+.btn-sc.approve{border-color:var(--grn);color:var(--grn)}
+.btn-sc.approve:hover{background:var(--grn-d)}
+.btn-sc.reject{border-color:var(--red);color:var(--red)}
+.btn-sc.reject:hover{background:var(--red-d)}
+.btn-sc.review{border-color:var(--amb);color:var(--amb)}
+.btn-sc.review:hover{background:var(--amb-d)}
+.btn-sc.processing{border-color:var(--blu);color:var(--blu)}
+.btn-sc.processing:hover{background:var(--blu-d)}
+.sc-confirm{margin-top:8px;background:var(--bg3);border:1px solid var(--bdr2);padding:8px 12px;display:none;align-items:center;gap:10px;flex-wrap:wrap}
+.sc-confirm.open{display:flex}
+.sc-confirm-msg{font-size:10px;color:var(--amb);flex:1}
+.btn-confirm-yes{background:var(--grn);border:none;color:#000;font-family:var(--mono);font-size:10px;font-weight:900;padding:4px 12px;cursor:pointer}
+.btn-confirm-no{background:none;border:1px solid var(--bdr2);color:var(--txt2);font-family:var(--mono);font-size:10px;padding:4px 10px;cursor:pointer}
+.btn-confirm-no:hover{border-color:var(--red);color:var(--red)}
+
+/* NOTES */
+.notes-section{padding:12px 14px;border-bottom:1px solid var(--bdr)}
+.section-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.btn-add-note{background:none;border:1px solid var(--bdr2);color:var(--pur);font-family:var(--mono);font-size:9px;padding:3px 8px;cursor:pointer;transition:all .2s}
+.btn-add-note:hover{border-color:var(--pur);background:rgba(206,147,216,.08)}
+.note-item{background:var(--bg3);border-left:2px solid var(--pur);padding:8px 10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.note-text{font-size:11px;color:var(--txt);flex:1;word-break:break-word;white-space:pre-wrap}
+.note-meta{font-size:9px;color:var(--txt3);white-space:nowrap;text-align:right}
+.note-del{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:11px;padding:0 4px;transition:color .2s}
+.note-del:hover{color:var(--red)}
+.note-form{display:none;margin-top:8px}
+.note-form.open{display:block}
+.note-input{width:100%;background:var(--bg3);border:1px solid var(--bdr2);color:var(--txt);font-family:var(--mono);font-size:11px;padding:7px 10px;resize:vertical;min-height:60px;outline:none}
+.note-input:focus{border-color:var(--pur)}
+.note-form-btns{display:flex;gap:6px;margin-top:6px}
+.btn-save-note{background:var(--pur);border:none;color:#000;font-family:var(--mono);font-size:10px;font-weight:900;padding:5px 12px;cursor:pointer}
+.btn-cancel-note{background:none;border:1px solid var(--bdr2);color:var(--txt2);font-family:var(--mono);font-size:10px;padding:5px 10px;cursor:pointer}
+.no-notes{color:var(--txt3);font-size:10px;font-style:italic}
+
+/* DOCUMENTS */
+.docs-section{padding:12px 14px}
+.btn-attach{background:none;border:1px solid var(--grn);color:var(--grn);font-family:var(--mono);font-size:9px;padding:3px 10px;cursor:pointer;letter-spacing:.05em;transition:all .2s}
+.btn-attach:hover{background:var(--grn-d)}
+.file-table{width:100%;border-collapse:collapse}
+.file-table th{color:var(--txt3);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-bottom:1px solid var(--bdr);text-align:left;font-weight:400}
+.file-table td{font-size:10px;color:var(--txt2);padding:6px 8px;border-bottom:1px solid var(--bdr);vertical-align:middle}
+.file-table tbody tr:hover{background:var(--grn-d)}
+.file-table .file-name{color:var(--txt);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-table .file-icon{font-size:14px;width:28px;text-align:center}
+.no-files{color:var(--txt3);font-style:italic;text-align:center;padding:14px}
+.btn-dl{background:none;border:1px solid var(--blu);color:var(--blu);font-family:var(--mono);font-size:9px;padding:2px 7px;cursor:pointer;transition:all .2s;margin-right:3px}
+.btn-dl:hover{background:var(--blu-d)}
+.btn-del{background:none;border:1px solid var(--red);color:var(--red);font-family:var(--mono);font-size:9px;padding:2px 6px;cursor:pointer;transition:all .2s}
+.btn-del:hover{background:var(--red-d)}
+
+/* IMPORT MODAL RESULTS */
+.import-modal .modal-box{width:min(680px,95vw)}
+.import-drop{border:1px dashed var(--amb);padding:28px;text-align:center;cursor:pointer;transition:all .25s;color:var(--txt2);font-size:11px}
+.import-drop:hover,.import-drop.drag{border-color:var(--amb);background:var(--amb-d);color:var(--amb)}
+.import-drop-icon{font-size:32px;margin-bottom:8px;color:var(--amb)}
+.import-drop-hint{font-size:9px;color:var(--txt3);margin-top:6px;letter-spacing:.06em}
+.verify-panel{display:none;margin-top:14px}
+.verify-panel.show{display:block}
+.verify-header{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--bdr2);background:var(--bg3);margin-bottom:10px}
+.verify-icon{font-size:20px}
+.verify-filename{color:var(--txt);font-size:11px;font-weight:700;flex:1}
+.verify-size{color:var(--txt3);font-size:10px}
+.verify-badge{font-size:10px;font-weight:700;padding:3px 9px;border:1px solid;letter-spacing:.06em}
+.verify-badge.ok{color:var(--grn);border-color:var(--grn);background:var(--grn-d)}
+.verify-badge.warn{color:var(--amb);border-color:var(--amb);background:var(--amb-d)}
+.verify-badge.fail{color:var(--red);border-color:var(--red);background:var(--red-d)}
+.verify-summary{font-size:11px;color:var(--txt2);padding:8px 12px;background:var(--bg3);border:1px solid var(--bdr);margin-bottom:10px}
+.verify-section-title{color:var(--txt3);font-size:9px;letter-spacing:.1em;text-transform:uppercase;margin:10px 0 6px}
+.verify-list{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto}
+.verify-item{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg3);font-size:10px}
+.verify-item.found{border-left:2px solid var(--grn)}
+.verify-item.notfound{border-left:2px solid var(--red)}
+.verify-item.stored{border-left:2px solid var(--amb)}
+.verify-item-ref{flex:1;color:var(--txt);word-break:break-all}
+.verify-item-type{color:var(--txt3);font-size:9px;white-space:nowrap}
+.verify-item-st{font-size:9px;font-weight:700;white-space:nowrap}
+.found .verify-item-st{color:var(--grn)}
+.notfound .verify-item-st{color:var(--red)}
+.stored .verify-item-st{color:var(--amb)}
+.btn-search-ref{background:none;border:1px solid var(--grn);color:var(--grn);font-family:var(--mono);font-size:9px;padding:2px 7px;cursor:pointer;transition:all .2s;white-space:nowrap}
+.btn-search-ref:hover{background:var(--grn-d)}
+.verify-json-preview{background:var(--bg3);border:1px solid var(--bdr);padding:8px;font-size:9px;color:var(--txt2);max-height:80px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin-top:8px}
+
+/* TRANSMIT MODAL */
+.tx-modal .modal-box{width:min(720px,97vw);border-color:var(--blu)}
+.tx-modal .modal-title{color:var(--blu)}
+.tx-section-title{color:var(--blu);font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:7px 0 5px;border-bottom:1px solid var(--bdr);margin-bottom:10px}
+.tx-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.tx-grid2{grid-template-columns:1fr}}
+.tx-select{width:100%;background:var(--bg3);border:1px solid var(--bdr2);color:var(--txt);font-family:var(--mono);font-size:11px;padding:7px 10px;outline:none;appearance:none;cursor:pointer}
+.tx-select:focus{border-color:var(--blu)}
+.tx-payload-box{width:100%;background:#020408;border:1px solid var(--bdr2);color:var(--blu);font-family:var(--mono);font-size:10px;padding:8px;resize:vertical;min-height:120px;outline:none;line-height:1.6}
+.tx-payload-box:focus{border-color:var(--blu)}
+.tx-resp-panel{display:none;margin-top:14px;border:1px solid var(--bdr2);background:#020408}
+.tx-resp-panel.show{display:block}
+.tx-resp-head{display:flex;align-items:center;gap:10px;padding:7px 12px;background:var(--bg3);border-bottom:1px solid var(--bdr2);font-size:10px}
+.tx-resp-code{font-weight:700;font-size:12px;padding:2px 8px;border:1px solid}
+.tx-resp-code.ok{color:var(--grn);border-color:var(--grn);background:var(--grn-d)}
+.tx-resp-code.bad{color:var(--red);border-color:var(--red);background:var(--red-d)}
+.tx-resp-code.warn{color:var(--amb);border-color:var(--amb);background:var(--amb-d)}
+.tx-resp-dur{color:var(--txt3);font-size:10px;margin-left:auto}
+.tx-resp-body{padding:10px 12px;font-size:10px;color:var(--txt2);white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;line-height:1.6}
+.tx-saved-ep{background:var(--bg3);border:1px solid var(--bdr);padding:6px 10px;margin-bottom:6px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;font-size:10px}
+.tx-saved-ep:hover{background:var(--blu-d)}
+.tx-ep-name{color:var(--blu);font-weight:700;flex:1}
+.tx-ep-url{color:var(--txt3);font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
+.tx-ep-del{background:none;border:none;color:var(--txt3);cursor:pointer;padding:0 4px;font-size:11px}
+.tx-ep-del:hover{color:var(--red)}
+.tx-save-ep-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.tx-save-ep-row input{flex:1}
+.btn-save-ep{background:none;border:1px solid var(--bdr2);color:var(--txt2);font-family:var(--mono);font-size:10px;padding:5px 10px;cursor:pointer;transition:all .2s;white-space:nowrap}
+.btn-save-ep:hover{border-color:var(--blu);color:var(--blu)}
+.btn-tx-send{background:var(--blu);border:none;color:#000;font-family:var(--mono);font-size:11px;font-weight:900;padding:8px 20px;cursor:pointer;letter-spacing:.08em;transition:background .2s}
+.btn-tx-send:hover{background:#29b6f6}
+.btn-tx-send:disabled{background:#0d2a36;color:#1a5060;cursor:not-allowed}
+.tx-field-hint{font-size:9px;color:var(--txt3);margin-top:3px}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:5000;display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--bg2);border:1px solid var(--grn);width:min(560px,95vw);max-height:90vh;overflow-y:auto}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--bdr2)}
+.modal-title{color:var(--grn);font-size:11px;font-weight:700;letter-spacing:.06em}
+.modal-close{background:none;border:1px solid var(--bdr2);color:var(--txt2);font-family:var(--mono);font-size:10px;padding:3px 8px;cursor:pointer}
+.modal-close:hover{border-color:var(--red);color:var(--red)}
+.modal-body{padding:14px}
+.field-row{margin-bottom:12px}
+.field-label{color:var(--txt2);font-size:9px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.field-input{width:100%;background:var(--bg3);border:1px solid var(--bdr2);color:var(--txt);font-family:var(--mono);font-size:11px;padding:7px 10px;outline:none}
+.field-input:focus{border-color:var(--grn)}
+.drop-zone{border:1px dashed var(--bdr2);padding:24px;text-align:center;cursor:pointer;transition:all .25s;color:var(--txt2);font-size:11px}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--grn);background:var(--grn-d);color:var(--grn)}
+.drop-icon{font-size:28px;margin-bottom:8px}
+.drop-hint{font-size:9px;color:var(--txt3);margin-top:6px;letter-spacing:.04em}
+.progress-bar{height:4px;background:var(--bdr);margin-top:12px;overflow:hidden}
+.progress-fill{height:100%;background:var(--grn);width:0;transition:width .3s}
+.upload-msg{font-size:10px;margin-top:6px;color:var(--txt2)}
+
+/* TOAST */
+#toast{position:fixed;bottom:20px;right:20px;background:var(--bg3);border:1px solid var(--grn);color:var(--grn);font-family:var(--mono);font-size:11px;padding:8px 16px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;max-width:320px}
+#toast.show{opacity:1}
+#toast.error{border-color:var(--red);color:var(--red)}
+#toast.warn{border-color:var(--amb);color:var(--amb)}
+
+/* MISC */
+.error-screen{background:var(--red-d);border:1px solid var(--red);padding:16px;color:var(--red);font-size:11px}
+.error-code{font-size:14px;font-weight:700;margin-bottom:6px}
+.no-results{text-align:center;color:var(--txt2);padding:40px;font-size:11px;letter-spacing:.06em}
+
+/* PRINT */
+@media print{
+  body::before,.top-bar,.cmd-bar,.status-bar,.side-panel,.btn-attach,.btn-sc,
+  .btn-add-note,.btn-dl,.btn-del,.copy-btn,.btn-back,.status-change-section,
+  .note-form,.explorer-link,.modal-overlay,#toast{display:none !important}
+  body{background:#fff;color:#000;font-size:11px}
+  .card-body{grid-template-columns:1fr}
+  .results-pane{padding:0}
+  .swt-card{break-inside:avoid;border:1px solid #ccc;margin-bottom:16px}
+  .print-header{display:block !important;text-align:center;margin-bottom:20px;border-bottom:2px solid #000;padding-bottom:12px}
+  .mt-value,.fval,.note-text,.tb-brand{color:#000}
+  .fkey,.mt-code,.mt-label{color:#333}
+  .card-status{border:1px solid #333;color:#000;background:#eee}
+  .card-ref,.card-msgtype{color:#000}
+}
+.print-header{display:none;font-family:var(--mono)}
+.print-header h2{font-size:16px;margin-bottom:4px}
+.print-header p{font-size:11px;color:#555}
+  </style>
+</head>
+<body>
+<div class="terminal">
+
+  <!-- Print-only header -->
+  <div class="print-header">
+    <h2>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</h2>
+    <p>SWIFT Financial Messaging Terminal v3.0 — Transaction Report</p>
+    <p id="print-meta"></p>
+  </div>
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="tb-left">
+      <span class="tb-blink">&#9608;</span>
+      <span class="tb-brand">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</span>
+      <span class="tb-sep">|</span>
+      <span class="tb-title">SWIFT FINANCIAL MESSAGING TERMINAL v3.1</span>
+    </div>
+    <div class="tb-right">
+      <span class="tb-session">SESSION: <span id="sessionId">—</span></span>
+      <span class="tb-ver">SWIFTNet MT/MX</span>
+      <span class="tb-clock" id="utcClock">—</span>
+      <button class="btn-back" onclick="window.location.href='/dashboard'">&#8592; BACK TO DASHBOARD</button>
+    </div>
+  </div>
+
+  <!-- CMD BAR -->
+  <div class="cmd-bar">
+    <div class="cmd-row1">
+      <div class="cmd-label">TRN QUERY &#9658;</div>
+      <div class="cmd-wrap">
+        <input id="qInput" class="cmd-input" type="text"
+               placeholder="Transaction UUID / Reference / TX Hash / Email / Wallet / Provider Order ID…"
+               autocomplete="off" spellcheck="false" />
+        <div class="cmd-dropdown" id="histDropdown"></div>
+      </div>
+      <button class="btn-exec" id="execBtn" onclick="doSearch()">EXECUTE QUERY</button>
+      <button class="btn-clr" onclick="doClear()">CLR</button>
+    </div>
+    <div class="cmd-row2">
+      <button class="btn-hist" id="histBtn" onclick="toggleHistory()">&#9660; RECENT (<span id="histCount">0</span>)</button>
+      <button class="btn-export" onclick="exportJSON()">&#8595; EXPORT JSON</button>
+      <button class="btn-export" onclick="exportPDF()">&#128424; EXPORT PDF</button>
+      <button class="btn-import" onclick="openImportModal()">&#8679; IMPORT FILE</button>
+      <button class="btn-transmit" onclick="openTransmitModal(null,null,null)">&#8658; TRANSMIT</button>
+      <div class="cmd-hint">
+        <kbd>ENTER</kbd> execute &nbsp;
+        <kbd>ESC</kbd> clear &nbsp;
+        <kbd>Ctrl+E</kbd> JSON &nbsp;
+        <kbd>Ctrl+L</kbd> focus &nbsp;
+        <kbd>↑</kbd> history
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    <div class="sb-item"><span class="dot ok"></span> CONNECTED</div>
+    <div class="sb-item"><span class="dot ok"></span> DB ONLINE</div>
+    <div class="sb-item"><span class="dot ok"></span> AES-256 ENC</div>
+    <div class="sb-item">RESULTS: <span class="sb-count" id="sbCount">—</span></div>
+    <div class="sb-item">LAST QUERY: <span class="sb-lastq" id="sbLastQ">—</span></div>
+    <div class="sb-item">OPERATOR: <span style="color:var(--grn)">ADMIN</span></div>
+  </div>
+
+  <!-- BODY ROW -->
+  <div class="body-row">
+
+    <!-- SIDE PANEL -->
+    <div class="side-panel">
+      <div class="sp-section">
+        <div class="sp-head">SESSION INFO</div>
+        <div class="sp-row"><span>Session ID</span><span class="sp-val" id="spSession">—</span></div>
+        <div class="sp-row"><span>Login time</span><span class="sp-val" id="spLogin">—</span></div>
+        <div class="sp-row"><span>Auth mode</span><span class="sp-val">API KEY + COOKIE</span></div>
+        <div class="sp-row"><span>Transport</span><span class="sp-val">TLS 1.3</span></div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-head">QUERY HISTORY</div>
+        <div id="sideHistory"><div class="sp-empty">No queries yet</div></div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-head">SESSION STATS</div>
+        <div class="sp-stat"><span>Queries run</span><strong id="spQCount">0</strong></div>
+        <div class="sp-stat"><span>Records found</span><strong id="spResTotal">0</strong></div>
+        <div class="sp-stat"><span>Files uploaded</span><strong id="spFilesUploaded">0</strong></div>
+        <div class="sp-stat"><span>Notes added</span><strong id="spNotesAdded">0</strong></div>
+        <div class="sp-stat"><span>Status changes</span><strong id="spStatusChanges">0</strong></div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-head">KEYBOARD SHORTCUTS</div>
+        <div class="sp-kbd"><span>Execute query</span><kbd>Enter</kbd></div>
+        <div class="sp-kbd"><span>Clear screen</span><kbd>Esc</kbd></div>
+        <div class="sp-kbd"><span>Focus input</span><kbd>Ctrl+L</kbd></div>
+        <div class="sp-kbd"><span>Export JSON</span><kbd>Ctrl+E</kbd></div>
+        <div class="sp-kbd"><span>Print / PDF</span><kbd>Ctrl+P</kbd></div>
+        <div class="sp-kbd"><span>Query history</span><kbd>↑ / ↓</kbd></div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-head">MESSAGE TYPE LEGEND</div>
+        <div class="sp-stat"><span>MT103</span><strong style="color:var(--blu)">PAYMENT ORDER</strong></div>
+        <div class="sp-stat"><span>MT202</span><strong style="color:var(--pur)">SETTLEMENT PAYLOAD</strong></div>
+        <div style="height:8px"></div>
+        <div class="sp-stat"><span style="color:var(--grn)">&#9646;</span><span>Monetary fields</span></div>
+        <div class="sp-stat"><span style="color:var(--blu)">&#9646;</span><span>Blockchain fields</span></div>
+        <div class="sp-stat"><span style="color:var(--pur)">&#9646;</span><span>Identity fields</span></div>
+        <div class="sp-stat"><span style="color:var(--amb)">&#9646;</span><span>Reference / key</span></div>
+      </div>
+    </div>
+
+    <!-- RESULTS PANE -->
+    <div class="results-pane" id="resultsPane">
+      <div class="idle-screen" id="idleScreen">
+        <pre class="idle-art">
+&#9556;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9559;
+&#9553;   ALSHUMOOKH GLOBAL &#8212; SWIFT FINANCIAL MESSAGING TERMINAL v3.1      &#9553;
+&#9553;   Secure Transaction Retrieval, Management &amp; Document System          &#9553;
+&#9560;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9563;
+
+  SUPPORTED SEARCH IDENTIFIERS:
+  &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+  &#8227; Transaction UUID / Internal Record ID
+  &#8227; Payment Reference Number
+  &#8227; Transaction Hash — TX Hash (on-chain)
+  &#8227; External Reference ID / Provider Order ID
+  &#8227; Payer Email Address
+  &#8227; Sender / Receiver Wallet Address
+  &#8227; Idempotency Key / Request ID
+
+  TERMINAL CAPABILITIES:
+  &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+  &#8227; MT103 / MT202 Formatted Message Display (Authentic SWIFT Field Codes)
+  &#8227; One-Click Copy to Clipboard on All Critical Fields
+  &#8227; Transaction Status Update: APPROVE / REJECT / FLAG FOR REVIEW
+  &#8227; Internal Admin Notes — Stored Persistently in Database
+  &#8227; Document Attachment Upload / Download / Delete (max 20 MB)
+  &#8227; Blockchain Explorer Direct Links (Etherscan / TronScan / BscScan)
+  &#8227; Transaction Lifecycle Timeline Visualization
+  &#8227; Color-Coded Field Categories (Monetary / Blockchain / Identity)
+  &#8227; Export Full Report to JSON or Print / PDF
+  &#8227; Query History with Up-Arrow Navigation
+
+  SECURITY NOTICE: All sessions are logged and monitored.
+        </pre>
+        <div class="idle-sub">SYSTEM READY — ENTER QUERY ABOVE AND PRESS EXECUTE</div>
+        <div class="idle-cursor">&#9612;</div>
+      </div>
+    </div>
+
+  </div><!-- /body-row -->
+</div><!-- /terminal -->
+
+<!-- UPLOAD MODAL -->
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title">DOCUMENT UPLOAD &#8212; <span id="uploadRefLabel">&#8212;</span></span>
+      <button class="modal-close" onclick="closeUploadModal()">&#10005; CLOSE</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field-label">DESCRIPTION (OPTIONAL)</div>
+        <input id="uploadDesc" class="field-input" type="text"
+               placeholder="e.g. SWIFT MT103 confirmation, Bank receipt, KYC document…" />
+      </div>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="drop-icon">&#8679;</div>
+        <div>DROP FILE HERE OR CLICK TO BROWSE</div>
+        <div class="drop-hint">PDF &#183; JPEG &#183; PNG &#183; XLSX &#183; DOCX &#183; CSV &#183; TXT &#8212; max 20 MB</div>
+      </div>
+      <input id="fileInput" type="file" style="display:none"
+             accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.docx,.doc,.csv,.txt" />
+      <div id="uploadProgress" style="display:none">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div id="uploadMsg" class="upload-msg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- IMPORT & VERIFY MODAL -->
+<div class="modal-overlay import-modal" id="importModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title">&#8679; IMPORT &amp; VERIFY FILE &#8212; JSON / PDF</span>
+      <button class="modal-close" onclick="closeImportModal()">&#10005; CLOSE</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:10px;color:var(--txt3);margin-bottom:10px;line-height:1.6">
+        &#9672; JSON: يتم تحليل الملف تلقائياً والتحقق من وجود المعاملات في قاعدة البيانات<br>
+        &#9672; PDF: يتم حفظ الملف في النظام وربطه بسجلات SWIFT
+      </div>
+      <div class="import-drop" id="importDropZone" onclick="document.getElementById('importFileInput').click()">
+        <div class="import-drop-icon">&#128196;</div>
+        <div style="font-weight:700;letter-spacing:.06em">DROP JSON OR PDF HERE — OR CLICK TO BROWSE</div>
+        <div class="import-drop-hint">JSON &#183; PDF &#8212; max 20 MB &#183; Automatic verification upon upload</div>
+      </div>
+      <input id="importFileInput" type="file" style="display:none" accept=".json,.pdf,application/json,application/pdf" />
+
+      <!-- Verification results panel -->
+      <div class="verify-panel" id="verifyPanel">
+        <div class="verify-header">
+          <span class="verify-icon" id="verifyIcon">&#128196;</span>
+          <span class="verify-filename" id="verifyFilename">—</span>
+          <span class="verify-size" id="verifySize">—</span>
+          <span class="verify-badge" id="verifyBadge">—</span>
+        </div>
+        <div class="verify-summary" id="verifySummary">—</div>
+
+        <!-- Found records -->
+        <div id="verifyFoundSection" style="display:none">
+          <div class="verify-section-title">&#10003; RECORDS MATCHED IN DATABASE (<span id="verifyFoundCount">0</span>)</div>
+          <div class="verify-list" id="verifyFoundList"></div>
+        </div>
+
+        <!-- Not found -->
+        <div id="verifyNotFoundSection" style="display:none">
+          <div class="verify-section-title">&#10005; REFERENCES NOT FOUND (<span id="verifyNotFoundCount">0</span>)</div>
+          <div class="verify-list" id="verifyNotFoundList"></div>
+        </div>
+
+        <!-- PDF stored -->
+        <div id="verifyStoredSection" style="display:none">
+          <div class="verify-section-title">&#128196; FILE STORED IN SYSTEM</div>
+          <div class="verify-list" id="verifyStoredList"></div>
+        </div>
+
+        <!-- JSON preview -->
+        <div id="verifyPreviewSection" style="display:none">
+          <div class="verify-section-title">RAW CONTENT PREVIEW</div>
+          <div class="verify-json-preview" id="verifyPreview"></div>
+        </div>
+      </div>
+
+      <!-- Loading state -->
+      <div id="importLoading" style="display:none;text-align:center;padding:20px;color:var(--grn)">
+        <span class="spin"></span>
+        <span style="margin-left:10px;font-size:11px;letter-spacing:.08em">PROCESSING &amp; VERIFYING</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+var API_BASE        = '/api/v1';
+var LS_KEY_HIST     = 'swt_query_history_v2';
+var LS_KEY_AKEY     = 'adminApiKey';
+var MAX_HIST        = 20;
+var SESSION_ID      = 'SESS-' + Math.random().toString(36).slice(2,7).toUpperCase();
+
+var _results      = [];
+var _uploadRec    = '';
+var _uploadRef    = '';
+var _histIdx      = -1;
+var _lastQuery    = '';
+var _stats        = { q:0, res:0, files:0, notes:0, status:0 };
+
+function authHdr() {
+  var k = localStorage.getItem(LS_KEY_AKEY) || '';
+  return { 'X-Admin-API-Key': k };
+}
+
+// ── Session init
+(function() {
+  document.getElementById('sessionId').textContent = SESSION_ID;
+  document.getElementById('spSession').textContent = SESSION_ID;
+  var now = new Date();
+  document.getElementById('spLogin').textContent   =
+    now.getUTCHours().toString().padStart(2,'0') + ':' +
+    now.getUTCMinutes().toString().padStart(2,'0') + ' UTC';
+})();
+
+// ── UTC Clock
+(function() {
+  function p(n){ return String(n).padStart(2,'0'); }
+  function tick() {
+    var d = new Date();
+    var s = d.getUTCFullYear() + '-' + p(d.getUTCMonth()+1) + '-' + p(d.getUTCDate()) + '  ' +
+            p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds()) + ' UTC';
+    var el = document.getElementById('utcClock');
+    if (el) el.textContent = s;
+  }
+  tick(); setInterval(tick, 1000);
+})();
+
+// ── History helpers
+function getHist() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY_HIST) || '[]'); } catch(e) { return []; }
+}
+function pushHist(q) {
+  var h = getHist().filter(function(x){ return x.q !== q; });
+  h.unshift({ q: q, t: new Date().toISOString() });
+  if (h.length > MAX_HIST) h = h.slice(0, MAX_HIST);
+  localStorage.setItem(LS_KEY_HIST, JSON.stringify(h));
+  renderSideHist();
+  document.getElementById('histCount').textContent = h.length;
+}
+function renderSideHist() {
+  var h    = getHist();
+  var cont = document.getElementById('sideHistory');
+  document.getElementById('histCount').textContent = h.length;
+  if (!h.length) { cont.innerHTML = '<div class="sp-empty">No queries yet</div>'; return; }
+  cont.innerHTML = h.slice(0,8).map(function(x) {
+    var t = new Date(x.t);
+    var ts = p2(t.getHours()) + ':' + p2(t.getMinutes());
+    return '<div class="sp-hist-item" onclick="fillSearch(' + JSON.stringify(x.q) + ')">' +
+      '<span class="sp-hist-q">' + esc(x.q) + '</span>' +
+      '<span class="sp-hist-t">' + ts + '</span></div>';
+  }).join('');
+}
+function p2(n){ return String(n).padStart(2,'0'); }
+function fillSearch(q) {
+  document.getElementById('qInput').value = q;
+  closeHistDd();
+  doSearch();
+}
+function toggleHistory() {
+  var dd = document.getElementById('histDropdown');
+  var h  = getHist();
+  if (dd.classList.contains('open')) { closeHistDd(); return; }
+  if (!h.length) { showToast('No query history yet', 'warn'); return; }
+  dd.innerHTML = h.map(function(x) {
+    var t = new Date(x.t).toLocaleTimeString();
+    return '<div class="cmd-drop-item" onclick="fillSearch(' + JSON.stringify(x.q) + ')">' +
+      '<span>' + esc(x.q) + '</span><span class="cmd-drop-time">' + t + '</span></div>';
+  }).join('') + '<div class="cmd-drop-clear" onclick="clearHist()">&#10005; CLEAR ALL HISTORY</div>';
+  dd.classList.add('open');
+}
+function closeHistDd() { document.getElementById('histDropdown').classList.remove('open'); }
+function clearHist() {
+  localStorage.removeItem(LS_KEY_HIST);
+  closeHistDd();
+  renderSideHist();
+  showToast('Query history cleared');
+}
+
+// ── Keyboard
+document.getElementById('qInput').addEventListener('keydown', function(e) {
+  var h = getHist();
+  if (e.key === 'Enter') { doSearch(); return; }
+  if (e.key === 'Escape') { doClear(); return; }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (_histIdx < h.length - 1) { _histIdx++; this.value = h[_histIdx].q; }
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (_histIdx > 0) { _histIdx--; this.value = h[_histIdx].q; }
+    else { _histIdx = -1; this.value = ''; }
+    return;
+  }
+  _histIdx = -1;
+});
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.key === 'l') { e.preventDefault(); document.getElementById('qInput').focus(); }
+  if (e.ctrlKey && e.key === 'e') { e.preventDefault(); exportJSON(); }
+  if (e.ctrlKey && e.key === 'p') { e.preventDefault(); exportPDF(); }
+  if (e.key === 'Escape') closeHistDd();
+});
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.cmd-wrap') && !e.target.closest('#histBtn')) closeHistDd();
+});
+
+// ── Utilities
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  try { return new Date(d).toUTCString().replace(' GMT',' UTC'); } catch(e){ return d; }
+}
+function fmtDateShort(d) {
+  if (!d) return '';
+  try { return new Date(d).toISOString().slice(0,10); } catch(e){ return ''; }
+}
+function fmtSize(b) {
+  if (!b) return '0 B';
+  if (b >= 1048576) return (b/1048576).toFixed(1)+' MB';
+  if (b >= 1024)    return (b/1024).toFixed(0)+' KB';
+  return b+' B';
+}
+function fileIcon(ct) {
+  if (!ct) return '&#128196;';
+  if (ct.includes('pdf'))   return '&#128213;';
+  if (ct.includes('image')) return '&#128444;';
+  if (ct.includes('excel') || ct.includes('sheet')) return '&#128202;';
+  if (ct.includes('word'))  return '&#128221;';
+  return '&#128196;';
+}
+function stCls(s) {
+  if (!s) return 's-info';
+  s = s.toUpperCase();
+  if (['COMPLETED','RECONCILED','VERIFIED','SUCCESS','APPROVED'].includes(s)) return 's-ok';
+  if (['FAILED','REJECTED','CANCELLED','ERROR'].includes(s)) return 's-bad';
+  if (['MANUAL_REVIEW','REVIEW','PENDING','PROCESSING','ALCHEMY_PENDING','CREATED'].includes(s)) return 's-warn';
+  return 's-info';
+}
+function updateStats() {
+  document.getElementById('spQCount').textContent       = _stats.q;
+  document.getElementById('spResTotal').textContent     = _stats.res;
+  document.getElementById('spFilesUploaded').textContent= _stats.files;
+  document.getElementById('spNotesAdded').textContent   = _stats.notes;
+  document.getElementById('spStatusChanges').textContent= _stats.status;
+}
+
+// ── Toast
+var _toastTmr;
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = 'show' + (type ? ' '+type : '');
+  clearTimeout(_toastTmr);
+  _toastTmr = setTimeout(function(){ t.className=''; }, 2800);
+}
+
+// ── Blockchain explorer
+function explorerUrl(txHash, network) {
+  if (!txHash) return null;
+  var n = (network||'').toUpperCase();
+  if (n.includes('TRON')||n.includes('TRC')) return 'https://tronscan.org/#/transaction/'+txHash;
+  if (n.includes('BSC')||n.includes('BNB'))  return 'https://bscscan.com/tx/'+txHash;
+  if (n.includes('POLYGON')||n.includes('MATIC')) return 'https://polygonscan.com/tx/'+txHash;
+  if (txHash.startsWith('0x')) return 'https://etherscan.io/tx/'+txHash;
+  if (txHash.length >= 60)     return 'https://tronscan.org/#/transaction/'+txHash;
+  return null;
+}
+function explorerName(network) {
+  var n = (network||'').toUpperCase();
+  if (n.includes('TRON')||n.includes('TRC')) return 'TRONSCAN';
+  if (n.includes('BSC')||n.includes('BNB'))  return 'BSCSCAN';
+  if (n.includes('POLYGON')||n.includes('MATIC')) return 'POLYGONSCAN';
+  return 'ETHERSCAN';
+}
+
+// ── Copy to clipboard
+function copyField(value, btnId) {
+  if (!value || value === '—') return;
+  navigator.clipboard.writeText(value).then(function() {
+    if (btnId) {
+      var btn = document.getElementById(btnId);
+      if (btn) { btn.textContent='&#10003; COPIED'; btn.classList.add('copied'); }
+      setTimeout(function(){
+        var b2 = document.getElementById(btnId);
+        if (b2) { b2.textContent='COPY'; b2.classList.remove('copied'); }
+      }, 1500);
+    }
+    showToast('Copied to clipboard');
+  }).catch(function(){ showToast('Copy failed','error'); });
+}
+
+// ── SEARCH
+function doSearch() {
+  var q = document.getElementById('qInput').value.trim();
+  if (!q) { showToast('Enter a search query','warn'); return; }
+  if (q.length < 3) { showToast('Minimum 3 characters','warn'); return; }
+  closeHistDd();
+  _histIdx   = -1;
+  _lastQuery = q;
+  _stats.q++;
+  updateStats();
+
+  var pane = document.getElementById('resultsPane');
+  pane.innerHTML = '<div class="loading-screen"><span class="spin"></span><span class="loading-txt">QUERYING DATABASE</span></div>';
+  document.getElementById('sbCount').textContent = '—';
+  document.getElementById('sbLastQ').textContent = q.length > 28 ? q.slice(0,28)+'…' : q;
+  document.getElementById('execBtn').disabled = true;
+
+  fetch(API_BASE + '/admin/swift/lookup?q=' + encodeURIComponent(q), {
+    headers: authHdr(), credentials: 'include'
+  }).then(function(res) {
+    if (res.status === 401) { pane.innerHTML = errScr(401,'Authentication failed — check your Admin API Key in the dashboard settings'); return null; }
+    if (res.status === 400) return res.json().then(function(d){ pane.innerHTML = errScr(400, d.detail||'Bad request'); return null; });
+    if (!res.ok) { pane.innerHTML = errScr(res.status,'Server error'); return null; }
+    return res.json();
+  }).then(function(data) {
+    if (!data) return;
+    _results = data.results || [];
+    _stats.res += _results.length;
+    updateStats();
+    pushHist(q);
+    document.getElementById('sbCount').textContent = _results.length;
+    if (!_results.length) {
+      pane.innerHTML = '<div class="no-results">NO RECORDS FOUND FOR: ' + esc(q) + '</div>';
+      return;
+    }
+    pane.innerHTML = _results.map(function(r,i){ return renderCard(r,i); }).join('');
+  }).catch(function(err) {
+    pane.innerHTML = errScr(0,'Network error: '+err.message);
+  }).finally(function() {
+    document.getElementById('execBtn').disabled = false;
+  });
+}
+function errScr(code, msg) {
+  return '<div class="error-screen"><div class="error-code">ERROR '+code+'</div>'+esc(msg)+'</div>';
+}
+
+// ── CLEAR
+function doClear() {
+  document.getElementById('qInput').value = '';
+  _results   = [];
+  _lastQuery = '';
+  document.getElementById('sbCount').textContent = '—';
+  document.getElementById('sbLastQ').textContent = '—';
+  location.reload();
+}
+
+// ── RENDER CARD
+function renderCard(r, idx) {
+  var isOrder  = r.record_type === 'PAYMENT_ORDER';
+  var msgType  = isOrder ? 'MT103' : 'MT202';
+  var msgLabel = isOrder
+    ? 'MT103 — SINGLE CUSTOMER CREDIT TRANSFER'
+    : 'MT202 — GENERAL FINANCIAL INSTITUTION TRANSFER';
+  var sc  = stCls(r.status);
+  var uid = 'c'+idx;
+
+  // ── MT field blocks
+  var mtHtml = '';
+  function mtBlock(code, label, val) {
+    var empty = !val || val === '—';
+    return '<div class="mt-block">' +
+      '<div class="mt-code">'+esc(code)+'</div>' +
+      '<div class="mt-label">'+esc(label)+'</div>' +
+      '<div class="mt-value'+(empty?' empty':'')+'">'+esc(empty?'NOT PROVIDED':val)+'</div>' +
+      '</div>';
+  }
+
+  if (isOrder) {
+    var yymmdd = fmtDateShort(r.created_at).replace(/-/g,'').slice(2);
+    var fmtAmt = r.fiat_amount ? yymmdd+' '+(r.fiat_currency||'')+'  '+r.fiat_amount : null;
+    var orderCust = [r.sender_email, r.sender_wallet].filter(Boolean).join('\n');
+    mtHtml += mtBlock(':20:', 'TRANSACTION REFERENCE NUMBER', r.reference || r.id);
+    mtHtml += mtBlock(':23B:', 'BANK OPERATION CODE', 'CRED');
+    mtHtml += mtBlock(':32A:', 'VALUE DATE / CURRENCY CODE / AMOUNT', fmtAmt);
+    mtHtml += mtBlock(':50K:', 'ORDERING CUSTOMER', orderCust || null);
+    mtHtml += mtBlock(':52A:', 'ORDERING INSTITUTION (PROVIDER)', r.provider);
+    mtHtml += mtBlock(':57A:', 'ACCOUNT WITH INSTITUTION (NETWORK)', r.network);
+    mtHtml += mtBlock(':59:', 'BENEFICIARY CUSTOMER (WALLET)', r.receiver_wallet);
+    mtHtml += mtBlock(':70:', 'REMITTANCE INFORMATION', r.external_id || r.provider_order_id);
+    mtHtml += mtBlock(':71A:', 'DETAILS OF CHARGES', 'SHA');
+    mtHtml += mtBlock(':72:', 'SENDER TO RECEIVER INFORMATION', r.failure_reason || r.checkout_url);
+    mtHtml += mtBlock(':77B:', 'REGULATORY REPORTING / TX HASH', r.tx_hash);
+  } else {
+    var yymmdd2 = fmtDateShort(r.created_at).replace(/-/g,'').slice(2);
+    var fmtAmt2 = r.amount ? yymmdd2+' '+(r.asset||'')+'  '+r.amount : null;
+    mtHtml += mtBlock(':20:', 'TRANSACTION REFERENCE', r.reference || r.id);
+    mtHtml += mtBlock(':21:', 'RELATED REFERENCE / UUID', r.id);
+    mtHtml += mtBlock(':32A:', 'VALUE DATE / ASSET / AMOUNT', fmtAmt2);
+    mtHtml += mtBlock(':52A:', 'ORDERING INSTITUTION / SECURITY LEVEL', r.security_level);
+    mtHtml += mtBlock(':57A:', 'ACCOUNT WITH INSTITUTION / SETTLEMENT TYPE', r.settlement_type);
+    mtHtml += mtBlock(':58A:', 'BENEFICIARY INSTITUTION (RECEIVER WALLET)', r.receiver_wallet);
+    mtHtml += mtBlock(':72:', 'SENDER TO RECEIVER / REVIEW NOTE', r.review_note || r.error_message);
+    mtHtml += mtBlock(':77B:', 'REGULATORY REPORTING / TX HASH', r.tx_hash);
+  }
+
+  // ── Detail table
+  function dRow(label, val, cls, cid) {
+    var empty = val == null || val === '' || val === '—';
+    var dv = '';
+    if (!empty) {
+      if (String(val).startsWith('http')) {
+        dv = '<a href="'+esc(String(val))+'" target="_blank" class="flink">'+esc(String(val).slice(0,55))+(String(val).length>55?'…':'')+'</a>';
+      } else {
+        dv = esc(String(val).slice(0,90))+(String(val).length>90?'…':'');
+      }
+    } else { dv = '—'; }
+    var copyBtn = (!empty && cid)
+      ? '<button class="copy-btn" id="'+cid+'" onclick="copyField('+JSON.stringify(String(val))+','+JSON.stringify(cid)+')">COPY</button>'
+      : '';
+    return '<tr class="'+(empty?'dim':'')+'"><td class="fkey">'+esc(label)+'</td>' +
+      '<td class="fval '+(empty?'empty':(cls||''))+'">'+dv+copyBtn+'</td></tr>';
+  }
+
+  var detailHtml = '';
+  if (isOrder) {
+    detailHtml += dRow('TRANSACTION UUID',     r.id,               'hi',         uid+'_uuid');
+    detailHtml += dRow('PAYMENT REFERENCE',    r.reference,        'hi',         uid+'_ref');
+    detailHtml += dRow('STATUS',               r.status,           '',           null);
+    detailHtml += dRow('PROVIDER',             r.provider,         '',           null);
+    detailHtml += dRow('NETWORK',              r.network,          '',           null);
+    detailHtml += dRow('FIAT AMOUNT',          r.fiat_amount ? r.fiat_amount+' '+(r.fiat_currency||'') : null, 'monetary', null);
+    detailHtml += dRow('CRYPTO AMOUNT',        r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'') : null, 'monetary', null);
+    detailHtml += dRow('PAYER EMAIL',          r.sender_email,     'identity',   uid+'_email');
+    detailHtml += dRow('SENDER WALLET',        r.sender_wallet,    'blockchain', uid+'_sw');
+    detailHtml += dRow('RECEIVER WALLET',      r.receiver_wallet,  'blockchain', uid+'_rw');
+    detailHtml += dRow('TX HASH (ON-CHAIN)',   r.tx_hash,          'blockchain', uid+'_txh');
+    detailHtml += dRow('PROVIDER ORDER ID',    r.provider_order_id,'',           uid+'_poid');
+    detailHtml += dRow('EXTERNAL REF',         r.external_id,      '',           uid+'_extid');
+    detailHtml += dRow('IDEMPOTENCY KEY',      r.idempotency_key,  '',           uid+'_ikey');
+    detailHtml += dRow('CHECKOUT URL',         r.checkout_url,     '',           null);
+    detailHtml += dRow('FAILURE REASON',       r.failure_reason,   '',           null);
+    detailHtml += dRow('CREATED (VALUE DATE)', fmtDate(r.created_at), 'timing',  null);
+    detailHtml += dRow('LAST UPDATED',         fmtDate(r.updated_at), 'timing',  null);
+  } else {
+    detailHtml += dRow('PAYLOAD UUID',           r.id,               'hi',         uid+'_uuid');
+    detailHtml += dRow('TRANSACTION REFERENCE',  r.reference,        'hi',         uid+'_ref');
+    detailHtml += dRow('VERIFICATION STATUS',    r.status,           '',           null);
+    detailHtml += dRow('PARSING STATUS',         r.parsing_status,   '',           null);
+    detailHtml += dRow('SECURITY LEVEL',         r.security_level,   '',           null);
+    detailHtml += dRow('AMOUNT / ASSET',         r.amount ? r.amount+' '+(r.asset||'') : null, 'monetary', null);
+    detailHtml += dRow('NETWORK',                r.network,          '',           null);
+    detailHtml += dRow('SENDER WALLET',          r.sender_wallet,    'blockchain', uid+'_sw');
+    detailHtml += dRow('RECEIVER WALLET',        r.receiver_wallet,  'blockchain', uid+'_rw');
+    detailHtml += dRow('TX HASH (ON-CHAIN)',      r.tx_hash,          'blockchain', uid+'_txh');
+    detailHtml += dRow('TOKEN CONTRACT',         r.token_contract,   'blockchain', uid+'_tc');
+    detailHtml += dRow('SETTLEMENT TYPE',        r.settlement_type,  '',           null);
+    detailHtml += dRow('AUTHORIZATION CODE',     r.authorization_code,'',          uid+'_auth');
+    detailHtml += dRow('BLOCK NUMBER',           r.block_number,     '',           null);
+    detailHtml += dRow('CONFIRMATIONS',          r.confirmations,    '',           null);
+    detailHtml += dRow('REVIEW PRIORITY',        r.review_priority,  '',           null);
+    detailHtml += dRow('REVIEW DECISION',        r.review_decision,  '',           null);
+    detailHtml += dRow('REVIEW NOTE',            r.review_note,      '',           null);
+    detailHtml += dRow('ERROR MESSAGE',          r.error_message,    '',           null);
+    detailHtml += dRow('CREATED (VALUE DATE)',   fmtDate(r.created_at), 'timing',  null);
+  }
+
+  // ── Explorer link
+  var expUrl  = r.explorer_url || explorerUrl(r.tx_hash, r.network);
+  var expLink = expUrl
+    ? '<a class="explorer-link" href="'+esc(expUrl)+'" target="_blank">&#128279; VIEW ON '+explorerName(r.network)+'</a>'
+    : '';
+
+  // ── Timeline
+  var tlSteps  = isOrder ? ['CREATED','PENDING','PROCESSING','COMPLETED'] : ['RECEIVED','PARSED','VERIFIED','SETTLED'];
+  var tlSt     = (r.status||'').toUpperCase();
+  var isFailed = ['FAILED','REJECTED','CANCELLED','ERROR'].includes(tlSt);
+  var tlDone   = -1;
+  if (['COMPLETED','RECONCILED','VERIFIED','SETTLED','SUCCESS'].includes(tlSt)) tlDone = 3;
+  else if (['PROCESSING','PARSED'].includes(tlSt)) tlDone = 2;
+  else if (['PENDING','RECEIVED'].includes(tlSt))  tlDone = 1;
+  else if (['CREATED'].includes(tlSt))             tlDone = 0;
+
+  var tlHtml = '<div class="timeline">';
+  tlSteps.forEach(function(step, i) {
+    var dc = '', lc = '';
+    if (isFailed && i === tlDone) { dc='failed'; lc='failed'; }
+    else if (i <= tlDone) { dc='done'; lc='done'; }
+    tlHtml += '<div class="tl-step"><div class="tl-dot '+dc+'"></div>' +
+      '<div class="tl-label '+lc+'">'+step+'</div></div>';
+    if (i < tlSteps.length-1) tlHtml += '<div class="tl-line'+(i<tlDone?' done':'')+'"></div>';
+  });
+  tlHtml += '</div>';
+
+  // ── Status change buttons
+  var scHtml = '';
+  if (isOrder) {
+    scHtml =
+      '<button class="btn-sc approve"    onclick="confirmSC(\''+r.id+'\',\''+r.record_type+'\',\'COMPLETED\',\''+uid+'_sc\')">&#10003; APPROVE / COMPLETE</button>'+
+      '<button class="btn-sc reject"     onclick="confirmSC(\''+r.id+'\',\''+r.record_type+'\',\'FAILED\',\''+uid+'_sc\')">&#10005; REJECT / FAIL</button>'+
+      '<button class="btn-sc review"     onclick="confirmSC(\''+r.id+'\',\''+r.record_type+'\',\'MANUAL_REVIEW\',\''+uid+'_sc\')">&#9876; FLAG FOR REVIEW</button>'+
+      '<button class="btn-sc processing" onclick="confirmSC(\''+r.id+'\',\''+r.record_type+'\',\'PROCESSING\',\''+uid+'_sc\')">&#8635; SET PROCESSING</button>';
+  } else {
+    scHtml =
+      '<button class="btn-sc approve"    onclick="confirmSC(\''+r.id+'\',\''+r.record_type+'\',\'VERIFIED\',\''+uid+'_sc\')">&#10003; MARK VERIFIED</button>'+
+      '<button class="btn-sc reject"     onclick="confirmSC(\''+r.id+'\',\''+r.record_type+'\',\'REJECTED\',\''+uid+'_sc\')">&#10005; REJECT</button>'+
+      '<button class="btn-sc review"     onclick="confirmSC(\''+r.id+'\',\''+r.record_type+'\',\'MANUAL_REVIEW\',\''+uid+'_sc\')">&#9876; FLAG FOR REVIEW</button>';
+  }
+
+  // ── Notes
+  var notes     = r.notes || [];
+  var notesHtml = notes.length
+    ? notes.map(function(n) {
+        var ts = n.created_at ? new Date(n.created_at).toISOString().slice(0,16).replace('T',' ')+' UTC' : '—';
+        return '<div class="note-item">' +
+          '<div class="note-text">'+esc(n.note)+'</div>' +
+          '<div><div class="note-meta">Admin &#8226; '+ts+'</div>' +
+          '<button class="note-del" onclick="deleteNote(\''+n.id+'\')">&#10005;</button></div></div>';
+      }).join('')
+    : '<div class="no-notes">No internal notes — click "+ ADD NOTE" to annotate this record</div>';
+
+  // ── Files
+  var files    = r.files || [];
+  var filesHtml = files.length
+    ? files.map(function(f) {
+        var ts = f.created_at ? new Date(f.created_at).toISOString().slice(0,10) : '—';
+        return '<tr>' +
+          '<td class="file-icon">'+fileIcon(f.content_type)+'</td>' +
+          '<td class="file-name" title="'+esc(f.filename)+'">'+esc(f.filename)+'</td>' +
+          '<td>'+fmtSize(f.file_size)+'</td>' +
+          '<td>'+esc(f.description||'—')+'</td>' +
+          '<td>'+ts+'</td>' +
+          '<td>' +
+            '<button class="btn-dl"  onclick="dlFile(\''+f.id+'\',\''+esc(f.filename)+'\')">&#8595; DL</button>' +
+            '<button class="btn-del" onclick="delFile(\''+f.id+'\')">&#10005;</button>' +
+          '</td></tr>';
+      }).join('')
+    : '<tr><td colspan="6" class="no-files">NO DOCUMENTS ATTACHED TO THIS RECORD</td></tr>';
+
+  return '<div class="swt-card" id="card-'+idx+'">' +
+
+    '<div class="card-header">' +
+      '<span class="card-msgtype">'+esc(msgType)+'</span>' +
+      '<span class="card-ref">'+esc(r.reference||r.id)+'</span>' +
+      '<span class="card-status '+sc+'">'+esc(r.status||'—')+'</span>' +
+      '<button class="btn-transmit" style="font-size:9px;padding:3px 9px;margin-left:4px" ' +
+        'onclick="openTransmitModal('+JSON.stringify(r.id)+','+JSON.stringify(r.reference||r.id)+','+JSON.stringify(r)+')" ' +
+        'title="Transmit via SWIFT to external endpoint">&#8658; TRANSMIT</button>' +
+      '<span class="card-idx">#'+(idx+1)+' of '+_results.length+'</span>' +
+    '</div>' +
+
+    '<div class="card-body">' +
+      '<div class="mt-col">' +
+        '<div class="mt-col-head">&#9672; '+esc(msgLabel)+'</div>' +
+        mtHtml +
+      '</div>' +
+      '<div class="detail-col">' +
+        '<div class="detail-col-head">&#9672; FULL TRANSACTION DETAILS</div>' +
+        '<table class="detail-table"><tbody>'+detailHtml+'</tbody></table>' +
+        expLink +
+      '</div>' +
+    '</div>' +
+
+    '<div class="timeline-section">' +
+      '<div class="section-head">&#9672; TRANSACTION LIFECYCLE TIMELINE</div>' +
+      tlHtml +
+    '</div>' +
+
+    '<div class="status-change-section">' +
+      '<div class="section-head">&#9672; STATUS MANAGEMENT &#8212; CURRENT: <strong style="color:var(--amb)">'+esc(r.status||'—')+'</strong></div>' +
+      '<div class="sc-btns">'+scHtml+'</div>' +
+      '<div class="sc-confirm" id="'+uid+'_sc">' +
+        '<span class="sc-confirm-msg" id="'+uid+'_sc_msg">Confirm?</span>' +
+        '<button class="btn-confirm-yes" id="'+uid+'_sc_yes">CONFIRM</button>' +
+        '<button class="btn-confirm-no" onclick="cancelSC(\''+uid+'_sc\')">CANCEL</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="notes-section">' +
+      '<div class="section-row">' +
+        '<span class="section-head">&#9672; INTERNAL ADMIN NOTES ('+notes.length+')</span>' +
+        '<button class="btn-add-note" onclick="toggleNoteForm(\''+uid+'_nf\')">+ ADD NOTE</button>' +
+      '</div>' +
+      notesHtml +
+      '<div class="note-form" id="'+uid+'_nf">' +
+        '<textarea class="note-input" id="'+uid+'_ni" rows="3" placeholder="Enter internal admin note…"></textarea>' +
+        '<div class="note-form-btns">' +
+          '<button class="btn-save-note" onclick="saveNote(\''+r.id+'\',\''+uid+'\')">SAVE NOTE</button>' +
+          '<button class="btn-cancel-note" onclick="cancelNoteForm(\''+uid+'_nf\')">CANCEL</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="docs-section">' +
+      '<div class="section-row">' +
+        '<span class="section-head">&#9672; ATTACHED DOCUMENTS ('+files.length+')</span>' +
+        '<button class="btn-attach" onclick="openUpload(\''+r.id+'\',\''+esc(r.reference||r.id)+'\')">&#8679; ATTACH DOCUMENT</button>' +
+      '</div>' +
+      '<table class="file-table">' +
+        '<thead><tr><th></th><th>FILENAME</th><th>SIZE</th><th>DESCRIPTION</th><th>DATE</th><th>ACTIONS</th></tr></thead>' +
+        '<tbody>'+filesHtml+'</tbody>' +
+      '</table>' +
+    '</div>' +
+
+    '</div>';
+}
+
+// ── Status change
+var _pendingSC = {};
+function confirmSC(rid, rtype, newSt, confirmId) {
+  _pendingSC = { rid: rid, rtype: rtype, newSt: newSt, confirmId: confirmId };
+  var box = document.getElementById(confirmId);
+  if (!box) return;
+  var msg = document.getElementById(confirmId+'_msg');
+  if (msg) msg.textContent = 'Set status to "'+newSt+'" — confirm?';
+  var yes = document.getElementById(confirmId+'_yes');
+  if (yes) yes.onclick = function(){ applySC(rid, rtype, newSt, confirmId); };
+  box.classList.add('open');
+}
+function cancelSC(id) { var b = document.getElementById(id); if(b) b.classList.remove('open'); }
+function applySC(rid, rtype, newSt, confirmId) {
+  cancelSC(confirmId);
+  fetch(API_BASE+'/admin/swift/'+encodeURIComponent(rid)+'/status', {
+    method: 'PATCH',
+    headers: Object.assign({}, authHdr(), {'Content-Type':'application/json'}),
+    credentials: 'include',
+    body: JSON.stringify({ status: newSt, record_type: rtype })
+  }).then(function(res) {
+    if (!res.ok) return res.json().then(function(d){ showToast('Error: '+(d.detail||res.status),'error'); });
+    _stats.status++; updateStats();
+    showToast('Status updated to '+newSt);
+    doSearch();
+  }).catch(function(e){ showToast('Network error: '+e.message,'error'); });
+}
+
+// ── Notes
+function toggleNoteForm(fid) {
+  var f = document.getElementById(fid);
+  if (!f) return;
+  f.classList.toggle('open');
+  if (f.classList.contains('open')) { var inp = f.querySelector('.note-input'); if(inp) inp.focus(); }
+}
+function cancelNoteForm(fid) { var f = document.getElementById(fid); if(f) f.classList.remove('open'); }
+function saveNote(rid, uid) {
+  var inp = document.getElementById(uid+'_ni');
+  if (!inp) return;
+  var note = inp.value.trim();
+  if (!note) { showToast('Note cannot be empty','warn'); return; }
+  fetch(API_BASE+'/admin/swift/'+encodeURIComponent(rid)+'/notes', {
+    method: 'POST',
+    headers: Object.assign({}, authHdr(), {'Content-Type':'application/json'}),
+    credentials: 'include',
+    body: JSON.stringify({ note: note })
+  }).then(function(res) {
+    if (!res.ok) return res.json().then(function(d){ showToast('Error: '+(d.detail||res.status),'error'); });
+    _stats.notes++; updateStats();
+    showToast('Note saved');
+    doSearch();
+  }).catch(function(e){ showToast('Network error: '+e.message,'error'); });
+}
+function deleteNote(noteId) {
+  if (!confirm('Delete this note?')) return;
+  fetch(API_BASE+'/admin/swift/notes/'+encodeURIComponent(noteId), {
+    method: 'DELETE', headers: authHdr(), credentials: 'include'
+  }).then(function(res) {
+    if (!res.ok) { showToast('Delete failed','error'); return; }
+    showToast('Note deleted');
+    doSearch();
+  }).catch(function(e){ showToast('Network error: '+e.message,'error'); });
+}
+
+// ── Upload modal
+function openUpload(rid, ref) {
+  _uploadRec = rid; _uploadRef = ref;
+  document.getElementById('uploadRefLabel').textContent = ref;
+  document.getElementById('uploadDesc').value = '';
+  document.getElementById('uploadProgress').style.display = 'none';
+  document.getElementById('progressFill').style.width = '0';
+  document.getElementById('uploadMsg').textContent = '';
+  document.getElementById('uploadModal').classList.add('open');
+}
+function closeUploadModal() { document.getElementById('uploadModal').classList.remove('open'); }
+document.getElementById('uploadModal').addEventListener('click', function(e) {
+  if (e.target === this) closeUploadModal();
+});
+var dz = document.getElementById('dropZone');
+dz.addEventListener('dragover',  function(e){ e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', function()  { dz.classList.remove('drag'); });
+dz.addEventListener('drop', function(e) {
+  e.preventDefault(); dz.classList.remove('drag');
+  if (e.dataTransfer.files[0]) doUpload(e.dataTransfer.files[0]);
+});
+document.getElementById('fileInput').addEventListener('change', function() {
+  if (this.files[0]) doUpload(this.files[0]);
+});
+function doUpload(file) {
+  if (file.size > 20*1024*1024) { showToast('File too large — max 20 MB','error'); return; }
+  var prog = document.getElementById('uploadProgress');
+  var fill = document.getElementById('progressFill');
+  var msg  = document.getElementById('uploadMsg');
+  prog.style.display = 'block';
+  fill.style.width   = '30%';
+  msg.textContent    = 'Uploading '+file.name+'…';
+  msg.style.color    = 'var(--txt2)';
+  var fd = new FormData();
+  fd.append('file', file);
+  fd.append('description', document.getElementById('uploadDesc').value.trim());
+  fd.append('transaction_ref', _uploadRef);
+  fetch(API_BASE+'/admin/swift/'+encodeURIComponent(_uploadRec)+'/files', {
+    method:'POST', headers: authHdr(), credentials:'include', body: fd
+  }).then(function(res) {
+    fill.style.width = '100%';
+    if (!res.ok) return res.json().then(function(d){ msg.textContent='Error: '+(d.detail||res.status); msg.style.color='var(--red)'; });
+    _stats.files++; updateStats();
+    msg.textContent = 'Upload successful — '+file.name;
+    msg.style.color = 'var(--grn)';
+    setTimeout(function(){ closeUploadModal(); doSearch(); }, 1200);
+  }).catch(function(e){ msg.textContent='Network error: '+e.message; msg.style.color='var(--red)'; });
+}
+
+// ── Download file
+function dlFile(fileId, filename) {
+  showToast('Downloading '+filename+'…');
+  fetch(API_BASE+'/admin/swift/files/'+encodeURIComponent(fileId), {
+    headers: authHdr(), credentials: 'include'
+  }).then(function(res) {
+    if (!res.ok) { showToast('Download failed','error'); return null; }
+    return res.blob();
+  }).then(function(blob) {
+    if (!blob) return;
+    var url = URL.createObjectURL(blob);
+    var a   = document.createElement('a');
+    a.href  = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }).catch(function(e){ showToast('Download error: '+e.message,'error'); });
+}
+
+// ── Delete file
+function delFile(fileId) {
+  if (!confirm('Delete this file permanently?')) return;
+  fetch(API_BASE+'/admin/swift/files/'+encodeURIComponent(fileId), {
+    method:'DELETE', headers: authHdr(), credentials:'include'
+  }).then(function(res) {
+    if (!res.ok) { showToast('Delete failed','error'); return; }
+    showToast('File deleted'); doSearch();
+  }).catch(function(e){ showToast('Network error: '+e.message,'error'); });
+}
+
+// ── Export JSON
+function exportJSON() {
+  if (!_results.length) { showToast('No results to export','warn'); return; }
+  var ts   = new Date().toISOString().replace(/[:.]/g,'-');
+  var data = {
+    exported_at: new Date().toISOString(),
+    session: SESSION_ID,
+    query:   _lastQuery,
+    count:   _results.length,
+    results: _results
+  };
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url; a.download = 'SWIFT_EXPORT_'+ts+'.json';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('JSON exported');
+}
+
+// ── Export PDF
+function exportPDF() {
+  if (!_results.length) { showToast('No results to export','warn'); return; }
+  document.getElementById('print-meta').textContent =
+    'Generated: '+new Date().toUTCString()+'  |  Session: '+SESSION_ID+'  |  Query: '+_lastQuery;
+  window.print();
+}
+
+// ── IMPORT & VERIFY MODAL ──────────────────────────────────────────────
+function openImportModal() {
+  document.getElementById('verifyPanel').classList.remove('show');
+  document.getElementById('importLoading').style.display = 'none';
+  document.getElementById('importFileInput').value = '';
+  document.getElementById('importModal').classList.add('open');
+}
+function closeImportModal() {
+  document.getElementById('importModal').classList.remove('open');
+}
+document.getElementById('importModal').addEventListener('click', function(e) {
+  if (e.target === this) closeImportModal();
+});
+
+// Drag & drop for import
+var idz = document.getElementById('importDropZone');
+idz.addEventListener('dragover',  function(e){ e.preventDefault(); idz.classList.add('drag'); });
+idz.addEventListener('dragleave', function()  { idz.classList.remove('drag'); });
+idz.addEventListener('drop', function(e) {
+  e.preventDefault(); idz.classList.remove('drag');
+  if (e.dataTransfer.files[0]) doImport(e.dataTransfer.files[0]);
+});
+document.getElementById('importFileInput').addEventListener('change', function() {
+  if (this.files[0]) doImport(this.files[0]);
+});
+
+function doImport(file) {
+  var allowed = ['.json','.pdf','application/json','application/pdf'];
+  var ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+  var ok  = ext === '.json' || ext === '.pdf' ||
+            file.type === 'application/json' || file.type === 'application/pdf';
+  if (!ok) { showToast('Only JSON and PDF files are supported', 'error'); return; }
+  if (file.size > 20*1024*1024) { showToast('File too large — max 20 MB', 'error'); return; }
+
+  document.getElementById('verifyPanel').classList.remove('show');
+  document.getElementById('importLoading').style.display = 'block';
+  document.getElementById('importDropZone').style.opacity = '.4';
+
+  var fd = new FormData();
+  fd.append('file', file);
+
+  fetch(API_BASE + '/admin/swift/import', {
+    method: 'POST', headers: authHdr(), credentials: 'include', body: fd
+  }).then(function(res) {
+    if (!res.ok) return res.json().then(function(d){
+      showToast('Error: '+(d.detail||res.status), 'error');
+      return null;
+    });
+    return res.json();
+  }).then(function(data) {
+    if (!data) return;
+    renderVerifyResults(data, file);
+  }).catch(function(e) {
+    showToast('Network error: '+e.message, 'error');
+  }).finally(function() {
+    document.getElementById('importLoading').style.display = 'none';
+    document.getElementById('importDropZone').style.opacity = '1';
+  });
+}
+
+function renderVerifyResults(data, file) {
+  // Header
+  var isJson = file.name.toLowerCase().endsWith('.json');
+  document.getElementById('verifyIcon').textContent    = isJson ? String.fromCodePoint(0x1F4C4) : String.fromCodePoint(0x1F4D5);
+  document.getElementById('verifyFilename').textContent = data.filename || file.name;
+  document.getElementById('verifySize').textContent     = fmtSize(data.file_size || file.size);
+  document.getElementById('verifySummary').textContent  = data.summary || '—';
+
+  // Badge
+  var badge = document.getElementById('verifyBadge');
+  if (data.verified) {
+    badge.textContent  = String.fromCodePoint(0x2713) + ' VERIFIED';
+    badge.className    = 'verify-badge ok';
+  } else if (data.records_found && data.records_found.length > 0) {
+    badge.textContent  = String.fromCodePoint(0x26A0) + ' PARTIAL MATCH';
+    badge.className    = 'verify-badge warn';
+  } else {
+    badge.textContent  = isJson ? (String.fromCodePoint(0x2715) + ' NO MATCH') : (String.fromCodePoint(0x2713) + ' STORED');
+    badge.className    = isJson ? 'verify-badge fail' : 'verify-badge ok';
+  }
+
+  // Found records
+  var found = data.records_found || [];
+  var foundSec = document.getElementById('verifyFoundSection');
+  if (found.length) {
+    foundSec.style.display = 'block';
+    document.getElementById('verifyFoundCount').textContent = found.length;
+    document.getElementById('verifyFoundList').innerHTML = found.map(function(r) {
+      return '<div class="verify-item found">' +
+        '<span class="verify-item-ref">' + esc(r.ref) + '</span>' +
+        '<span class="verify-item-type">' + esc(r.type) + '</span>' +
+        '<span class="verify-item-st">FOUND</span>' +
+        '<button class="btn-search-ref" onclick="searchFromImport(' + JSON.stringify(r.ref) + ')">SEARCH</button>' +
+        '</div>';
+    }).join('');
+  } else { foundSec.style.display = 'none'; }
+
+  // Not found
+  var notFound = data.records_not_found || [];
+  var nfSec = document.getElementById('verifyNotFoundSection');
+  if (notFound.length) {
+    nfSec.style.display = 'block';
+    document.getElementById('verifyNotFoundCount').textContent = notFound.length;
+    document.getElementById('verifyNotFoundList').innerHTML = notFound.map(function(ref) {
+      return '<div class="verify-item notfound">' +
+        '<span class="verify-item-ref">' + esc(ref) + '</span>' +
+        '<span class="verify-item-type">—</span>' +
+        '<span class="verify-item-st">NOT FOUND</span>' +
+        '</div>';
+    }).join('');
+  } else { nfSec.style.display = 'none'; }
+
+  // PDF stored
+  var storedSec = document.getElementById('verifyStoredSection');
+  if (data.file_id) {
+    storedSec.style.display = 'block';
+    document.getElementById('verifyStoredList').innerHTML =
+      '<div class="verify-item stored">' +
+        '<span class="verify-item-ref">File ID: ' + esc(data.file_id) + '</span>' +
+        '<span class="verify-item-type">PDF</span>' +
+        '<span class="verify-item-st">STORED</span>' +
+      '</div>';
+  } else { storedSec.style.display = 'none'; }
+
+  // JSON preview
+  var prevSec = document.getElementById('verifyPreviewSection');
+  if (data.raw_preview) {
+    prevSec.style.display = 'block';
+    document.getElementById('verifyPreview').textContent = data.raw_preview;
+  } else { prevSec.style.display = 'none'; }
+
+  document.getElementById('verifyPanel').classList.add('show');
+}
+
+function searchFromImport(ref) {
+  closeImportModal();
+  document.getElementById('qInput').value = ref;
+  doSearch();
+}
+
+// ──────────────────────────────────────────────────────────────────
+// SWIFT TRANSMITTER
+// ──────────────────────────────────────────────────────────────────
+var TX_STORAGE_KEY = 'swt_saved_endpoints_v1';
+
+function txSavedEndpoints() {
+  try { return JSON.parse(localStorage.getItem(TX_STORAGE_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+function txSaveEndpoint(name, url) {
+  var list = txSavedEndpoints();
+  if (!name || !url) return;
+  list = list.filter(function(e) { return e.name !== name; });
+  list.unshift({ name: name, url: url });
+  if (list.length > 10) list = list.slice(0, 10);
+  localStorage.setItem(TX_STORAGE_KEY, JSON.stringify(list));
+}
+function txDeleteEndpoint(name) {
+  var list = txSavedEndpoints().filter(function(e) { return e.name !== name; });
+  localStorage.setItem(TX_STORAGE_KEY, JSON.stringify(list));
+  renderTransmitSavedEndpoints();
+}
+
+function openTransmitModal(recordId, ref, data) {
+  // Pre-fill fields if called from a record
+  document.getElementById('txFromEndpoint').value = window.location.origin + '/api/v1';
+  document.getElementById('txFromAccount').value  = '';
+  document.getElementById('txToEndpoint').value   = '';
+  document.getElementById('txToAccount').value    = '';
+  document.getElementById('txAuthType').value     = 'none';
+  document.getElementById('txAuthValue').value    = '';
+  document.getElementById('txAuthHeader').value   = 'X-API-Key';
+  document.getElementById('txMsgType').value        = 'MT103';
+  document.getElementById('txTransferType').value   = 'CREDIT_TRANSFER';
+  document.getElementById('txInstructionCode').value = '';
+  document.getElementById('txRecordId').value       = recordId || '';
+  document.getElementById('txAmount').value       = '';
+  document.getElementById('txCurrency').value     = 'USD';
+  document.getElementById('txValueDate').value    = new Date().toISOString().slice(0,10);
+  document.getElementById('txRemittance').value   = '';
+  document.getElementById('txFromBIC').value      = 'ALSHUAEXAXXX';
+  document.getElementById('txFromBankName').value = 'ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT';
+  document.getElementById('txFromAddress').value  = 'ALSHUMOOKH GLOBAL\nDUBAI INTERNATIONAL FINANCIAL CENTRE\nDUBAI, UAE';
+  document.getElementById('txToBIC').value        = '';
+  document.getElementById('txToBankName').value   = '';
+  document.getElementById('txToAddress').value    = '';
+  document.getElementById('txIntermBIC').value    = '';
+  document.getElementById('txCharges').value      = 'SHA';
+  document.getElementById('txHash').value         = '';
+  document.getElementById('txUETR').value         = '';
+  document.getElementById('txEpSaveName').value   = '';
+  document.getElementById('txRespPanel').classList.remove('show');
+
+  // Toggle auth field visibility
+  txAuthTypeChange();
+
+  // Pre-fill from transaction data if provided
+  if (data) {
+    var acct = data.sender_wallet || data.from_wallet || data.from_account ||
+               data.sender || data.from || '';
+    document.getElementById('txFromAccount').value = acct;
+    var toAcct = data.recipient_wallet || data.to_wallet || data.to_account ||
+                 data.recipient || data.to || '';
+    document.getElementById('txToAccount').value = toAcct;
+  }
+
+  updatePayloadPreview();
+  renderTransmitSavedEndpoints();
+  document.getElementById('transmitModal').classList.add('open');
+  setTimeout(function() { document.getElementById('txToEndpoint').focus(); }, 80);
+}
+function closeTransmitModal() {
+  document.getElementById('transmitModal').classList.remove('open');
+}
+
+function txAuthTypeChange() {
+  var t = document.getElementById('txAuthType').value;
+  var row = document.getElementById('txAuthValueRow');
+  var hdrRow = document.getElementById('txAuthHeaderRow');
+  if (t === 'none') {
+    row.style.display = 'none'; hdrRow.style.display = 'none';
+  } else if (t === 'bearer') {
+    row.style.display = ''; hdrRow.style.display = 'none';
+    document.getElementById('txAuthValueLabel').textContent = 'BEARER TOKEN';
+  } else if (t === 'apikey') {
+    row.style.display = ''; hdrRow.style.display = '';
+    document.getElementById('txAuthValueLabel').textContent = 'API KEY VALUE';
+  } else if (t === 'basic') {
+    row.style.display = ''; hdrRow.style.display = 'none';
+    document.getElementById('txAuthValueLabel').textContent = 'BASIC CREDENTIAL (base64 or user:pass)';
+  } else if (t === 'custom') {
+    row.style.display = ''; hdrRow.style.display = '';
+    document.getElementById('txAuthValueLabel').textContent = 'HEADER VALUE';
+  }
+  updatePayloadPreview();
+}
+
+function updatePayloadPreview() {
+  var fromEp   = (document.getElementById('txFromEndpoint').value || '').trim();
+  var fromAcct = (document.getElementById('txFromAccount').value  || '').trim();
+  var toEp     = (document.getElementById('txToEndpoint').value   || '').trim();
+  var toAcct   = (document.getElementById('txToAccount').value    || '').trim();
+  var msgType      = document.getElementById('txMsgType').value      || 'MT103';
+  var transferType = document.getElementById('txTransferType').value || 'CREDIT_TRANSFER';
+  var instrCode    = (document.getElementById('txInstructionCode').value || '').trim();
+  var recId        = (document.getElementById('txRecordId').value || '').trim();
+  var now          = new Date();
+  var dateStr  = now.toISOString().slice(0,10).replace(/-/g,'');
+  var timeStr  = now.toTimeString().slice(0,8).replace(/:/g,'');
+
+  var amount     = (document.getElementById('txAmount').value      || '').trim();
+  var currency   = document.getElementById('txCurrency').value    || 'USD';
+  var valueDate  = (document.getElementById('txValueDate').value   || now.toISOString().slice(0,10)).replace(/-/g,'');
+  var remittance = (document.getElementById('txRemittance').value  || '').trim();
+  var fromBIC    = (document.getElementById('txFromBIC').value     || '').trim();
+  var fromBankNm = (document.getElementById('txFromBankName').value|| '').trim();
+  var fromAddr   = (document.getElementById('txFromAddress').value || '').trim();
+  var toBIC      = (document.getElementById('txToBIC').value       || '').trim();
+  var toBankNm   = (document.getElementById('txToBankName').value  || '').trim();
+  var toAddr     = (document.getElementById('txToAddress').value   || '').trim();
+  var intermBIC  = (document.getElementById('txIntermBIC').value   || '').trim();
+  var charges    = document.getElementById('txCharges').value      || 'SHA';
+  var txHash     = (document.getElementById('txHash').value        || '').trim();
+  var uetr       = (document.getElementById('txUETR').value        || '').trim() ||
+                   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                     var r=Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16);
+                   });
+
+  var envelope = {
+    swift_header: {
+      block1: '{1:F01' + (fromBIC || 'ALSHUAEXAXXX') + '0000000000}',
+      block2: '{2:I' + msgType.replace('MT','') + (toBIC || 'XXXXXXXXXXXXXX') + 'N}',
+      block3: '{3:{108:' + ('ALSH-' + dateStr + '-' + timeStr) + '}{121:' + uetr + '}}',
+    },
+    swift_envelope: {
+      version: '1.0',
+      message_type: msgType,
+      transmission_timestamp: now.toISOString(),
+      field_20_trn:        'ALSH-' + dateStr + '-' + timeStr,
+      field_23B_bank_op:   'CRED',
+      field_23E_transfer_type: transferType,
+      field_23E_instruction:   instrCode || null,
+      field_32A:      valueDate + currency + (amount || '0.00'),
+      sender: {
+        field_52A_bic:    fromBIC || 'ALSHUAEXAXXX',
+        bank_name:        fromBankNm,
+        field_50K_name:   fromAddr.split('\n')[0] || 'ALSHUMOOKH GLOBAL',
+        field_50K_address: fromAddr,
+        endpoint:         fromEp,
+        account_or_wallet: fromAcct || '<FROM_ACCOUNT_WALLET>'
+      },
+      intermediary: intermBIC ? { field_56A_bic: intermBIC } : null,
+      recipient: {
+        field_57A_bic:   toBIC || '<RECIPIENT_BIC>',
+        bank_name:       toBankNm,
+        field_59_name:   toAddr.split('\n')[0] || '<BENEFICIARY_NAME>',
+        field_59_address: toAddr,
+        endpoint:        toEp || '<TO_ENDPOINT_URL>',
+        account_or_wallet: toAcct || '<TO_ACCOUNT_WALLET>'
+      },
+      transaction: {
+        value_date:      valueDate,
+        currency:        currency,
+        amount:          amount ? parseFloat(amount) : null,
+        field_32A:       valueDate + currency + (amount || '0.00'),
+        field_70_remittance: remittance || null,
+        field_71A_charges:   charges,
+        field_72_sender_info: '/ALSHUMOOKH/' + msgType + '/' + dateStr,
+        field_77B_regulatory: '/TRANS/' + 'ALSH-' + dateStr + '-' + timeStr
+      },
+      blockchain: txHash ? { tx_hash: txHash } : null,
+      uetr: uetr,
+      message_header: {
+        msg_ref: 'ALSH-' + dateStr + '-' + timeStr,
+        msg_type: msgType,
+        priority: 'NORMAL',
+        service_id: '01'
+      }
+    }
+  };
+
+  if (recId) envelope.record_id = recId;
+
+  document.getElementById('txPayloadPreview').value =
+    JSON.stringify(envelope, null, 2);
+}
+
+function renderTransmitSavedEndpoints() {
+  var list = txSavedEndpoints();
+  var cont = document.getElementById('txSavedEndpointsList');
+  if (!list.length) {
+    cont.innerHTML = '<div style="color:var(--txt3);font-size:10px;font-style:italic">No saved endpoints</div>';
+    return;
+  }
+  cont.innerHTML = list.map(function(ep) {
+    return '<div class="tx-saved-ep" onclick="txLoadEndpoint(' + JSON.stringify(ep.url) + ')">' +
+      '<span class="tx-ep-name">' + esc(ep.name) + '</span>' +
+      '<span class="tx-ep-url">' + esc(ep.url) + '</span>' +
+      '<button class="tx-ep-del" onclick="event.stopPropagation();txDeleteEndpoint(' + JSON.stringify(ep.name) + ')">&#10005;</button>' +
+      '</div>';
+  }).join('');
+}
+function txLoadEndpoint(url) {
+  document.getElementById('txToEndpoint').value = url;
+  updatePayloadPreview();
+}
+function txSaveCurrentEndpoint() {
+  var name = (document.getElementById('txEpSaveName').value || '').trim();
+  var url  = (document.getElementById('txToEndpoint').value || '').trim();
+  if (!name) { showToast('Enter a name for this endpoint', 'warn'); return; }
+  if (!url)  { showToast('Enter the destination endpoint URL first', 'warn'); return; }
+  txSaveEndpoint(name, url);
+  document.getElementById('txEpSaveName').value = '';
+  renderTransmitSavedEndpoints();
+  showToast('Endpoint saved: ' + name, 'ok');
+}
+
+function doTransmit() {
+  var fromEp   = (document.getElementById('txFromEndpoint').value || '').trim();
+  var fromAcct = (document.getElementById('txFromAccount').value  || '').trim();
+  var toEp     = (document.getElementById('txToEndpoint').value   || '').trim();
+  var toAcct   = (document.getElementById('txToAccount').value    || '').trim();
+  var authType    = document.getElementById('txAuthType').value;
+  var authVal     = (document.getElementById('txAuthValue').value    || '').trim();
+  var authHdrName = (document.getElementById('txAuthHeader').value   || 'X-API-Key').trim();
+  var msgType      = document.getElementById('txMsgType').value       || 'MT103';
+  var transferType = document.getElementById('txTransferType').value  || 'CREDIT_TRANSFER';
+  var recId        = (document.getElementById('txRecordId').value || '').trim();
+
+  if (!toEp) { showToast('Destination endpoint URL is required', 'error'); return; }
+
+  var btn = document.getElementById('txSendBtn');
+  btn.disabled = true;
+  btn.textContent = 'TRANSMITTING...';
+  document.getElementById('txRespPanel').classList.remove('show');
+
+  var payload = {
+    destination_url:  toEp,
+    from_endpoint:    fromEp,
+    from_account:     fromAcct,
+    to_account:       toAcct,
+    auth_type:        authType,
+    auth_value:       authVal,
+    auth_header_name: authHdrName,
+    message_type:     msgType,
+    transfer_type:    transferType,
+    record_id:        recId || null,
+    timeout:          30
+  };
+
+  fetch(API_BASE + '/admin/swift/transmit', {
+    method: 'POST',
+    headers: Object.assign({'Content-Type': 'application/json'}, authHdr()),
+    credentials: 'include',
+    body: JSON.stringify(payload)
+  }).then(function(res) {
+    return res.json().then(function(d) { return { status: res.status, data: d }; });
+  }).then(function(r) {
+    renderTransmitResponse(r.status, r.data);
+  }).catch(function(e) {
+    renderTransmitResponse(0, { detail: 'Network error: ' + e.message });
+  }).finally(function() {
+    btn.disabled = false;
+    btn.textContent = String.fromCharCode(8658) + ' SEND TO API';
+  });
+}
+
+// Stores last successful transmit for receipt printing
+var _lastTransmit = null;
+
+function renderTransmitResponse(httpStatus, data) {
+  var panel = document.getElementById('txRespPanel');
+  var codeEl = document.getElementById('txRespCode');
+  var durEl  = document.getElementById('txRespDur');
+  var bodyEl = document.getElementById('txRespBody');
+  var printBtn = document.getElementById('txPrintReceiptBtn');
+
+  var code = data.status_code || httpStatus || 0;
+  var cls  = code >= 200 && code < 300 ? 'ok' : code >= 400 ? 'bad' : 'warn';
+  codeEl.textContent  = 'HTTP ' + code;
+  codeEl.className    = 'tx-resp-code ' + cls;
+  durEl.textContent   = data.duration_ms ? data.duration_ms + ' ms' : '';
+
+  if (data.detail) {
+    bodyEl.textContent = typeof data.detail === 'object'
+      ? JSON.stringify(data.detail, null, 2) : data.detail;
+    if (printBtn) printBtn.style.display = 'none';
+  } else {
+    var display = {};
+    if (data.transmission_id)  display.transmission_id  = data.transmission_id;
+    if (data.status_code)      display.status_code       = data.status_code;
+    if (data.duration_ms)      display.duration_ms       = data.duration_ms;
+    if (data.response_body !== undefined) {
+      try { display.response = JSON.parse(data.response_body); }
+      catch(e) { display.response = data.response_body; }
+    }
+    if (data.response_headers) display.response_headers = data.response_headers;
+    bodyEl.textContent = JSON.stringify(display, null, 2);
+  }
+
+  panel.classList.add('show');
+
+  var success = code >= 200 && code < 300;
+  if (success) {
+    // Store for receipt
+    _lastTransmit = {
+      transmission_id: data.transmission_id || '—',
+      msg_ref:         data.msg_ref || '—',
+      status_code:     code,
+      duration_ms:     data.duration_ms || 0,
+      from_endpoint:   document.getElementById('txFromEndpoint').value || '',
+      from_account:    document.getElementById('txFromAccount').value  || '',
+      to_endpoint:     document.getElementById('txToEndpoint').value   || '',
+      to_account:      document.getElementById('txToAccount').value    || '',
+      msg_type:        document.getElementById('txMsgType').value       || 'MT103',
+      amount:          document.getElementById('txAmount').value        || '',
+      currency:        document.getElementById('txCurrency').value      || 'USD',
+      value_date:      (document.getElementById('txValueDate').value || new Date().toISOString().slice(0,10)).replace(/-/g,''),
+      remittance:      document.getElementById('txRemittance').value    || '',
+      from_bic:        document.getElementById('txFromBIC').value       || 'ALSHUAEXAXXX',
+      from_bank_name:  document.getElementById('txFromBankName').value  || 'ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT',
+      from_address:    document.getElementById('txFromAddress').value   || '',
+      to_bic:          document.getElementById('txToBIC').value         || '',
+      to_bank_name:    document.getElementById('txToBankName').value    || '',
+      to_address:      document.getElementById('txToAddress').value     || '',
+      interm_bic:      document.getElementById('txIntermBIC').value     || '',
+      charges:         document.getElementById('txCharges').value       || 'SHA',
+      tx_hash:         document.getElementById('txHash').value          || '',
+      uetr:            document.getElementById('txUETR').value          || '',
+      timestamp:       new Date().toISOString(),
+      response_body:   data.response_body || ''
+    };
+    if (printBtn) printBtn.style.display = 'inline-flex';
+    showToast('Transmitted successfully — ' + code, 'ok');
+  } else {
+    if (printBtn) printBtn.style.display = 'none';
+    showToast('Transmission failed — ' + (code || httpStatus), 'error');
+  }
+}
+
+// ── SWIFT Receipt Printer — Full Authentic MT Format ──────────────
+function printSwiftReceipt() {
+  if (!_lastTransmit) { showToast('No transmission data to print', 'warn'); return; }
+  var t = _lastTransmit;
+  var dt = new Date(t.timestamp);
+  var dateStr  = dt.toISOString().slice(0,10).replace(/-/g,'').slice(2); // YYMMDD
+  var dateDisp = dt.toUTCString();
+
+  var msgDesc = {
+    MT103: 'Single Customer Credit Transfer',
+    MT202: 'Financial Institution Transfer',
+    MT199: 'Free Format Message',
+    MT900: 'Confirmation of Debit',
+    MT910: 'Confirmation of Credit',
+    CUSTOM: 'Custom Message'
+  }[t.msg_type] || t.msg_type;
+
+  var msgNum   = t.msg_type.replace('MT','');
+  var fromBIC  = t.from_bic  || 'ALSHUAEXAXXX';
+  var toBIC    = t.to_bic    || 'XXXXXXXXXXXXXX';
+  var trn      = t.msg_ref   || ('ALSH-' + dateStr);
+  var uetr     = t.uetr      || t.transmission_id || '—';
+  var amtFmt   = t.amount
+    ? parseFloat(t.amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:8})
+    : '0,00';
+  var field32A = (t.value_date || dateStr) + (t.currency || 'USD') + amtFmt.replace(/,/g,'').replace(/\./g,',');
+  var chksum   = t.transmission_id ? t.transmission_id.replace(/-/g,'').slice(0,12).toUpperCase() : 'ABCDEF123456';
+
+  // Build SWIFT raw text block (authentic format)
+  var swiftRaw =
+    '{1:F01' + fromBIC + '0000000000}\n' +
+    '{2:I' + msgNum + toBIC + 'N}\n' +
+    '{3:{108:' + trn + '}{121:' + uetr + '}}\n' +
+    '{4:\n' +
+    ':20:' + trn + '\n' +
+    ':23B:CRED\n' +
+    ':32A:' + field32A + '\n' +
+    ':50K:/' + (t.from_account || 'ALSHUAEXAXXX') + '\n' +
+    (t.from_address || 'ALSHUMOOKH GLOBAL\nDUBAI, UAE').replace(/\n/g,'\n') + '\n' +
+    (t.from_bic ? ':52A:' + t.from_bic + '\n' : '') +
+    (t.interm_bic ? ':56A:' + t.interm_bic + '\n' : '') +
+    ':57A:' + toBIC + '\n' +
+    ':59:/' + (t.to_account || '<BENEFICIARY_ACCOUNT>') + '\n' +
+    (t.to_address || '<BENEFICIARY NAME>\n<ADDRESS>').replace(/\n/g,'\n') + '\n' +
+    ':70:' + (t.remittance || 'SWIFT TRANSMISSION VIA ALSHUMOOKH GLOBAL SYSTEM') + '\n' +
+    ':71A:' + (t.charges || 'SHA') + '\n' +
+    ':72:/ALSHUMOOKH/' + t.msg_type + '/' + dateStr + '\n' +
+    ':77B:/TRANS/' + trn + '\n' +
+    (t.tx_hash ? ':79:BLOCKCHAIN REF: ' + t.tx_hash + '\n' : '') +
+    '-}\n' +
+    '{5:{CHK:' + chksum + '}{TNG:}}';
+
+  var html = '<!DOCTYPE html><html lang="en"><head>' +
+    '<meta charset="utf-8">' +
+    '<title>SWIFT Receipt — ' + t.msg_ref + '</title>' +
+    '<style>' +
+      '*{box-sizing:border-box;margin:0;padding:0}' +
+      'body{font-family:"Courier New",Consolas,monospace;font-size:11pt;color:#000;background:#fff;padding:20mm 18mm}' +
+      '@page{size:A4;margin:15mm 18mm}' +
+      '@media print{.no-print{display:none}body{padding:0}}' +
+      '.receipt-wrap{max-width:680px;margin:0 auto}' +
+      '.hdr{border-top:3px solid #000;border-bottom:3px solid #000;padding:10px 0;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start}' +
+      '.hdr-brand{font-size:14pt;font-weight:700;letter-spacing:.04em}' +
+      '.hdr-sub{font-size:8pt;color:#444;margin-top:3px;letter-spacing:.06em}' +
+      '.hdr-right{text-align:right;font-size:9pt;color:#333}' +
+      '.doc-title{text-align:center;font-size:13pt;font-weight:700;letter-spacing:.1em;border:2px solid #000;padding:8px 0;margin-bottom:18px}' +
+      '.status-banner{text-align:center;font-weight:700;font-size:11pt;letter-spacing:.08em;padding:6px;border:2px solid #000;margin-bottom:18px}' +
+      '.status-banner.ok{background:#e6ffe6;border-color:#006600;color:#006600}' +
+      '.status-banner.fail{background:#ffe6e6;border-color:#990000;color:#990000}' +
+      '.block-title{font-size:9pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid #888;margin:14px 0 8px;padding-bottom:3px;color:#333}' +
+      '.mt-block{margin-bottom:10px}' +
+      '.mt-line{display:flex;gap:0;margin-bottom:5px;font-size:10.5pt}' +
+      '.mt-field{color:#555;width:32%;font-size:9.5pt;padding-top:1px}' +
+      '.mt-code{font-weight:700;color:#000;min-width:52px;margin-right:6px}' +
+      '.mt-val{color:#000;flex:1;word-break:break-all}' +
+      '.divider{border:none;border-top:1px solid #ccc;margin:14px 0}' +
+      '.footer{margin-top:22px;border-top:2px solid #000;padding-top:10px;display:flex;justify-content:space-between;font-size:8.5pt;color:#444}' +
+      '.footer-notice{font-size:7.5pt;color:#666;margin-top:10px;line-height:1.5;border:1px solid #ccc;padding:7px 10px}' +
+      '.sig-area{margin-top:28px;display:flex;gap:40px}' +
+      '.sig-box{flex:1;border-top:1px solid #000;padding-top:6px;font-size:9pt;color:#444}' +
+      '.swift-raw{background:#f7f7f0;border:1px solid #ccc;padding:12px 14px;font-size:9.5pt;line-height:1.7;white-space:pre;word-break:break-all;margin-bottom:14px;overflow-x:auto}' +
+      '.raw-label{font-size:8pt;color:#666;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;font-weight:700}' +
+      '.watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:72pt;color:rgba(0,0,0,.04);font-weight:900;letter-spacing:.12em;pointer-events:none;z-index:0;white-space:nowrap}' +
+      '.print-btn{background:#000;color:#fff;border:none;font-family:"Courier New",monospace;font-size:11pt;font-weight:700;padding:10px 28px;cursor:pointer;margin:0 6px;letter-spacing:.06em}' +
+      '.print-btn:hover{background:#333}' +
+      '.close-btn{background:#fff;color:#000;border:2px solid #000;font-family:"Courier New",monospace;font-size:11pt;padding:9px 20px;cursor:pointer;margin:0 6px;letter-spacing:.06em}' +
+      '.btn-row{text-align:center;margin-bottom:20px}' +
+    '</style></head><body>' +
+
+    '<div class="watermark">ALSHUMOOKH</div>' +
+    '<div class="receipt-wrap">' +
+
+    // Print / Close buttons
+    '<div class="btn-row no-print">' +
+      '<button class="print-btn" onclick="window.print()">&#128424; PRINT / SAVE PDF</button>' +
+      '<button class="close-btn" onclick="window.close()">&#10005; CLOSE</button>' +
+    '</div>' +
+
+    // Header
+    '<div class="hdr">' +
+      '<div>' +
+        '<div class="hdr-brand">ALSHUMOOKH GLOBAL</div>' +
+        '<div class="hdr-sub">BANKING FINANCE &amp; CREDIT — SWIFT DIVISION</div>' +
+        '<div class="hdr-sub">BIC: ' + esc(fromBIC) + ' &nbsp;|&nbsp; DUBAI INTERNATIONAL FINANCIAL CENTRE</div>' +
+      '</div>' +
+      '<div class="hdr-right">' +
+        'DATE: ' + dateDisp + '<br>' +
+        'TRN: ' + esc(trn) + '<br>' +
+        'UETR: ' + esc(uetr.slice(0,18)) + '…' +
+      '</div>' +
+    '</div>' +
+
+    // Document title
+    '<div class="doc-title">SWIFT ' + esc(t.msg_type) + ' — ' + msgDesc.toUpperCase() + '</div>' +
+
+    // Status banner
+    '<div class="status-banner ' + (t.status_code >= 200 && t.status_code < 300 ? 'ok' : 'fail') + '">' +
+      (t.status_code >= 200 && t.status_code < 300
+        ? '&#10003; TRANSMISSION SUCCESSFUL — HTTP ' + t.status_code + ' — ' + (t.duration_ms || '—') + ' ms'
+        : '&#10005; TRANSMISSION FAILED — HTTP ' + t.status_code) +
+    '</div>' +
+
+    // ── SWIFT RAW MESSAGE (Block 1-5) ──
+    '<div class="block-title">SWIFT RAW MESSAGE — COMPLETE FORMAT</div>' +
+    '<div class="raw-label">Copy this text for interbank systems:</div>' +
+    '<div class="swift-raw">' + esc(swiftRaw) + '</div>' +
+
+    '<hr class="divider">' +
+
+    // ── FIELD-BY-FIELD BREAKDOWN ──
+    '<div class="block-title">Field Breakdown — Basic Header Block {1}</div>' +
+    '<div class="mt-block">' +
+      mtLine('{1:}',    'Application ID / LT / Session', 'F01 ' + fromBIC + ' 0000 000000') +
+      mtLine('App ID',  'Application Identifier',  'F — FIN') +
+      mtLine('LT Addr', 'Logical Terminal Address', fromBIC) +
+    '</div>' +
+
+    '<hr class="divider">' +
+    '<div class="block-title">Application Header Block {2}</div>' +
+    '<div class="mt-block">' +
+      mtLine('{2:}',    'Message Type / Receiver BIC', 'I' + msgNum + ' ' + toBIC) +
+      mtLine('I/O',     'Input/Output',    'I — Input (Outgoing)') +
+      mtLine('MsgType', 'Message Type',    t.msg_type + ' — ' + msgDesc) +
+      mtLine('Recv BIC','Receiver BIC',    toBIC) +
+    '</div>' +
+
+    '<hr class="divider">' +
+    '<div class="block-title">User Header Block {3}</div>' +
+    '<div class="mt-block">' +
+      mtLine('{108:}',  'Message User Reference', trn) +
+      mtLine('{121:}',  'UETR (Unique End-to-End TRN)', uetr) +
+    '</div>' +
+
+    '<hr class="divider">' +
+    '<div class="block-title">Text Block {4} — Transaction Fields</div>' +
+    '<div class="mt-block">' +
+      mtLine(':20:',  'Transaction Reference Number (TRN)', trn) +
+      mtLine(':23B:', 'Bank Operation Code', 'CRED — Credit Transfer') +
+      mtLine(':32A:', 'Value Date / Currency / Amount', field32A) +
+    '</div>' +
+
+    '<hr class="divider">' +
+    '<div class="block-title">Ordering Customer — :50K:</div>' +
+    '<div class="mt-block">' +
+      mtLine(':50K:', 'Account', t.from_account || '—') +
+      mtLine('',      'Name', t.from_bank_name || 'ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT') +
+      mtLine('',      'Address', (t.from_address || 'DUBAI, UAE').replace(/\n/g,' / ')) +
+      mtLine(':52A:', 'Ordering Institution BIC', fromBIC) +
+    '</div>' +
+
+    (t.interm_bic ? (
+      '<hr class="divider">' +
+      '<div class="block-title">Intermediary Institution — :56A:</div>' +
+      '<div class="mt-block">' + mtLine(':56A:', 'Intermediary BIC', t.interm_bic) + '</div>'
+    ) : '') +
+
+    '<hr class="divider">' +
+    '<div class="block-title">Account With Institution — :57A:</div>' +
+    '<div class="mt-block">' +
+      mtLine(':57A:', 'Recipient Bank BIC',  toBIC) +
+      mtLine('',      'Bank Name',           t.to_bank_name || '—') +
+      mtLine('',      'System Endpoint',     t.to_endpoint  || '—') +
+    '</div>' +
+
+    '<hr class="divider">' +
+    '<div class="block-title">Beneficiary Customer — :59:</div>' +
+    '<div class="mt-block">' +
+      mtLine(':59:',  'Account / Wallet',  t.to_account  || '—') +
+      mtLine('',      'Name',              (t.to_address  || '—').split('\n')[0] || '—') +
+      mtLine('',      'Address',           (t.to_address  || '—').replace(/\n/g,' / ')) +
+    '</div>' +
+
+    '<hr class="divider">' +
+    '<div class="block-title">Remittance &amp; Regulatory — :70: :71A: :72: :77B:</div>' +
+    '<div class="mt-block">' +
+      mtLine(':70:',  'Remittance Information', t.remittance || 'SWIFT TRANSMISSION VIA ALSHUMOOKH GLOBAL SYSTEM') +
+      mtLine(':71A:', 'Details of Charges',     (t.charges || 'SHA') + ' — ' + ({OUR:'Sender pays all',SHA:'Shared',BEN:'Beneficiary pays all'}[t.charges || 'SHA'] || '')) +
+      mtLine(':72:',  'Sender to Receiver Info', '/ALSHUMOOKH/' + t.msg_type + '/' + dateStr) +
+      mtLine(':77B:', 'Regulatory Reporting',   '/TRANS/' + trn) +
+    '</div>' +
+
+    (t.tx_hash ? (
+      '<hr class="divider">' +
+      '<div class="block-title">Blockchain Reference — :79:</div>' +
+      '<div class="mt-block">' + mtLine(':79:', 'TX Hash', t.tx_hash) + '</div>'
+    ) : '') +
+
+    '<hr class="divider">' +
+    '<div class="block-title">Trailer Block {5}</div>' +
+    '<div class="mt-block">' +
+      mtLine('{CHK:}', 'Checksum',          chksum) +
+      mtLine('{TNG:}', 'Training Message',  'Production') +
+      mtLine('TxID',   'Transmission ID',   t.transmission_id || '—') +
+      mtLine('Duration','Network Latency',  (t.duration_ms || '—') + ' ms') +
+    '</div>' +
+
+    '<hr class="divider">' +
+
+    // Signature area
+    '<div class="sig-area">' +
+      '<div class="sig-box">Authorised Signatory<br><br><br>________________________<br>ALSHUMOOKH GLOBAL</div>' +
+      '<div class="sig-box">Received By<br><br><br>________________________<br>Beneficiary Institution</div>' +
+      '<div class="sig-box">Date / Official Stamp<br><br><br>________________________</div>' +
+    '</div>' +
+
+    // Disclaimer
+    '<div class="footer-notice">' +
+      'This is an official SWIFT transmission receipt issued by ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT. ' +
+      'TRN: ' + esc(trn) + ' &nbsp;|&nbsp; UETR: ' + esc(uetr) + '. ' +
+      'Message Type: ' + esc(t.msg_type) + '. ' +
+      'This receipt confirms that the message was dispatched from the ALSHUMOOKH GLOBAL system to the designated endpoint at ' + dateDisp + '. ' +
+      'The originating institution does not accept liability for actions taken by the receiving institution. ' +
+      'Retain this document for audit and compliance purposes.' +
+    '</div>' +
+
+    // Footer
+    '<div class="footer">' +
+      '<span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &nbsp;|&nbsp; BIC: ' + esc(fromBIC) + '</span>' +
+      '<span>TRN: ' + esc(trn) + '</span>' +
+      '<span>PAGE 1 OF 1</span>' +
+    '</div>' +
+
+    '</div></body></html>';
+
+  var win = window.open('', '_blank', 'width=860,height=1100,scrollbars=yes');
+  if (!win) { showToast('Allow popups to print receipt', 'warn'); return; }
+  win.document.write(html);
+  win.document.close();
+}
+
+function mtLine(code, label, value) {
+  return '<div class="mt-line">' +
+    '<span class="mt-code">' + code + '</span>' +
+    '<span class="mt-field">' + label + '</span>' +
+    '<span class="mt-val">' + esc(String(value || '—')) + '</span>' +
+    '</div>';
+}
+
+// ── Init
+renderSideHist();
+document.getElementById('qInput').focus();
+</script>
+
+<!-- ═══════════════════════════ TRANSMIT MODAL ═══════════════════════════ -->
+<div class="modal-overlay tx-modal" id="transmitModal" onclick="if(event.target===this)closeTransmitModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">&#8658; SWIFT TRANSMITTER — ENDPOINT TO ENDPOINT</div>
+      <button class="modal-close" onclick="closeTransmitModal()">&#10005; CLOSE</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- FROM (SENDER) -->
+      <div class="tx-section-title">&#9654; SENDER (FROM)</div>
+      <div class="field-row">
+        <div class="field-label">FROM SYSTEM ENDPOINT</div>
+        <input id="txFromEndpoint" class="field-input" type="text" readonly
+               placeholder="ALSHUMOOKH system origin…" oninput="updatePayloadPreview()"/>
+        <div class="tx-field-hint">Auto-filled — your system origin</div>
+      </div>
+      <div class="field-row">
+        <div class="field-label">SENDER ACCOUNT / WALLET ADDRESS</div>
+        <input id="txFromAccount" class="field-input" type="text"
+               placeholder="e.g. 0x1a2b3c… / ACC-00123 / TRX wallet…"
+               oninput="updatePayloadPreview()"/>
+      </div>
+
+      <!-- TO (RECIPIENT) -->
+      <div class="tx-section-title">&#9654; RECIPIENT (TO)</div>
+      <div class="field-row">
+        <div class="field-label">DESTINATION API ENDPOINT URL</div>
+        <input id="txToEndpoint" class="field-input" type="url"
+               placeholder="https://bank-api.example.com/api/swift/receive"
+               oninput="updatePayloadPreview()"/>
+      </div>
+      <div class="field-row">
+        <div class="field-label">RECIPIENT ACCOUNT / WALLET ADDRESS</div>
+        <input id="txToAccount" class="field-input" type="text"
+               placeholder="e.g. 0xabc… / ACC-00456 / TRX wallet…"
+               oninput="updatePayloadPreview()"/>
+      </div>
+
+      <!-- SAVED ENDPOINTS -->
+      <div class="tx-section-title">&#9654; SAVED ENDPOINTS</div>
+      <div id="txSavedEndpointsList" style="margin-bottom:6px"></div>
+      <div class="tx-save-ep-row">
+        <input id="txEpSaveName" class="field-input" type="text" placeholder="Endpoint name (e.g. PARTNER_BANK)"/>
+        <button class="btn-save-ep" onclick="txSaveCurrentEndpoint()">&#43; SAVE CURRENT</button>
+      </div>
+
+      <!-- BANK DETAILS — SENDER -->
+      <div class="tx-section-title" style="margin-top:16px">&#9654; SENDER BANK DETAILS (:52A:)</div>
+      <div class="tx-grid2">
+        <div class="field-row">
+          <div class="field-label">SENDER BIC / SWIFT CODE</div>
+          <input id="txFromBIC" class="field-input" type="text" maxlength="11"
+                 placeholder="e.g. ALSHUAEXAXXX" style="text-transform:uppercase"
+                 oninput="this.value=this.value.toUpperCase();updatePayloadPreview()"/>
+          <div class="tx-field-hint">8 or 11 character BIC code</div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">SENDER BANK NAME</div>
+          <input id="txFromBankName" class="field-input" type="text"
+                 placeholder="e.g. ALSHUMOOKH GLOBAL BANK"
+                 oninput="updatePayloadPreview()"/>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-label">SENDER FULL NAME &amp; ADDRESS (:50K:)</div>
+        <textarea id="txFromAddress" class="field-input" rows="3"
+                  placeholder="Full legal name&#10;Street / City / Country"
+                  oninput="updatePayloadPreview()" style="resize:vertical;min-height:56px"></textarea>
+      </div>
+
+      <!-- BANK DETAILS — RECIPIENT -->
+      <div class="tx-section-title" style="margin-top:16px">&#9654; RECIPIENT BANK DETAILS (:57A:)</div>
+      <div class="tx-grid2">
+        <div class="field-row">
+          <div class="field-label">RECIPIENT BIC / SWIFT CODE</div>
+          <input id="txToBIC" class="field-input" type="text" maxlength="11"
+                 placeholder="e.g. CITIUS33XXX" style="text-transform:uppercase"
+                 oninput="this.value=this.value.toUpperCase();updatePayloadPreview()"/>
+        </div>
+        <div class="field-row">
+          <div class="field-label">RECIPIENT BANK NAME</div>
+          <input id="txToBankName" class="field-input" type="text"
+                 placeholder="e.g. CITIBANK N.A."
+                 oninput="updatePayloadPreview()"/>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-label">RECIPIENT FULL NAME &amp; ADDRESS (:59:)</div>
+        <textarea id="txToAddress" class="field-input" rows="3"
+                  placeholder="Full legal name&#10;Street / City / Country"
+                  oninput="updatePayloadPreview()" style="resize:vertical;min-height:56px"></textarea>
+      </div>
+
+      <!-- INTERMEDIARY & CHARGES -->
+      <div class="tx-section-title" style="margin-top:16px">&#9654; INTERMEDIARY &amp; CHARGES</div>
+      <div class="tx-grid2">
+        <div class="field-row">
+          <div class="field-label">INTERMEDIARY BANK BIC (:56A:) — optional</div>
+          <input id="txIntermBIC" class="field-input" type="text" maxlength="11"
+                 placeholder="e.g. DEUTDEDBXXX" style="text-transform:uppercase"
+                 oninput="this.value=this.value.toUpperCase();updatePayloadPreview()"/>
+        </div>
+        <div class="field-row">
+          <div class="field-label">DETAILS OF CHARGES (:71A:)</div>
+          <select id="txCharges" class="tx-select" onchange="updatePayloadPreview()">
+            <option value="SHA">SHA — Shared (each party pays own fees)</option>
+            <option value="OUR">OUR — Sender pays all fees</option>
+            <option value="BEN">BEN — Beneficiary pays all fees</option>
+          </select>
+        </div>
+      </div>
+      <div class="tx-grid2">
+        <div class="field-row">
+          <div class="field-label">TX HASH / BLOCKCHAIN REF (optional)</div>
+          <input id="txHash" class="field-input" type="text"
+                 placeholder="0x... or TRX hash or internal ref"
+                 oninput="updatePayloadPreview()"/>
+        </div>
+        <div class="field-row">
+          <div class="field-label">UETR — Unique End-to-End Ref (optional)</div>
+          <input id="txUETR" class="field-input" type="text"
+                 placeholder="Auto-generated if blank (UUID format)"
+                 oninput="updatePayloadPreview()"/>
+          <div class="tx-field-hint">Leave blank to auto-generate</div>
+        </div>
+      </div>
+
+      <!-- AUTHENTICATION -->
+      <div class="tx-section-title" style="margin-top:16px">&#9654; AUTHENTICATION</div>
+      <div class="field-row">
+        <div class="field-label">AUTH TYPE</div>
+        <select id="txAuthType" class="tx-select" onchange="txAuthTypeChange()">
+          <option value="none">None (No Authentication)</option>
+          <option value="bearer">Bearer Token (Authorization: Bearer …)</option>
+          <option value="apikey">API Key (Custom Header)</option>
+          <option value="basic">Basic Auth (Authorization: Basic …)</option>
+          <option value="custom">Custom Header</option>
+        </select>
+      </div>
+      <div class="field-row" id="txAuthHeaderRow" style="display:none">
+        <div class="field-label">HEADER NAME</div>
+        <input id="txAuthHeader" class="field-input" type="text" value="X-API-Key"/>
+      </div>
+      <div class="field-row" id="txAuthValueRow" style="display:none">
+        <div class="field-label" id="txAuthValueLabel">CREDENTIAL VALUE</div>
+        <input id="txAuthValue" class="field-input" type="password" placeholder="Enter credential…"/>
+      </div>
+
+      <!-- MESSAGE -->
+      <div class="tx-section-title" style="margin-top:16px">&#9654; MESSAGE</div>
+      <div class="tx-grid2">
+        <div class="field-row">
+          <div class="field-label">MESSAGE TYPE</div>
+          <select id="txMsgType" class="tx-select" onchange="updatePayloadPreview()">
+            <option value="MT103">MT103 — Single Customer Credit Transfer</option>
+            <option value="MT202">MT202 — Financial Institution Transfer</option>
+            <option value="MT199">MT199 — Free Format Message</option>
+            <option value="MT900">MT900 — Confirmation of Debit</option>
+            <option value="MT910">MT910 — Confirmation of Credit</option>
+            <option value="CUSTOM">CUSTOM — Raw Payload</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field-label">TRANSFER TYPE / CATEGORY (:23E:)</div>
+          <select id="txTransferType" class="tx-select" onchange="updatePayloadPreview()">
+            <optgroup label="── Standard Transfers ──">
+              <option value="CREDIT_TRANSFER">Credit Transfer — تحويل دائن</option>
+              <option value="DEBIT_TRANSFER">Debit Transfer — تحويل مدين</option>
+              <option value="WIRE_TRANSFER">Wire Transfer — تحويل بنكي</option>
+              <option value="DOMESTIC_TRANSFER">Domestic Transfer — تحويل محلي</option>
+              <option value="INTERNATIONAL_TRANSFER">International Transfer — تحويل دولي</option>
+            </optgroup>
+            <optgroup label="── Trade & Commerce ──">
+              <option value="TRADE_FINANCE">Trade Finance — تمويل تجاري</option>
+              <option value="LETTER_OF_CREDIT">Letter of Credit — اعتماد مستندي</option>
+              <option value="DOCUMENTARY_COLLECTION">Documentary Collection — تحصيل مستندي</option>
+              <option value="INVOICE_PAYMENT">Invoice Payment — دفع فاتورة</option>
+              <option value="SALARY_PAYMENT">Salary / Payroll — رواتب</option>
+            </optgroup>
+            <optgroup label="── Treasury & Capital ──">
+              <option value="TREASURY_TRANSFER">Treasury Transfer — تحويل خزانة</option>
+              <option value="CAPITAL_INJECTION">Capital Injection — ضخ رأس مال</option>
+              <option value="LOAN_DISBURSEMENT">Loan Disbursement — صرف قرض</option>
+              <option value="LOAN_REPAYMENT">Loan Repayment — سداد قرض</option>
+              <option value="DIVIDEND_PAYMENT">Dividend Payment — توزيع أرباح</option>
+              <option value="COLLATERAL_TRANSFER">Collateral Transfer — تحويل ضمانات</option>
+            </optgroup>
+            <optgroup label="── Digital Assets ──">
+              <option value="CRYPTO_SETTLEMENT">Crypto Settlement — تسوية رقمية</option>
+              <option value="STABLECOIN_TRANSFER">Stablecoin Transfer — تحويل USDT/USDC</option>
+              <option value="TOKEN_TRANSFER">Token Transfer — تحويل رمز</option>
+              <option value="DeFi_SETTLEMENT">DeFi Settlement — تسوية لامركزية</option>
+            </optgroup>
+            <optgroup label="── Regulatory / Special ──">
+              <option value="REGULATORY_PAYMENT">Regulatory / Tax Payment — دفع ضرائب/رسوم</option>
+              <option value="ESCROW_RELEASE">Escrow Release — إفراج ضمان</option>
+              <option value="REFUND">Refund — استرداد</option>
+              <option value="COMPENSATION">Compensation — تعويض</option>
+              <option value="CHARITY_DONATION">Charity / Donation — تبرع</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+      <div class="tx-grid2" style="margin-top:8px">
+        <div class="field-row">
+          <div class="field-label">LINKED RECORD ID (optional)</div>
+          <input id="txRecordId" class="field-input" type="text"
+                 placeholder="UUID of PaymentOrder / ExternalPayload"
+                 oninput="updatePayloadPreview()"/>
+        </div>
+        <div class="field-row">
+          <div class="field-label">INSTRUCTION CODE (:23E:) — optional</div>
+          <input id="txInstructionCode" class="field-input" type="text"
+                 placeholder="e.g. HOLD / PHON / TELE / REPA"
+                 style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();updatePayloadPreview()"/>
+          <div class="tx-field-hint">SWIFT instruction code for special handling</div>
+        </div>
+      </div>
+
+      <!-- AMOUNT & CURRENCY (:32A:) -->
+      <div class="tx-section-title" style="margin-top:16px">&#9654; TRANSACTION AMOUNT (:32A:)</div>
+      <div class="tx-grid2">
+        <div class="field-row">
+          <div class="field-label">AMOUNT</div>
+          <input id="txAmount" class="field-input" type="number" min="0" step="any"
+                 placeholder="e.g. 10000.00" oninput="updatePayloadPreview()"/>
+          <div class="tx-field-hint">Value to transfer (leave blank if informational only)</div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">CURRENCY</div>
+          <select id="txCurrency" class="tx-select" onchange="updatePayloadPreview()">
+            <option value="USD">USD — US Dollar</option>
+            <option value="EUR">EUR — Euro</option>
+            <option value="GBP">GBP — British Pound</option>
+            <option value="AED">AED — UAE Dirham</option>
+            <option value="SAR">SAR — Saudi Riyal</option>
+            <option value="USDT">USDT — Tether (TRC-20 / ERC-20)</option>
+            <option value="ETH">ETH — Ethereum</option>
+            <option value="TRX">TRX — TRON</option>
+            <option value="BTC">BTC — Bitcoin</option>
+            <option value="OTHER">OTHER</option>
+          </select>
+        </div>
+      </div>
+      <div class="tx-grid2">
+        <div class="field-row">
+          <div class="field-label">VALUE DATE (optional)</div>
+          <input id="txValueDate" class="field-input" type="date" oninput="updatePayloadPreview()"/>
+          <div class="tx-field-hint">Settlement date — defaults to today</div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">REMITTANCE INFO / PURPOSE (optional)</div>
+          <input id="txRemittance" class="field-input" type="text"
+                 placeholder="e.g. Invoice #INV-2026-001 / Contract payment"
+                 oninput="updatePayloadPreview()"/>
+        </div>
+      </div>
+
+      <!-- PAYLOAD PREVIEW -->
+      <div class="tx-section-title" style="margin-top:16px">&#9654; PAYLOAD PREVIEW (JSON envelope)</div>
+      <textarea id="txPayloadPreview" class="tx-payload-box" rows="10" readonly></textarea>
+      <div class="tx-field-hint">This envelope is sent to the destination endpoint</div>
+
+      <!-- SEND -->
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <button id="txSendBtn" class="btn-tx-send" onclick="doTransmit()">
+          &#8658; SEND TO API
+        </button>
+      </div>
+
+      <!-- RESPONSE -->
+      <div class="tx-resp-panel" id="txRespPanel">
+        <div class="tx-resp-head">
+          <span style="color:var(--txt2);font-size:10px">RESPONSE</span>
+          <span class="tx-resp-code" id="txRespCode">—</span>
+          <span class="tx-resp-dur" id="txRespDur"></span>
+          <button id="txPrintReceiptBtn"
+                  onclick="printSwiftReceipt()"
+                  style="display:none;margin-left:auto;background:var(--grn);border:none;color:#000;font-family:var(--mono);font-size:10px;font-weight:900;padding:4px 14px;cursor:pointer;letter-spacing:.06em">
+            &#128424; PRINT SWIFT RECEIPT
+          </button>
+        </div>
+        <div class="tx-resp-body" id="txRespBody"></div>
+      </div>
+
+    </div><!-- modal-body -->
+  </div><!-- modal-box -->
+</div><!-- transmitModal -->
+
+</body>
+</html>
