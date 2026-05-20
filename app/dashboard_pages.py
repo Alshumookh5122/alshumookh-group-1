@@ -166,59 +166,86 @@ tr:hover td {{ background:rgba(255,255,255,0.03); }}
 
 _SHARED_JS = """
 <script>
-var AK = (sessionStorage.getItem('als_admin_key')||localStorage.getItem('als_admin_key')||'');
+// ── Safe storage read (works even if storage is blocked) ─────────────────────
+var AK = '';
+try {
+  AK = (sessionStorage.getItem('als_admin_key')||localStorage.getItem('als_admin_key')||'');
+} catch(_se) {
+  try { var _m=document.cookie.match(/als_ak=([^;]+)/); AK=_m?decodeURIComponent(_m[1]):''; } catch(_ce){}
+}
+
+// ── Global JS error visibility ────────────────────────────────────────────────
+window.onerror = function(msg, src, line, col, err) {
+  try {
+    var d = document.getElementById('_js_err_bar');
+    if(!d){ d=document.createElement('div'); d.id='_js_err_bar';
+      d.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:9999999;background:#dc2626;color:#fff;padding:8px 16px;font-size:11px;font-family:monospace;word-break:break-all;';
+      document.body&&document.body.appendChild(d); }
+    d.textContent='JS Error: '+msg+' (line '+line+')';
+  } catch(e2){}
+  return false;
+};
 
 function syncAKInputs(){
-  var top=document.getElementById('_top_ak_inp');
-  var banner=document.getElementById('_ak_inp');
-  if(top && AK) top.value=AK;
-  if(banner && AK) banner.value=AK;
+  try{
+    var top=document.getElementById('_top_ak_inp');
+    var inp=document.getElementById('_ak_inp');
+    if(top && AK) top.value=AK;
+    if(inp && AK) inp.value=AK;
+  }catch(e){}
 }
 
 // ── API Key Banner ────────────────────────────────────────────────────────────
-(function(){
+try {
   var banner = document.createElement('div');
   banner.id = '_ak_banner';
   banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:10px 20px;display:flex;align-items:center;gap:12px;font-size:13px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,.4);';
   banner.innerHTML = '<span style="font-weight:700;">🔑 Admin API Key:</span>'
-    +'<input id="_ak_inp" type="password" placeholder="أدخل Admin API Key..." '
-    +'style="flex:1;max-width:420px;padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:13px;outline:none;" />'
+    +'<input id="_ak_inp" type="password" placeholder="أدخل Admin API Key هنا ثم اضغط حفظ..." '
+    +'style="flex:1;max-width:440px;padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:13px;outline:none;" />'
     +'<button onclick="saveAK()" style="padding:7px 18px;border-radius:8px;background:#fff;color:#1d4ed8;font-weight:700;border:none;cursor:pointer;font-size:13px;">حفظ ✓</button>'
-    +'<button onclick="document.getElementById(\'_ak_banner\').style.display=\'none\'" style="padding:7px 14px;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer;font-size:12px;">✕</button>';
-  document.body.insertBefore(banner, document.body.firstChild);
+    +'<button onclick="(function(){var b=document.getElementById(\'_ak_banner\');if(b)b.style.display=\'none\';})()" style="padding:7px 14px;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer;font-size:12px;">✕</button>';
+  if(document.body) document.body.insertBefore(banner, document.body.firstChild);
   syncAKInputs();
   if(AK){
     banner.style.display='none';
-    // Show small indicator instead
     var ind = document.createElement('div');
     ind.id='_ak_ind';
     ind.style.cssText='position:fixed;bottom:24px;left:24px;z-index:9998;background:rgba(5,150,105,.9);color:#fff;padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;';
     ind.textContent='🔑 API Key مُعيّن';
-    ind.onclick=function(){ document.getElementById('_ak_banner').style.display='flex'; };
-    document.body.appendChild(ind);
+    ind.onclick=function(){var b=document.getElementById('_ak_banner');if(b)b.style.display='flex';};
+    if(document.body) document.body.appendChild(ind);
   }
-})();
+} catch(_berr) { console.error('Banner init error:', _berr); }
 
 function saveAK(){
-  var v = document.getElementById('_ak_inp').value.trim();
-  if(!v){ alert('أدخل API Key أولاً'); return; }
-  AK = v;
-  sessionStorage.setItem('als_admin_key', v);
-  localStorage.setItem('als_admin_key', v);
-  document.getElementById('_ak_banner').style.display='none';
-  showToast('تم حفظ API Key ✓ جاري تحديث البيانات...','ok');
-  setTimeout(function(){ location.reload(); }, 1200);
+  try{
+    var v=(document.getElementById('_ak_inp')||{}).value||'';
+    v=v.trim();
+    if(!v){alert('أدخل Admin API Key أولاً');return;}
+    AK=v;
+    try{sessionStorage.setItem('als_admin_key',v);}catch(e){}
+    try{localStorage.setItem('als_admin_key',v);}catch(e){}
+    try{document.cookie='als_ak='+encodeURIComponent(v)+';path=/;max-age=86400;samesite=lax';}catch(e){}
+    try{var b=document.getElementById('_ak_banner');if(b)b.style.display='none';}catch(e){}
+    showToast('تم حفظ Admin API Key ✓ جاري التحديث...','ok');
+    setTimeout(function(){location.reload();},1200);
+  }catch(e){alert('خطأ: '+e.message);}
 }
 
 function saveTopAK(){
-  var v = document.getElementById('_top_ak_inp').value.trim();
-  if(!v){ alert('أدخل API Key أولاً'); return; }
-  AK = v;
-  sessionStorage.setItem('als_admin_key', v);
-  localStorage.setItem('als_admin_key', v);
-  syncAKInputs();
-  showToast('تم حفظ API Key ✓ جاري تحديث البيانات...','ok');
-  setTimeout(function(){ location.reload(); }, 900);
+  try{
+    var v=(document.getElementById('_top_ak_inp')||{}).value||'';
+    v=v.trim();
+    if(!v){alert('أدخل Admin API Key أولاً');return;}
+    AK=v;
+    try{sessionStorage.setItem('als_admin_key',v);}catch(e){}
+    try{localStorage.setItem('als_admin_key',v);}catch(e){}
+    try{document.cookie='als_ak='+encodeURIComponent(v)+';path=/;max-age=86400;samesite=lax';}catch(e){}
+    syncAKInputs();
+    showToast('تم حفظ Admin API Key ✓ جاري التحديث...','ok');
+    setTimeout(function(){location.reload();},900);
+  }catch(e){alert('خطأ: '+e.message);}
 }
 
 function H(extra) {
@@ -477,7 +504,7 @@ _OVERVIEW_BODY = """
 
 <script>
 async function loadOverview() {
-  document.getElementById('readinessBody').innerHTML='<p style="color:var(--muted);font-size:12px;">جاري الاتصال بالخادم...</p>';
+  try{ document.getElementById('readinessBody').innerHTML='<p style="color:var(--muted);font-size:12px;">جاري الاتصال بالخادم...</p>'; }catch(e){}
   try {
     var m = await api('/api/v1/admin/monitoring/live');
     document.getElementById('sTotal').textContent     = (m.orders && m.orders.total)||0;
@@ -532,8 +559,12 @@ async function loadOverview() {
     // readinessBody might already show error from monitoring, that's ok
   }
 }
-loadOverview();
-setInterval(loadOverview, 30000);
+// Run immediately AND on DOM ready as safety net
+try{ loadOverview(); }catch(e){ console.error('loadOverview error:',e); }
+setInterval(function(){ try{loadOverview();}catch(e){} }, 30000);
+document.addEventListener('DOMContentLoaded', function(){
+  try{ loadOverview(); }catch(e){}
+});
 
 // ── Settlement Payloads in Overview ──────────────────────────────────────────
 var _ovCurrentPl = null;
@@ -691,7 +722,7 @@ async function ovQuickAction(id,decision){
   try{await api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})});showToast(action==='APPROVE'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();}
   catch(e){showToast('خطأ: '+e.message,'error');}
 }
-loadOvPayloads();
+try{ loadOvPayloads(); }catch(e){ console.error('loadOvPayloads error:',e); }
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape'){
     var d=document.getElementById('ovPlDetail');
