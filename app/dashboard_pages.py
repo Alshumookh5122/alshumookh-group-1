@@ -358,9 +358,9 @@ def _page(title: str, active: str, body: str) -> str:
         + _sidebar(active)
         + "<main>\n"
         + _topbar(title)
+        + _SHARED_JS
         + body
         + "\n</main>\n"
-        + _SHARED_JS
         + "\n</body>\n</html>"
     )
 
