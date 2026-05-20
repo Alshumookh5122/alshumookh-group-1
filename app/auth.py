@@ -77,7 +77,20 @@ def verify_admin_session_token(token: str | None, request: Request) -> bool:
 
 def is_admin_request_authenticated(request: Request) -> bool:
     session_token = request.cookies.get(ADMIN_SESSION_COOKIE)
-    return verify_admin_session_token(session_token, request)
+    if verify_admin_session_token(session_token, request):
+        return True
+
+    settings = get_settings()
+    expected_key = str(settings.admin_api_key or '')
+    cookie_key = str(request.cookies.get('als_ak') or '')
+    if expected_key and cookie_key and hmac.compare_digest(cookie_key, expected_key):
+        allowed_ips = _csv_values(getattr(settings, 'admin_allowed_ips', None))
+        request_ip = _request_ip(request)
+        if allowed_ips and request_ip not in allowed_ips:
+            return False
+        return True
+
+    return False
 
 
 def hash_password(password: str) -> str:
@@ -152,11 +165,13 @@ async def require_admin_api_key(
 
     expected_key = str(settings.admin_api_key or '')
     received_key = str(x_admin_api_key or '')
+    cookie_key = str(request.cookies.get('als_ak') or '')
 
     header_is_valid = bool(received_key) and hmac.compare_digest(received_key, expected_key)
+    cookie_key_is_valid = bool(cookie_key) and hmac.compare_digest(cookie_key, expected_key)
     session_is_valid = is_admin_request_authenticated(request)
 
-    if not header_is_valid and not session_is_valid:
+    if not header_is_valid and not cookie_key_is_valid and not session_is_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
 
     allowed_ips = _csv_values(getattr(settings, 'admin_allowed_ips', None))
@@ -167,7 +182,7 @@ async def require_admin_api_key(
 
     request.state.admin_authenticated = True
     request.state.admin_ip = request_ip
-    return x_admin_api_key or 'admin-session'
+    return x_admin_api_key or ('admin-cookie-key' if cookie_key_is_valid else 'admin-session')
 
 
 def create_api_key() -> str:
