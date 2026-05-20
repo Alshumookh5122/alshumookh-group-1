@@ -255,24 +255,39 @@ function H(extra) {
   return h;
 }
 
-async function api(url, opts) {
+function api(url, opts) {
   opts = opts||{};
-  opts.headers = H(opts.headers||{});
-  opts.credentials = 'include';
-  var r = await fetch(url, opts);
-  if(r.status === 401 || r.status === 403){
-    // Show API key banner on auth failure
-    var b=document.getElementById('_ak_banner');
-    if(b) b.style.display='flex';
+  var method = opts.method||'GET';
+  var headers = H(opts.headers||{});
+  var body = opts.body||null;
+  function _authErr(status) {
+    try{ var b=document.getElementById('_ak_banner'); if(b)b.style.display='flex'; }catch(ex){}
     showToast('خطأ في المصادقة — أدخل Admin API Key','error');
-    throw new Error('غير مصرح — HTTP '+r.status);
   }
-  if(!r.ok){
-    var m='HTTP '+r.status;
-    try{ var d=await r.json(); m=d.detail||d.message||m; }catch(e){}
-    throw new Error(m);
+  if(typeof fetch !== 'undefined') {
+    return fetch(url,{method:method,headers:headers,credentials:'include',body:body}).then(function(r){
+      if(r.status===401||r.status===403){ _authErr(r.status); throw new Error('غير مصرح — HTTP '+r.status); }
+      if(!r.ok){
+        return r.json().then(function(d){ throw new Error(d.detail||d.message||'HTTP '+r.status); },
+                             function(){ throw new Error('HTTP '+r.status); });
+      }
+      return r.json();
+    });
   }
-  return r.json();
+  return new Promise(function(resolve,reject){
+    var xhr=new XMLHttpRequest();
+    xhr.open(method,url,true); xhr.withCredentials=true; xhr.timeout=30000;
+    Object.keys(headers).forEach(function(k){ try{xhr.setRequestHeader(k,headers[k]);}catch(e){} });
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState!==4) return;
+      if(xhr.status===401||xhr.status===403){ _authErr(xhr.status); reject(new Error('غير مصرح — HTTP '+xhr.status)); return; }
+      if(xhr.status>=200&&xhr.status<300){ try{resolve(JSON.parse(xhr.responseText));}catch(e){reject(new Error('Parse error'));} }
+      else{ var msg='HTTP '+xhr.status; try{msg=JSON.parse(xhr.responseText).detail||msg;}catch(e){} reject(new Error(msg)); }
+    };
+    xhr.onerror=function(){reject(new Error('Network Error'));};
+    xhr.ontimeout=function(){reject(new Error('Timeout'));};
+    xhr.send(body);
+  });
 }
 
 function badge(s){
@@ -503,10 +518,9 @@ _OVERVIEW_BODY = """
 </div>
 
 <script>
-async function loadOverview() {
+function loadOverview() {
   try{ document.getElementById('readinessBody').innerHTML='<p style="color:var(--muted);font-size:12px;">جاري الاتصال بالخادم...</p>'; }catch(e){}
-  try {
-    var m = await api('/api/v1/admin/monitoring/live');
+  api('/api/v1/admin/monitoring/live').then(function(m) {
     document.getElementById('sTotal').textContent     = (m.orders && m.orders.total)||0;
     document.getElementById('sCompleted').textContent = (m.orders && m.orders.by_status && m.orders.by_status['COMPLETED'])||0;
     document.getElementById('sPayloads').textContent  = (m.payloads && m.payloads.total)||0;
@@ -529,7 +543,7 @@ async function loadOverview() {
     document.getElementById('payloadStatus').innerHTML = psKeys.length
       ? psKeys.map(function(s){return '<div style="padding:8px 14px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--line);">'+badge(s)+' <strong style="color:var(--ink);margin-right:6px;">'+ps[s]+'</strong></div>';}).join('')
       : '<p style="color:var(--muted);">لا توجد بيانات</p>';
-  } catch(e) {
+  }).catch(function(e) {
     var errMsg = e.message||'خطأ غير معروف';
     // Show error visibly so user can diagnose
     document.getElementById('sTotal').textContent='ERR';
@@ -541,10 +555,9 @@ async function loadOverview() {
       +'<button onclick="var b=document.getElementById(\'_ak_banner\');if(b){b.style.display=\'flex\';}" '
       +'style="background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">🔑 إدخال API Key</button>'
       +'</div>';
-  }
+  });
 
-  try {
-    var rd = await api('/api/v1/admin/system/readiness');
+  api('/api/v1/admin/system/readiness').then(function(rd) {
     var checks = rd.checks||{};
     var warnings = rd.warnings||[];
     var html = Object.keys(checks).map(function(k){
@@ -555,9 +568,9 @@ async function loadOverview() {
       html += '<div style="margin-top:12px;">'+warnings.map(function(w){return '<div style="padding:6px 10px;margin-top:4px;border-radius:6px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);font-size:12px;color:#fbbf24;">'+w+'</div>';}).join('')+'</div>';
     }
     document.getElementById('readinessBody').innerHTML = html||'<p style="color:var(--muted);">لا توجد بيانات</p>';
-  } catch(e) {
+  }).catch(function(e) {
     // readinessBody might already show error from monitoring, that's ok
-  }
+  });
 }
 // Run immediately AND on DOM ready as safety net
 try{ loadOverview(); }catch(e){ console.error('loadOverview error:',e); }
@@ -587,9 +600,8 @@ function ovInfoValue(label, value){
   return value;
 }
 
-async function loadOvPayloads() {
-  try {
-    var res = await api('/api/v1/admin/payloads');
+function loadOvPayloads() {
+  api('/api/v1/admin/payloads').then(function(res) {
     var rows = res.payloads||[];
     if(!rows.length){
       document.getElementById('ovPlBody').innerHTML='<div class="empty-state"><div class="icon">📥</div>لا توجد payloads</div>';
@@ -616,14 +628,13 @@ async function loadOvPayloads() {
         +'</tr>';
     }).join('');
     document.getElementById('ovPlBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-  } catch(e){
+  }).catch(function(e){
     document.getElementById('ovPlBody').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+e.message+'</div>';
-  }
+  });
 }
 
-async function ovViewPayload(id) {
-  try {
-    var p = await api('/api/v1/admin/payloads/'+id);
+function ovViewPayload(id) {
+  api('/api/v1/admin/payloads/'+id).then(function(p) {
     _ovCurrentPl = p;
     document.getElementById('ovPlRef').textContent = p.transaction_reference||p.id;
     // Info grid
@@ -650,7 +661,7 @@ async function ovViewPayload(id) {
     ovTab('raw');
     document.getElementById('ovPlDetail').style.display='block';
     document.body.style.overflow='hidden';
-  } catch(e){ showToast('خطأ: '+e.message,'error'); }
+  }).catch(function(e){ showToast('خطأ: '+e.message,'error'); });
 }
 
 function ovClosePayload(){
@@ -680,47 +691,41 @@ function ovTab(tab) {
   document.getElementById('ovTabContent').textContent=content;
 }
 
-async function ovVerify(){
+function ovVerify(){
   if(!_ovCurrentPl){return;}
   var pid=_ovCurrentPl.id||_ovCurrentPl.payload_id;
-  try{await api('/api/v1/admin/payloads/'+pid+'/verify',{method:'POST'});showToast('تم إرسال طلب التحقق','ok');loadOvPayloads();ovViewPayload(pid);}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/payloads/'+pid+'/verify',{method:'POST'}).then(function(){showToast('تم إرسال طلب التحقق','ok');loadOvPayloads();ovViewPayload(pid);}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function ovManual(){
+function ovManual(){
   if(!_ovCurrentPl){return;}
   var pid=_ovCurrentPl.id||_ovCurrentPl.payload_id;
-  try{await api('/api/v1/admin/payloads/'+pid+'/mark-manual-review',{method:'POST'});showToast('تم التحديد للمراجعة','ok');loadOvPayloads();ovViewPayload(pid);}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/payloads/'+pid+'/mark-manual-review',{method:'POST'}).then(function(){showToast('تم التحديد للمراجعة','ok');loadOvPayloads();ovViewPayload(pid);}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function ovReview(decision){
+function ovReview(decision){
   if(!_ovCurrentPl){return;}
   var note=document.getElementById('ovReviewNote').value||'';
   var action=(decision||'').toUpperCase();
   var priority=document.getElementById('ovPriority').value||'NORMAL';
-  try{await api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:action,note:note,priority:priority})});showToast(action==='APPROVE'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();ovClosePayload();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:action,note:note,priority:priority})}).then(function(){showToast(action==='APPROVE'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();ovClosePayload();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function ovHold(){
+function ovHold(){
   if(!_ovCurrentPl){return;}
   var reason=document.getElementById('ovHoldReason').value;
   var note='HOLD: '+(reason||document.getElementById('ovReviewNote').value||'on hold');
   var priority=document.getElementById('ovPriority').value||'NORMAL';
-  try{await api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:'HOLD',note:note,hold_reason:reason||note,priority:priority})});showToast('تم وضع الـ Payload في الانتظار','ok');loadOvPayloads();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:'HOLD',note:note,hold_reason:reason||note,priority:priority})}).then(function(){showToast('تم وضع الـ Payload في الانتظار','ok');loadOvPayloads();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function ovSaveNote(){
+function ovSaveNote(){
   if(!_ovCurrentPl){return;}
   var note=document.getElementById('ovReviewNote').value;
   if(!note){showToast('اكتب ملاحظة أولاً','error');return;}
   var priority=document.getElementById('ovPriority').value||'NORMAL';
-  try{await api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:'NOTE',note:note,priority:priority})});showToast('تم حفظ الملاحظة','ok');}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:'NOTE',note:note,priority:priority})}).then(function(){showToast('تم حفظ الملاحظة','ok');}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function ovQuickAction(id,decision){
+function ovQuickAction(id,decision){
   var note=decision==='approve'?'Quick approval from dashboard':'Quick rejection from dashboard';
   var action=(decision||'').toUpperCase();
-  try{await api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})});showToast(action==='APPROVE'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})}).then(function(){showToast(action==='APPROVE'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
 try{ loadOvPayloads(); }catch(e){ console.error('loadOvPayloads error:',e); }
 document.addEventListener('keydown', function(e){
@@ -753,11 +758,10 @@ _ORDERS_BODY = """
   </div>
 </div>
 <script>
-async function loadOrders() {
+function loadOrders() {
   var st = document.getElementById('ordStatus').value;
   var url = '/api/v1/admin/orders' + (st ? '?status='+st : '');
-  try {
-    var rows = await api(url);
+  api(url).then(function(rows) {
     if(!Array.isArray(rows)) rows = rows.orders||[];
     document.getElementById('ordCount').textContent = rows.length + ' طلب';
     if(!rows.length){
@@ -778,9 +782,9 @@ async function loadOrders() {
       +'<td style="font-size:11px;">'+fmtDate(o.created_at)+'</td>'
       +'</tr>';}).join('');
     document.getElementById('ordersBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-  } catch(e) {
+  }).catch(function(e) {
     document.getElementById('ordersBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';
-  }
+  });
 }
 loadOrders();
 </script>
@@ -819,11 +823,10 @@ _PAYLOADS_BODY = """
   </div>
 </div>
 <script>
-async function loadPayloads() {
+function loadPayloads() {
   var st = document.getElementById('plStatus').value;
   var url = '/api/v1/admin/payloads' + (st ? '?verification_status='+st : '');
-  try {
-    var res = await api(url);
+  api(url).then(function(res) {
     var rows = res.payloads||[];
     document.getElementById('plCount').textContent = (res.count||rows.length)+' payload';
     if(!rows.length){
@@ -843,14 +846,13 @@ async function loadPayloads() {
       +'<td><button class="btn btn-ghost" data-rid="'+rid+'" onclick="event.stopPropagation();viewPayload(this.dataset.rid)" style="font-size:11px;padding:4px 10px;">عرض</button></td>'
       +'</tr>';}).join('');
     document.getElementById('plBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-  } catch(e) {
+  }).catch(function(e) {
     document.getElementById('plBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';
-  }
+  });
 }
 
-async function viewPayload(id) {
-  try {
-    var p = await api('/api/v1/admin/payloads/'+id);
+function viewPayload(id) {
+  api('/api/v1/admin/payloads/'+id).then(function(p) {
     var fields=[
       ['ID',p.id],['Verification Status',badge(p.verification_status)],
       ['Amount',fmtNum(p.amount)+' '+(p.asset||'USDT')],
@@ -884,22 +886,19 @@ async function viewPayload(id) {
     document.getElementById('plActions').innerHTML=acts.join('');
     document.getElementById('plDetail').style.display='block';
     document.getElementById('plDetail').scrollIntoView({behavior:'smooth'});
-  } catch(e){ showToast('خطأ: '+e.message,'error'); }
+  }).catch(function(e){ showToast('خطأ: '+e.message,'error'); });
 }
 
-async function verifyPl(id){
-  try{await api('/api/v1/admin/payloads/'+id+'/verify',{method:'POST'});showToast('تم ارسال طلب التحقق','ok');loadPayloads();viewPayload(id);}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+function verifyPl(id){
+  api('/api/v1/admin/payloads/'+id+'/verify',{method:'POST'}).then(function(){showToast('تم ارسال طلب التحقق','ok');loadPayloads();viewPayload(id);}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function markManual(id){
-  try{await api('/api/v1/admin/payloads/'+id+'/mark-manual-review',{method:'POST'});showToast('تم التحديد للمراجعة','ok');loadPayloads();viewPayload(id);}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+function markManual(id){
+  api('/api/v1/admin/payloads/'+id+'/mark-manual-review',{method:'POST'}).then(function(){showToast('تم التحديد للمراجعة','ok');loadPayloads();viewPayload(id);}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function reviewPl(id,decision){
+function reviewPl(id,decision){
   var note=prompt('ملاحظة ('+(decision==='approve'?'موافقة':'رفض')+'): ')||'';
   var action=(decision||'').toUpperCase();
-  try{await api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})});showToast('تم '+(action==='APPROVE'?'القبول':'الرفض'),'ok');loadPayloads();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})}).then(function(){showToast('تم '+(action==='APPROVE'?'القبول':'الرفض'),'ok');loadPayloads();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
 loadPayloads();
 </script>
@@ -965,7 +964,7 @@ function toggleCF(){
   el.style.display=el.style.display==='none'?'block':'none';
 }
 
-async function createTransfer(){
+function createTransfer(){
   var body={
     to_address:document.getElementById('cfTo').value.trim(),
     amount:document.getElementById('cfAmt').value,
@@ -975,43 +974,37 @@ async function createTransfer(){
   };
   if(!body.to_address){showToast('عنوان المستلم مطلوب','error');return;}
   if(!body.amount){showToast('المبلغ مطلوب','error');return;}
-  try{
-    await api('/api/v1/admin/outbound-transfers',{method:'POST',body:JSON.stringify(body)});
+  api('/api/v1/admin/outbound-transfers',{method:'POST',body:JSON.stringify(body)}).then(function(){
     showToast('تم انشاء التحويل','ok');
     toggleCF();
     document.getElementById('cfTo').value='';document.getElementById('cfAmt').value='';
     document.getElementById('cfCb').value='';document.getElementById('cfNotes').value='';
     loadTransfers();
-  }catch(e){showToast('خطأ: '+e.message,'error');}
+  }).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
 
-async function approveXfer(id){
+function approveXfer(id){
   if(!confirm('تاكيد الموافقة؟'))return;
-  try{await api('/api/v1/admin/outbound-transfers/'+id+'/approve',{method:'POST'});showToast('تمت الموافقة','ok');loadTransfers();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/outbound-transfers/'+id+'/approve',{method:'POST'}).then(function(){showToast('تمت الموافقة','ok');loadTransfers();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function broadcastXfer(id){
+function broadcastXfer(id){
   if(!confirm('تاكيد البث على الشبكة؟'))return;
-  try{await api('/api/v1/admin/outbound-transfers/'+id+'/broadcast',{method:'POST'});showToast('جاري البث','ok');loadTransfers();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/outbound-transfers/'+id+'/broadcast',{method:'POST'}).then(function(){showToast('جاري البث','ok');loadTransfers();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function cancelXfer(id){
+function cancelXfer(id){
   var r=prompt('سبب الالغاء:')||'Cancelled by admin';
-  try{await api('/api/v1/admin/outbound-transfers/'+id+'/cancel',{method:'POST',body:JSON.stringify({reason:r})});showToast('تم الالغاء','ok');loadTransfers();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/outbound-transfers/'+id+'/cancel',{method:'POST',body:JSON.stringify({reason:r})}).then(function(){showToast('تم الالغاء','ok');loadTransfers();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function retryXfer(id){
-  try{await api('/api/v1/admin/outbound-transfers/'+id+'/retry',{method:'POST'});showToast('تمت اعادة المحاولة','ok');loadTransfers();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+function retryXfer(id){
+  api('/api/v1/admin/outbound-transfers/'+id+'/retry',{method:'POST'}).then(function(){showToast('تمت اعادة المحاولة','ok');loadTransfers();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
 
-async function loadTransfers(){
+function loadTransfers(){
   var st=document.getElementById('xtStatus').value;
   var nt=document.getElementById('xtNetwork').value;
   var url='/api/v1/admin/outbound-transfers?limit=100';
   if(st)url+='&status='+st;if(nt)url+='&network='+nt;
-  try{
-    var rows=await api(url);
+  api(url).then(function(rows) {
     if(!Array.isArray(rows))rows=[];
     document.getElementById('xtCount').textContent=rows.length+' تحويل';
     if(!rows.length){document.getElementById('xtBody').innerHTML='<div class="empty-state"><div class="icon">🚀</div>لا توجد تحويلات</div>';return;}
@@ -1039,7 +1032,7 @@ async function loadTransfers(){
         +'</tr>';
     }).join('');
     document.getElementById('xtBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-  }catch(e){document.getElementById('xtBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';}
+  }).catch(function(e){document.getElementById('xtBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
 loadTransfers();
 setInterval(loadTransfers,20000);
@@ -1096,33 +1089,29 @@ _TOKENIZATION_BODY = """
   </div>
 </div>
 <script>
-async function loadFx(){
-  try{
-    var r=await api('/api/v1/admin/tokenization-jobs/fx-rate/live');
+function loadFx(){
+  api('/api/v1/admin/tokenization-jobs/fx-rate/live').then(function(r) {
     document.getElementById('fxBanner').innerHTML='<div style="font-size:28px;font-weight:800;color:var(--gold);">1 EUR = '+parseFloat(r.eur_usd).toFixed(4)+' USD</div><div style="color:var(--muted);font-size:12px;">Provider: '+(r.provider||'—')+'<br>'+fmtDate(r.timestamp)+'</div>';
-  }catch(e){document.getElementById('fxBanner').innerHTML='<span style="color:var(--muted);">غير متاح: '+e.message+'</span>';}
+  }).catch(function(e){document.getElementById('fxBanner').innerHTML='<span style="color:var(--muted);">غير متاح: '+e.message+'</span>';});
 }
 function toggleM1F(){
   var el=document.getElementById('m1Form');
   el.style.display=el.style.display==='none'?'block':'none';
 }
-async function createJob(){
+function createJob(){
   var body={eur_amount:document.getElementById('m1Eur').value,destination_wallet:document.getElementById('m1Dest').value.trim(),sender_reference:document.getElementById('m1Ref').value.trim()||null,sender_name:document.getElementById('m1Name').value.trim()||null,sender_iban:document.getElementById('m1Iban').value.trim()||null,network:document.getElementById('m1Net').value};
   if(!body.eur_amount){showToast('مبلغ EUR مطلوب','error');return;}
   if(!body.destination_wallet){showToast('محفظة الوجهة مطلوبة','error');return;}
-  try{await api('/api/v1/admin/tokenization-jobs',{method:'POST',body:JSON.stringify(body)});showToast('تم انشاء الوظيفة','ok');toggleM1F();loadJobs();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/tokenization-jobs',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('تم انشاء الوظيفة','ok');toggleM1F();loadJobs();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function processJob(id){
+function processJob(id){
   if(!confirm('تشغيل وظيفة EUR->USDT الان؟'))return;
-  try{await api('/api/v1/admin/tokenization-jobs/'+id+'/process',{method:'POST'});showToast('تمت المعالجة','ok');loadJobs();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/tokenization-jobs/'+id+'/process',{method:'POST'}).then(function(){showToast('تمت المعالجة','ok');loadJobs();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function loadJobs(){
+function loadJobs(){
   var st=document.getElementById('m1Status').value;
   var url='/api/v1/admin/tokenization-jobs?limit=100'+(st?'&status='+st:'');
-  try{
-    var rows=await api(url);
+  api(url).then(function(rows) {
     if(!Array.isArray(rows))rows=[];
     document.getElementById('m1Count').textContent=rows.length+' وظيفة';
     if(!rows.length){document.getElementById('m1Body').innerHTML='<div class="empty-state"><div class="icon">🔄</div>لا توجد وظائف</div>';return;}
@@ -1141,7 +1130,7 @@ async function loadJobs(){
       +'<td>'+(r.status==='QUEUED'?'<button class="btn btn-primary" data-jid="'+r.id+'" onclick="processJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">تشغيل</button>':'—')+'</td>'
       +'</tr>';}).join('');
     document.getElementById('m1Body').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-  }catch(e){document.getElementById('m1Body').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';}
+  }).catch(function(e){document.getElementById('m1Body').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
 loadFx();loadJobs();
 setInterval(loadJobs,30000);
@@ -1189,9 +1178,8 @@ function _srows(byStatus,total){
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);">'+badge(s)+'<strong style="color:var(--ink);">'+byStatus[s]+'</strong></div>';
   }).join('')+'<div style="margin-top:10px;font-size:12px;color:var(--muted);">اجمالي: <strong style="color:var(--ink);">'+total+'</strong></div>';
 }
-async function loadMon(){
-  try{
-    var m=await api('/api/v1/admin/monitoring/live');
+function loadMon(){
+  api('/api/v1/admin/monitoring/live').then(function(m) {
     document.getElementById('monLastUp').textContent='اخر تحديث: '+new Date().toLocaleTimeString('ar-SA');
     document.getElementById('monOrders').innerHTML  =_srows(m.orders&&m.orders.by_status||{},m.orders&&m.orders.total||0);
     document.getElementById('monXfers').innerHTML   =_srows(m.outbound_transfers&&m.outbound_transfers.by_status||{},m.outbound_transfers&&m.outbound_transfers.total||0);
@@ -1211,7 +1199,7 @@ async function loadMon(){
       var tb2=tr.map(function(r){return '<tr><td><code style="font-size:10px;">'+r.id.slice(0,10)+'...</code></td><td>'+(r.network||'').toUpperCase()+'</td><td>'+fmtNum(r.amount)+' USDT</td><td>'+badge(r.status)+'</td><td>'+(r.tx_hash?r.tx_hash.slice(0,18)+'...':'—')+'</td><td style="font-size:11px;">'+fmtDate(r.created_at)+'</td></tr>';}).join('');
       document.getElementById('monRecentXfer').innerHTML='<div class="table-wrap"><table><thead><tr>'+th2+'</tr></thead><tbody>'+tb2+'</tbody></table></div>';
     }
-  }catch(e){console.error('Monitor error:',e);}
+  }).catch(function(e){console.error('Monitor error:',e);});
 }
 loadMon();
 _autoTimer=setInterval(loadMon,10000);
@@ -1233,9 +1221,8 @@ _PAYMENTS_BODY = """
   </div>
 </div>
 <script>
-async function loadPayments(){
-  try{
-    var s=await api('/api/v1/admin/summary');
+function loadPayments(){
+  api('/api/v1/admin/summary').then(function(s) {
     document.getElementById('paySum').innerHTML='<div class="stat-grid">'
       +'<div class="stat-card"><div class="label">اجمالي الطلبات</div><div class="value">'+(s.orders_total||0)+'</div></div>'
       +'<div class="stat-card"><div class="label">مكتملة</div><div class="value" style="color:#10b981;">'+(s.orders_completed||0)+'</div></div>'
@@ -1259,7 +1246,7 @@ async function loadPayments(){
         +'</tr>';}).join('');
       document.getElementById('payTable').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
     }else{document.getElementById('payTable').innerHTML='<div class="empty-state"><div class="icon">💳</div>لا توجد طلبات</div>';}
-  }catch(e){console.error(e);}
+  }).catch(function(e){console.error(e);});
 }
 loadPayments();
 </script>
@@ -1336,15 +1323,15 @@ function stripeResultBox(title, url, orderId){
     +'<button class="btn btn-ghost" data-url="'+safeUrl+'" onclick="copyText(this.dataset.url)">Copy Link</button>'
     +'</div></div></div>';
 }
-async function loadStripe(){
-  try{
-    var st = await api('/api/v1/admin/stripe/status');
+function loadStripe(){
+  api('/api/v1/admin/stripe/status').then(function(st) {
     document.getElementById('stripeStatus').innerHTML =
       '<div class="stat-card"><div class="label">Stripe</div><div class="value" style="font-size:20px;">'+(st.configured?'Configured':'Missing Key')+'</div></div>'
       +'<div class="stat-card"><div class="label">Mode</div><div class="value" style="font-size:20px;">'+(st.mode||'unknown')+'</div></div>'
       +'<div class="stat-card"><div class="label">Webhook</div><div class="value" style="font-size:20px;">'+(st.webhook_configured?'Ready':'Not Set')+'</div></div>'
       +'<div class="stat-card"><div class="label">Webhook URL</div><div style="font-size:11px;word-break:break-all;">'+(st.webhook_url||'')+'</div></div>';
-    var rows = await api('/api/v1/admin/stripe/orders?limit=30');
+    return api('/api/v1/admin/stripe/orders?limit=30');
+  }).then(function(rows) {
     var orders = rows.orders || [];
     if(!orders.length){
       document.getElementById('stripeOrders').innerHTML='<div class="empty-state"><div class="icon">💵</div>لا توجد طلبات Stripe حتى الآن</div>';
@@ -1365,24 +1352,22 @@ async function loadStripe(){
         +'</tr>';
     }).join('');
     document.getElementById('stripeOrders').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-  }catch(e){
+  }).catch(function(e){
     console.error(e);
     document.getElementById('stripeStatus').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+(e.message||e)+'</div>';
-  }
+  });
 }
-async function createStripeCheckout(){
-  try{
-    var r=await api('/api/v1/admin/stripe/checkout-sessions',{method:'POST',body:JSON.stringify(stripeForm('stripeCheckout'))});
+function createStripeCheckout(){
+  api('/api/v1/admin/stripe/checkout-sessions',{method:'POST',body:JSON.stringify(stripeForm('stripeCheckout'))}).then(function(r){
     stripeResultBox('Checkout Session Created', r.order.checkout_url, r.order.id);
     loadStripe();
-  }catch(e){showToast(e.message||String(e),'error');}
+  }).catch(function(e){showToast(e.message||String(e),'error');});
 }
-async function createStripePaymentLink(){
-  try{
-    var r=await api('/api/v1/admin/stripe/payment-links',{method:'POST',body:JSON.stringify(stripeForm('stripeLink'))});
+function createStripePaymentLink(){
+  api('/api/v1/admin/stripe/payment-links',{method:'POST',body:JSON.stringify(stripeForm('stripeLink'))}).then(function(r){
     stripeResultBox('Payment Link Created', r.order.checkout_url, r.order.id);
     loadStripe();
-  }catch(e){showToast(e.message||String(e),'error');}
+  }).catch(function(e){showToast(e.message||String(e),'error');});
 }
 loadStripe();
 </script>
@@ -1403,13 +1388,12 @@ _ALCHEMY_BODY = """
 </div>
 <script>
 var _alchRows=[];
-async function loadAlch(){
-  try{
-    _alchRows=await api('/api/v1/admin/alchemy-events?limit=200');
-    if(!Array.isArray(_alchRows))_alchRows=[];
+function loadAlch(){
+  api('/api/v1/admin/alchemy-events?limit=200').then(function(data){
+    _alchRows=Array.isArray(data)?data:[];
     document.getElementById('alchCnt').textContent=_alchRows.length+' حدث';
     renderAlch(_alchRows);
-  }catch(e){document.getElementById('alchBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';}
+  }).catch(function(e){document.getElementById('alchBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
 function filterAlch(){
   var q=document.getElementById('alchQ').value.toLowerCase();
@@ -1476,12 +1460,11 @@ function toggleAddCl(){
   var el=document.getElementById('addClForm');
   el.style.display=el.style.display==='none'?'block':'none';
 }
-async function addClient(){
+function addClient(){
   var ips=document.getElementById('clIps').value.trim();
   var body={name:document.getElementById('clName').value.trim(),allowed_ips:ips?ips.split(',').map(function(s){return s.trim();}).filter(Boolean):null,hmac_required:document.getElementById('clHmac').checked};
   if(!body.name){showToast('الاسم مطلوب','error');return;}
-  try{
-    var r=await api('/api/v1/admin/clients',{method:'POST',body:JSON.stringify(body)});
+  api('/api/v1/admin/clients',{method:'POST',body:JSON.stringify(body)}).then(function(r){
     var fields=[['Client ID',r.id],['API Key',r.api_key],['HMAC Secret',r.hmac_secret||'—'],['OAuth Client ID',r.oauth_client_id||'—'],['OAuth Client Secret',r.oauth_client_secret||'—']];
     document.getElementById('clCreatedBody').innerHTML=
       '<div style="padding:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;margin-bottom:12px;color:#10b981;font-weight:700;">احفظ هذه المعلومات الان - لن تعرض مرة اخرى</div>'
@@ -1489,16 +1472,14 @@ async function addClient(){
     document.getElementById('clCreated').style.display='block';
     document.getElementById('clCreated').scrollIntoView({behavior:'smooth'});
     toggleAddCl();loadClients();
-  }catch(e){showToast('خطأ: '+e.message,'error');}
+  }).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function toggleClient(id,active){
+function toggleClient(id,active){
   active = active === true || active === 'true';
-  try{await api('/api/v1/admin/clients/'+id,{method:'PATCH',body:JSON.stringify({is_active:active})});showToast(active?'تم التفعيل':'تم التعطيل','ok');loadClients();}
-  catch(e){showToast('خطأ: '+e.message,'error');}
+  api('/api/v1/admin/clients/'+id,{method:'PATCH',body:JSON.stringify({is_active:active})}).then(function(){showToast(active?'تم التفعيل':'تم التعطيل','ok');loadClients();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
 }
-async function loadClients(){
-  try{
-    var rows=await api('/api/v1/admin/clients');
+function loadClients(){
+  api('/api/v1/admin/clients').then(function(rows) {
     if(!Array.isArray(rows))rows=[];
     document.getElementById('clCnt').textContent=rows.length+' client';
     if(!rows.length){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">🔑</div>لا يوجد clients</div>';return;}
@@ -1516,7 +1497,7 @@ async function loadClients(){
       +'<td><button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active)" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'تعطيل':'تفعيل')+'</button></td>'
       +'</tr>';}).join('');
     document.getElementById('clBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-  }catch(e){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';}
+  }).catch(function(e){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
 loadClients();
 </script>
@@ -1543,9 +1524,8 @@ _SECURITY_BODY = """
 </div>
 <script>
 var _secRows=[];
-async function loadSec(){
-  try{
-    var p=await api('/api/v1/admin/clients/security-posture');
+function loadSec(){
+  api('/api/v1/admin/clients/security-posture').then(function(p) {
     var rows=Array.isArray(p)?p:(p.clients||[]);
     if(rows.length){
       var th='<th>Client</th><th>Score</th><th>HMAC</th><th>OAuth</th><th>mTLS</th><th>JWS</th><th>IP List</th><th>Posture</th>';
@@ -1561,13 +1541,12 @@ async function loadSec(){
         +'</tr>';}).join('');
       document.getElementById('secPosture').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
     }else{document.getElementById('secPosture').innerHTML='<p style="color:var(--muted);text-align:center;padding:16px;">لا توجد بيانات</p>';}
-  }catch(e){document.getElementById('secPosture').innerHTML='<p style="color:var(--muted);">'+e.message+'</p>';}
-  try{
-    _secRows=await api('/api/v1/admin/security-events');
-    if(!Array.isArray(_secRows))_secRows=[];
+  }).catch(function(e){document.getElementById('secPosture').innerHTML='<p style="color:var(--muted);">'+e.message+'</p>';});
+  api('/api/v1/admin/security-events').then(function(_secData) {
+    _secRows=Array.isArray(_secData)?_secData:[];
     document.getElementById('secCnt').textContent=_secRows.length+' حدث';
     renderSec(_secRows);
-  }catch(e){document.getElementById('secBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';}
+  }).catch(function(e){document.getElementById('secBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
 function filterSec(){
   var q=document.getElementById('secQ').value.toLowerCase();
@@ -1605,9 +1584,8 @@ _DOCUMENTS_BODY = """
   </div>
 </div>
 <script>
-async function loadDocs(){
-  try{
-    var rows=await api('/api/v1/admin/documents?limit=100');
+function loadDocs(){
+  api('/api/v1/admin/documents?limit=100').then(function(rows) {
     if(!Array.isArray(rows))rows=[];
     document.getElementById('docsCnt').textContent=rows.length+' مستند';
     if(!rows.length){document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">📄</div>لا توجد مستندات</div>';return;}
@@ -1626,7 +1604,7 @@ async function loadDocs(){
         +'</div></td>'
       +'</tr>';}).join('');
     document.getElementById('docsBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-  }catch(e){document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';}
+  }).catch(function(e){document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
 loadDocs();
 </script>
@@ -1653,14 +1631,13 @@ _LOGS_BODY = """
 </div>
 <script>
 var _logRows=[];
-async function loadLogs(){
+function loadLogs(){
   var lim=document.getElementById('logLim').value;
-  try{
-    _logRows=await api('/api/v1/admin/audit-logs?limit='+lim);
-    if(!Array.isArray(_logRows))_logRows=[];
+  api('/api/v1/admin/audit-logs?limit='+lim).then(function(data){
+    _logRows=Array.isArray(data)?data:[];
     document.getElementById('logCnt').textContent=_logRows.length+' سجل';
     filterLogs();
-  }catch(e){document.getElementById('logBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';}
+  }).catch(function(e){document.getElementById('logBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
 function filterLogs(){
   var q=document.getElementById('logQ').value.toLowerCase();
