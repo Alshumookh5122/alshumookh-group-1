@@ -20,11 +20,26 @@ Endpoints served:
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from sqlalchemy import desc, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status as http_status
 
 from app.auth import ADMIN_SESSION_COOKIE, is_admin_request_authenticated
+from app.config import settings
+from app.database import get_db
+from app.models import (
+    ApiClient,
+    AuditLog,
+    ExternalPayload,
+    M1TokenizationJob,
+    M1TokenizationStatus,
+    OrderStatus,
+    OutboundTransfer,
+    OutboundTransferStatus,
+    PaymentOrder,
+)
 
 router = APIRouter(tags=["dashboard-pages"])
 
@@ -290,6 +305,20 @@ function api(url, opts) {
   });
 }
 
+function dashboardUrl(url){
+  var m={
+    '/api/v1/admin/monitoring/live':'/dashboard/api/monitoring/live',
+    '/api/v1/admin/system/readiness':'/dashboard/api/system/readiness',
+    '/api/v1/admin/payloads':'/dashboard/api/payloads',
+    '/api/v1/admin/summary':'/dashboard/api/summary'
+  };
+  return m[url]||url;
+}
+
+function dashApi(url, opts){
+  return api(dashboardUrl(url), opts);
+}
+
 function badge(s){
   var m={
     'COMPLETED':'#10b981','APPROVED':'#10b981','VERIFIED':'#10b981','RECONCILED':'#10b981',
@@ -414,6 +443,39 @@ def _guard(request: Request):
     return None
 
 
+def _guard_api(request: Request) -> None:
+    if not is_admin_request_authenticated(request):
+        raise HTTPException(status_code=http_status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+
+def _enum_value(value):
+    return value.value if hasattr(value, "value") else value
+
+
+def _dt(value):
+    return value.isoformat() if value else None
+
+
+def _payload_row(p: ExternalPayload) -> dict:
+    return {
+        "id": p.id,
+        "payload_id": p.id,
+        "transaction_reference": p.transaction_reference,
+        "tx_hash": p.tx_hash,
+        "sender_wallet": p.sender_wallet,
+        "receiver_wallet": p.receiver_wallet,
+        "amount": str(p.amount) if p.amount is not None else None,
+        "asset": p.asset,
+        "network": p.network_name,
+        "network_name": p.network_name,
+        "verification_status": p.verification_status,
+        "security_level": p.security_level,
+        "client_ip": p.client_ip,
+        "created_at": _dt(p.created_at),
+        "updated_at": _dt(p.updated_at),
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════
 # PAGE BODIES
 # ═══════════════════════════════════════════════════════════════════
@@ -520,7 +582,7 @@ _OVERVIEW_BODY = """
 <script>
 function loadOverview() {
   try{ document.getElementById('readinessBody').innerHTML='<p style="color:var(--muted);font-size:12px;">جاري الاتصال بالخادم...</p>'; }catch(e){}
-  api('/api/v1/admin/monitoring/live').then(function(m) {
+  dashApi('/api/v1/admin/monitoring/live').then(function(m) {
     document.getElementById('sTotal').textContent     = (m.orders && m.orders.total)||0;
     document.getElementById('sCompleted').textContent = (m.orders && m.orders.by_status && m.orders.by_status['COMPLETED'])||0;
     document.getElementById('sPayloads').textContent  = (m.payloads && m.payloads.total)||0;
@@ -557,7 +619,7 @@ function loadOverview() {
       +'</div>';
   });
 
-  api('/api/v1/admin/system/readiness').then(function(rd) {
+  dashApi('/api/v1/admin/system/readiness').then(function(rd) {
     var checks = rd.checks||{};
     var warnings = rd.warnings||[];
     var html = Object.keys(checks).map(function(k){
@@ -601,7 +663,7 @@ function ovInfoValue(label, value){
 }
 
 function loadOvPayloads() {
-  api('/api/v1/admin/payloads').then(function(res) {
+  dashApi('/api/v1/admin/payloads').then(function(res) {
     var rows = res.payloads||[];
     if(!rows.length){
       document.getElementById('ovPlBody').innerHTML='<div class="empty-state"><div class="icon">📥</div>لا توجد payloads</div>';
@@ -1668,6 +1730,167 @@ loadLogs();
 # ═══════════════════════════════════════════════════════════════════
 # ROUTE HANDLERS
 # ═══════════════════════════════════════════════════════════════════
+
+@router.get("/dashboard/api/monitoring/live")
+async def dashboard_api_monitoring_live(request: Request, db: AsyncSession = Depends(get_db)):
+    _guard_api(request)
+
+    orders_result = await db.execute(
+        select(PaymentOrder.status, func.count(PaymentOrder.id).label("cnt")).group_by(PaymentOrder.status)
+    )
+    orders_by_status = {str(_enum_value(row.status)): int(row.cnt or 0) for row in orders_result}
+
+    payloads_result = await db.execute(
+        select(ExternalPayload.verification_status, func.count(ExternalPayload.id).label("cnt"))
+        .group_by(ExternalPayload.verification_status)
+    )
+    payloads_by_status = {str(row.verification_status): int(row.cnt or 0) for row in payloads_result}
+
+    transfers_result = await db.execute(
+        select(OutboundTransfer.status, func.count(OutboundTransfer.id).label("cnt")).group_by(OutboundTransfer.status)
+    )
+    transfers_by_status = {str(_enum_value(row.status)): int(row.cnt or 0) for row in transfers_result}
+
+    jobs_result = await db.execute(
+        select(M1TokenizationJob.status, func.count(M1TokenizationJob.id).label("cnt"))
+        .group_by(M1TokenizationJob.status)
+    )
+    jobs_by_status = {str(_enum_value(row.status)): int(row.cnt or 0) for row in jobs_result}
+
+    recent_xfer_result = await db.execute(
+        select(OutboundTransfer).order_by(desc(OutboundTransfer.created_at)).limit(5)
+    )
+    recent_transfers = [
+        {
+            "id": t.id,
+            "status": str(_enum_value(t.status)),
+            "network": str(_enum_value(t.network)),
+            "amount": str(t.amount),
+            "tx_hash": t.tx_hash,
+            "created_at": _dt(t.created_at),
+        }
+        for t in recent_xfer_result.scalars().all()
+    ]
+
+    pending_result = await db.execute(
+        select(func.count(OutboundTransfer.id)).where(
+            OutboundTransfer.status.in_([
+                OutboundTransferStatus.PENDING.value,
+                OutboundTransferStatus.AWAITING_APPROVAL.value,
+            ])
+        )
+    )
+    pending_approvals = int(pending_result.scalar() or 0)
+
+    m1_pending_result = await db.execute(
+        select(func.count(M1TokenizationJob.id)).where(
+            M1TokenizationJob.status == M1TokenizationStatus.COMPLETED.value,
+            M1TokenizationJob.outbound_transfer_id.isnot(None),
+        )
+    )
+    m1_pending = int(m1_pending_result.scalar() or 0)
+
+    usdt_result = await db.execute(
+        select(func.coalesce(func.sum(OutboundTransfer.amount), 0)).where(
+            OutboundTransfer.status == OutboundTransferStatus.COMPLETED.value
+        )
+    )
+    total_usdt_sent = float(usdt_result.scalar() or 0)
+
+    audit_result = await db.execute(select(AuditLog).order_by(desc(AuditLog.created_at)).limit(10))
+    recent_events = [
+        {"event_type": a.event_type, "order_id": a.order_id, "created_at": _dt(a.created_at)}
+        for a in audit_result.scalars().all()
+    ]
+
+    return {
+        "orders": {"by_status": orders_by_status, "total": sum(orders_by_status.values())},
+        "payloads": {"by_status": payloads_by_status, "total": sum(payloads_by_status.values())},
+        "outbound_transfers": {
+            "by_status": transfers_by_status,
+            "total": sum(transfers_by_status.values()),
+            "pending_approvals": pending_approvals,
+            "total_usdt_sent": total_usdt_sent,
+            "recent": recent_transfers,
+        },
+        "tokenization_jobs": {
+            "by_status": jobs_by_status,
+            "total": sum(jobs_by_status.values()),
+            "m1_awaiting_approval": m1_pending,
+        },
+        "recent_events": recent_events,
+        "health": {"database": "ok", "pending_actions": pending_approvals + m1_pending},
+    }
+
+
+@router.get("/dashboard/api/system/readiness")
+async def dashboard_api_system_readiness(request: Request, db: AsyncSession = Depends(get_db)):
+    _guard_api(request)
+    clients_total = (await db.execute(select(func.count(ApiClient.id)))).scalar() or 0
+    payloads_total = (await db.execute(select(func.count(ExternalPayload.id)))).scalar() or 0
+    warnings = list(settings.readiness_warnings())
+    return {
+        "status": "ok",
+        "warning_count": len(warnings),
+        "warnings": warnings,
+        "checks": {
+            "database": "ok",
+            "dashboard_auth": "ok",
+            "counterparties_total": int(clients_total),
+            "payloads_total": int(payloads_total),
+        },
+    }
+
+
+@router.get("/dashboard/api/summary")
+async def dashboard_api_summary(request: Request, db: AsyncSession = Depends(get_db)):
+    _guard_api(request)
+    res = await db.execute(select(PaymentOrder).order_by(desc(PaymentOrder.created_at)).limit(50))
+    orders = list(res.scalars().all())
+    by_status = {status.value: 0 for status in OrderStatus}
+    fiat_total = 0.0
+    crypto_total = 0.0
+    completed = failed = pending = 0
+    for order in orders:
+        st = str(_enum_value(order.status))
+        by_status[st] = by_status.get(st, 0) + 1
+        if st == OrderStatus.COMPLETED.value:
+            completed += 1
+            fiat_total += float(order.fiat_amount or 0)
+            crypto_total += float(order.crypto_amount or 0)
+        if st in {OrderStatus.CREATED.value, OrderStatus.PENDING.value, OrderStatus.PROCESSING.value}:
+            pending += 1
+        if st == OrderStatus.FAILED.value:
+            failed += 1
+    return {
+        "orders_total": len(orders),
+        "orders_completed": completed,
+        "pending_orders": pending,
+        "failed_orders": failed,
+        "total_fiat_amount": round(fiat_total, 2),
+        "total_crypto_amount": round(crypto_total, 8),
+        "by_status": by_status,
+        "latest_orders": [
+            {
+                "id": str(o.id),
+                "status": str(_enum_value(o.status)),
+                "fiat_amount": str(o.fiat_amount) if o.fiat_amount is not None else None,
+                "fiat_currency": o.fiat_currency,
+                "crypto_amount": str(o.crypto_amount) if o.crypto_amount is not None else None,
+                "crypto_currency": o.crypto_currency,
+                "network": str(_enum_value(o.network)),
+                "created_at": _dt(o.created_at),
+            }
+            for o in orders[:10]
+        ],
+    }
+
+
+@router.get("/dashboard/api/payloads")
+async def dashboard_api_payloads(request: Request, db: AsyncSession = Depends(get_db)):
+    _guard_api(request)
+    res = await db.execute(select(ExternalPayload).order_by(desc(ExternalPayload.created_at)).limit(100))
+    return {"payloads": [_payload_row(p) for p in res.scalars().all()]}
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_home(request: Request):
