@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.admin import router as admin_router
+from app.stripe_routes import router as stripe_router
 from app.audit_middleware import audit_request_middleware
 from app.auth import (
     ADMIN_SESSION_COOKIE,
@@ -122,6 +123,7 @@ API_CLIENT_SAFE_PATHS = {
     "/api/v1/oauth/token",
     "/api/v1/payloads/ingest",
     "/api/v1/payloads/schema",
+    "/api/v1/webhooks/stripe",
     "/api/v1/transfer-request",
     "/api/v1/transfers",
 }
@@ -509,6 +511,7 @@ app.include_router(fiat_router, prefix=settings.api_prefix)
 app.include_router(crypto_router, prefix=settings.api_prefix)
 app.include_router(treasury_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)
+app.include_router(stripe_router, prefix=settings.api_prefix)
 
 # ── Settlement pipeline (new) ────────────────────────────────────────────────
 app.include_router(fnfcu_router, prefix=settings.api_prefix)

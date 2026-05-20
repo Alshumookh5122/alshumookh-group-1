@@ -9,6 +9,7 @@ Endpoints served:
   GET /dashboard/tokenization   → M1 Tokenization
   GET /dashboard/monitoring     → Live Monitoring
   GET /dashboard/payments       → Payments
+  GET /dashboard/stripe         → Stripe payment links and Checkout
   GET /dashboard/alchemy        → Alchemy Events
   GET /dashboard/counterparties → API Clients / Counterparties
   GET /dashboard/security       → Security Events
@@ -39,6 +40,7 @@ _SIDEBAR_LINKS = [
     ("/dashboard/tokenization",  "🔄", "M1 Tokenization"),
     ("/dashboard/monitoring",    "📊", "Live Monitoring"),
     ("/dashboard/payments",      "💳", "المدفوعات"),
+    ("/dashboard/stripe",        "💵", "Stripe"),
     ("/dashboard/alchemy",       "⛓", "Alchemy Events"),
     ("/dashboard/counterparties","🔑", "Counterparties"),
     ("/dashboard/security",      "🛡", "Security"),
@@ -536,6 +538,24 @@ setInterval(loadOverview, 30000);
 // ── Settlement Payloads in Overview ──────────────────────────────────────────
 var _ovCurrentPl = null;
 
+function ovHtml(v){
+  return String(v || '—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function ovAttr(v){
+  return ovHtml(v).replace(/"/g,'&quot;');
+}
+function ovInfoValue(label, value){
+  var raw = value == null || value === '' ? '—' : String(value);
+  if((label === 'TX Hash' || label === 'Sender' || label === 'Receiver Wallet' || label === 'Client IP') && raw !== '—'){
+    var safe = ovAttr(raw);
+    return '<div style="display:flex;align-items:center;gap:6px;min-width:0;">'
+      +'<code title="'+safe+'" style="display:block;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:left;font-size:11px;">'+safe+'</code>'
+      +'<button class="btn btn-ghost" data-copy="'+safe+'" onclick="copyText(this.dataset.copy)" style="flex:0 0 auto;font-size:10px;padding:2px 6px;">Copy</button>'
+      +'</div>';
+  }
+  return value;
+}
+
 async function loadOvPayloads() {
   try {
     var res = await api('/api/v1/admin/payloads');
@@ -591,7 +611,7 @@ async function ovViewPayload(id) {
     document.getElementById('ovPlInfoGrid').innerHTML=infos.map(function(f){
       return '<div style="background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:8px;padding:10px 12px;">'
         +'<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">'+f[0]+'</div>'
-        +'<div style="font-size:12px;font-weight:600;color:var(--ink);">'+f[1]+'</div></div>';
+        +'<div style="font-size:12px;font-weight:600;color:var(--ink);min-width:0;overflow:hidden;">'+ovInfoValue(f[0],f[1])+'</div></div>';
     }).join('');
     // Set priority dropdown
     document.getElementById('ovPriority').value = p.review_priority||'NORMAL';
@@ -1214,6 +1234,129 @@ loadPayments();
 </script>
 """
 
+# ─── STRIPE ───────────────────────────────────────────────────────────────────
+
+_STRIPE_BODY = """
+<div class="page-body">
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <h3>Stripe Payments</h3>
+        <p style="margin:4px 0 0;color:var(--muted);font-size:12px;">Checkout و Payment Links من داخل الداشبورد</p>
+      </div>
+      <button class="btn btn-ghost" onclick="loadStripe()" style="font-size:11px;padding:4px 10px;">تحديث</button>
+    </div>
+    <div id="stripeStatus" class="stat-grid" style="padding:14px;"></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-head"><h3>Create Checkout Session</h3></div>
+      <div style="padding:14px;display:grid;gap:10px;">
+        <input id="stripeCheckoutAmount" placeholder="Amount" inputmode="decimal" value="100.00">
+        <input id="stripeCheckoutCurrency" placeholder="Currency" value="USD" maxlength="3">
+        <input id="stripeCheckoutEmail" placeholder="Customer email (optional)">
+        <input id="stripeCheckoutDesc" placeholder="Description" value="ALSHUMOOKH payment">
+        <button class="btn btn-primary" onclick="createStripeCheckout()">Create Checkout Link</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Create Payment Link</h3></div>
+      <div style="padding:14px;display:grid;gap:10px;">
+        <input id="stripeLinkAmount" placeholder="Amount" inputmode="decimal" value="100.00">
+        <input id="stripeLinkCurrency" placeholder="Currency" value="USD" maxlength="3">
+        <input id="stripeLinkEmail" placeholder="Customer email (optional)">
+        <input id="stripeLinkDesc" placeholder="Description" value="ALSHUMOOKH payment link">
+        <button class="btn btn-primary" onclick="createStripePaymentLink()">Create Payment Link</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="stripeResult"></div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>Recent Stripe Orders</h3></div>
+    <div id="stripeOrders"><div class="empty-state"><div class="icon">💵</div>جاري التحميل...</div></div>
+  </div>
+</div>
+<script>
+function stripeForm(prefix){
+  return {
+    amount: document.getElementById(prefix+'Amount').value,
+    currency: document.getElementById(prefix+'Currency').value || 'USD',
+    customer_email: document.getElementById(prefix+'Email').value || null,
+    description: document.getElementById(prefix+'Desc').value || 'ALSHUMOOKH payment'
+  };
+}
+function stripeAttr(v){
+  return String(v || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+function stripeResultBox(title, url, orderId){
+  var safeUrl = stripeAttr(url);
+  document.getElementById('stripeResult').innerHTML =
+    '<div class="panel" style="border-color:rgba(16,185,129,.45);">'
+    +'<div class="panel-head"><h3>'+title+'</h3></div>'
+    +'<div style="padding:14px;display:grid;gap:10px;">'
+    +'<div><span style="color:var(--muted);font-size:12px;">Order ID</span><br><code>'+orderId+'</code></div>'
+    +'<input readonly value="'+safeUrl+'" onclick="this.select()">'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    +'<button class="btn btn-primary" data-url="'+safeUrl+'" data-target="_blank" onclick="window.open(this.dataset.url,this.dataset.target)">Open Stripe Page</button>'
+    +'<button class="btn btn-ghost" data-url="'+safeUrl+'" onclick="copyText(this.dataset.url)">Copy Link</button>'
+    +'</div></div></div>';
+}
+async function loadStripe(){
+  try{
+    var st = await api('/api/v1/admin/stripe/status');
+    document.getElementById('stripeStatus').innerHTML =
+      '<div class="stat-card"><div class="label">Stripe</div><div class="value" style="font-size:20px;">'+(st.configured?'Configured':'Missing Key')+'</div></div>'
+      +'<div class="stat-card"><div class="label">Mode</div><div class="value" style="font-size:20px;">'+(st.mode||'unknown')+'</div></div>'
+      +'<div class="stat-card"><div class="label">Webhook</div><div class="value" style="font-size:20px;">'+(st.webhook_configured?'Ready':'Not Set')+'</div></div>'
+      +'<div class="stat-card"><div class="label">Webhook URL</div><div style="font-size:11px;word-break:break-all;">'+(st.webhook_url||'')+'</div></div>';
+    var rows = await api('/api/v1/admin/stripe/orders?limit=30');
+    var orders = rows.orders || [];
+    if(!orders.length){
+      document.getElementById('stripeOrders').innerHTML='<div class="empty-state"><div class="icon">💵</div>لا توجد طلبات Stripe حتى الآن</div>';
+      return;
+    }
+    var th='<th>Reference</th><th>Amount</th><th>Status</th><th>Email</th><th>Stripe ID</th><th>Link</th><th>Date</th>';
+    var tb=orders.map(function(o){
+      var link=o.checkout_url||'';
+      var safeLink=stripeAttr(link);
+      return '<tr>'
+        +'<td><code style="font-size:10px;">'+(o.payment_reference||o.id)+'</code></td>'
+        +'<td>'+fmtNum(o.fiat_amount)+' '+(o.fiat_currency||'')+'</td>'
+        +'<td>'+badge(o.status)+'</td>'
+        +'<td style="font-size:11px;">'+(o.payer_email||'—')+'</td>'
+        +'<td><code style="font-size:10px;">'+(o.provider_order_id||'—')+'</code></td>'
+        +'<td>'+(link?'<button class="btn btn-ghost" data-url="'+safeLink+'" data-target="_blank" onclick="window.open(this.dataset.url,this.dataset.target)" style="font-size:11px;padding:4px 8px;">Open</button>':'—')+'</td>'
+        +'<td style="font-size:11px;">'+fmtDate(o.created_at)+'</td>'
+        +'</tr>';
+    }).join('');
+    document.getElementById('stripeOrders').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
+  }catch(e){
+    console.error(e);
+    document.getElementById('stripeStatus').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+(e.message||e)+'</div>';
+  }
+}
+async function createStripeCheckout(){
+  try{
+    var r=await api('/api/v1/admin/stripe/checkout-sessions',{method:'POST',body:JSON.stringify(stripeForm('stripeCheckout'))});
+    stripeResultBox('Checkout Session Created', r.order.checkout_url, r.order.id);
+    loadStripe();
+  }catch(e){showToast(e.message||String(e),'error');}
+}
+async function createStripePaymentLink(){
+  try{
+    var r=await api('/api/v1/admin/stripe/payment-links',{method:'POST',body:JSON.stringify(stripeForm('stripeLink'))});
+    stripeResultBox('Payment Link Created', r.order.checkout_url, r.order.id);
+    loadStripe();
+  }catch(e){showToast(e.message||String(e),'error');}
+}
+loadStripe();
+</script>
+"""
+
 # ─── ALCHEMY ──────────────────────────────────────────────────────────────────
 
 _ALCHEMY_BODY = """
@@ -1318,6 +1461,7 @@ async function addClient(){
   }catch(e){showToast('خطأ: '+e.message,'error');}
 }
 async function toggleClient(id,active){
+  active = active === true || active === 'true';
   try{await api('/api/v1/admin/clients/'+id,{method:'PATCH',body:JSON.stringify({is_active:active})});showToast(active?'تم التفعيل':'تم التعطيل','ok');loadClients();}
   catch(e){showToast('خطأ: '+e.message,'error');}
 }
@@ -1338,7 +1482,7 @@ async function loadClients(){
       +'<td>'+(r.jws_required?'<span style="color:#10b981;">نعم</span>':'—')+'</td>'
       +'<td>'+((r.allowed_ips||[]).length?r.allowed_ips.join(', '):'اي IP')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active==='true')" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'تعطيل':'تفعيل')+'</button></td>'
+      +'<td><button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active)" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'تعطيل':'تفعيل')+'</button></td>'
       +'</tr>';}).join('');
     document.getElementById('clBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }catch(e){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';}
@@ -1576,6 +1720,14 @@ async def dashboard_payments(request: Request):
     if g:
         return g
     return HTMLResponse(_page("المدفوعات", "/dashboard/payments", _PAYMENTS_BODY))
+
+
+@router.get("/dashboard/stripe", response_class=HTMLResponse)
+async def dashboard_stripe(request: Request):
+    g = _guard(request)
+    if g:
+        return g
+    return HTMLResponse(_page("Stripe", "/dashboard/stripe", _STRIPE_BODY))
 
 
 @router.get("/dashboard/alchemy", response_class=HTMLResponse)

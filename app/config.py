@@ -88,6 +88,13 @@ class Settings(BaseSettings):
 
     circle_api_key: str | None = Field(default=None, alias="CIRCLE_API_KEY")
 
+    stripe_secret_key: str | None = Field(default=None, alias="STRIPE_SECRET_KEY")
+    stripe_publishable_key: str | None = Field(default=None, alias="STRIPE_PUBLISHABLE_KEY")
+    stripe_webhook_secret: str | None = Field(default=None, alias="STRIPE_WEBHOOK_SECRET")
+    stripe_api_base_url: str = Field(default="https://api.stripe.com/v1", alias="STRIPE_API_BASE_URL")
+    stripe_success_url: str | None = Field(default=None, alias="STRIPE_SUCCESS_URL")
+    stripe_cancel_url: str | None = Field(default=None, alias="STRIPE_CANCEL_URL")
+
     ledger_base_address: str | None = Field(default=None, alias="LEDGER_BASE_ADDRESS")
     ledger_ethereum_address: str | None = Field(default=None, alias="LEDGER_ETHEREUM_ADDRESS")
     ledger_tron_address: str | None = Field(default=None, alias="LEDGER_TRON_ADDRESS")

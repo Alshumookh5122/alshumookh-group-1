@@ -60,6 +60,7 @@ class Provider(str, enum.Enum):
     COINBASE = "coinbase"
     MOONPAY = "moonpay"
     CIRCLE = "circle"
+    STRIPE = "stripe"
     LEDGER = "ledger"
     MANUAL = "manual"
 

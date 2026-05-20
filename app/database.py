@@ -62,6 +62,8 @@ async def init_db():
         if conn.dialect.name == "postgresql":
             await conn.exec_driver_sql("ALTER TYPE provider ADD VALUE IF NOT EXISTS 'MOONPAY'")
             await conn.exec_driver_sql("ALTER TYPE provider ADD VALUE IF NOT EXISTS 'circle'")
+            await conn.exec_driver_sql("ALTER TYPE provider ADD VALUE IF NOT EXISTS 'STRIPE'")
+            await conn.exec_driver_sql("ALTER TYPE provider ADD VALUE IF NOT EXISTS 'stripe'")
             await conn.exec_driver_sql(
                 "ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS checkout_url TEXT"
             )
