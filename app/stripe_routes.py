@@ -106,11 +106,12 @@ async def _stripe_request(
     if idempotency_key:
         headers["Idempotency-Key"] = idempotency_key
 
+    form_data = [(key, str(value)) for key, value in (data or [])]
     url = f"{settings.stripe_api_base_url.rstrip('/')}/{path.lstrip('/')}"
     async with httpx.AsyncClient(timeout=30) as client:
         try:
-            response = await client.request(method, url, data=data or [], headers=headers)
-        except httpx.RequestError as exc:
+            response = await client.request(method, url, data=form_data, headers=headers)
+        except (TypeError, ValueError, httpx.RequestError) as exc:
             raise HTTPException(status_code=502, detail=f"Stripe network error: {exc}") from exc
 
     if response.status_code >= 400:

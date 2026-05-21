@@ -585,6 +585,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         error_message=type(exc).__name__,
     )
     if request.url.path.startswith(settings.api_prefix) or request.url.path.startswith("/receiver/"):
+        if request.url.path.startswith(f"{settings.api_prefix}/admin/stripe"):
+            return JSONResponse(
+                status_code=500,
+                content={"detail": f"Stripe endpoint error: {type(exc).__name__}: {str(exc)[:300]}"},
+            )
         return JSONResponse(
             status_code=500,
             content={"detail": "Internal server error"},
