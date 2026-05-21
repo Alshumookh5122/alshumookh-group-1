@@ -1779,3 +1779,656 @@ async function swiftDeleteFile(fileId, cardIdx) {
     swiftStatus('DELETE ERROR: ' + err.message, 'error');
   }
 }
+// ══════════════════════════════════════════════════════════════════════════════
+// ALSHUMOOKH DASHBOARD HOTFIX — SESSION-BASED DASHBOARD API LOADING
+// Version: swift004
+// Purpose:
+// - Use /dashboard/api/... routes instead of old /api/v1/admin/... for dashboard loading
+// - Send session cookies with fetch()
+// - Do not require Admin API Key in localStorage for dashboard overview loading
+// - Keep old admin endpoints available for manual admin actions
+// ══════════════════════════════════════════════════════════════════════════════
+
+(function () {
+  console.log("ALSHUMOOKH Dashboard Hotfix swift004 loaded");
+
+  window.dashboardHeaders = function dashboardHeaders(extra = {}) {
+    const h = {
+      "Content-Type": "application/json",
+      ...extra,
+    };
+
+    try {
+      const adminKey =
+        (window.state && window.state.adminKey) ||
+        localStorage.getItem("adminApiKey") ||
+        "";
+
+      if (adminKey) {
+        h["X-Admin-API-Key"] = adminKey;
+      }
+    } catch (error) {
+      console.warn("Unable to read admin key from localStorage:", error);
+    }
+
+    return h;
+  };
+
+  window.dashboardApi = async function dashboardApi(path, options = {}) {
+    const response = await fetch(path, {
+      ...options,
+      credentials: "include",
+      headers: {
+        ...window.dashboardHeaders(),
+        ...(options.headers || {}),
+      },
+    });
+
+    if (!response.ok) {
+      let message = "";
+
+      try {
+        message = await response.text();
+      } catch (_) {
+        message = "";
+      }
+
+      try {
+        const parsed = JSON.parse(message);
+        const detail = parsed.detail || parsed.message || parsed.error;
+
+        if (typeof detail === "string") {
+          throw new Error(detail);
+        }
+
+        if (detail && detail.message) {
+          throw new Error(detail.message);
+        }
+
+        if (detail) {
+          throw new Error(JSON.stringify(detail));
+        }
+      } catch (parseError) {
+        if (parseError instanceof Error && parseError.message && parseError.message !== message) {
+          throw parseError;
+        }
+      }
+
+      throw new Error(message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  };
+
+  window.safeSetText = function safeSetText(selector, value) {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.textContent = value === null || value === undefined || value === "" ? "0" : value;
+  };
+
+  window.safeFormatUsd = function safeFormatUsd(value) {
+    if (value === null || value === undefined || value === "" || Number.isNaN(Number(value))) {
+      return "$0.00";
+    }
+
+    return Number(value).toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: Number(value) >= 10 ? 2 : 6,
+    });
+  };
+
+  window.safeRenderSummary = function safeRenderSummary(summary) {
+    const ordersTotal =
+      summary?.orders_total ??
+      summary?.total_orders ??
+      summary?.orders?.total ??
+      0;
+
+    const ordersCompleted =
+      summary?.orders_completed ??
+      summary?.completed_orders ??
+      summary?.orders?.completed ??
+      summary?.orders?.by_status?.COMPLETED ??
+      0;
+
+    const fiatTotal =
+      summary?.fiat_completed_total ??
+      summary?.total_fiat_amount ??
+      summary?.orders?.fiat_completed_total ??
+      0;
+
+    window.safeSetText("#ordersTotal", ordersTotal);
+    window.safeSetText("#ordersCompleted", ordersCompleted);
+    window.safeSetText("#fiatTotal", window.safeFormatUsd(fiatTotal));
+  };
+
+  window.safeSetApiState = function safeSetApiState(text) {
+    const el = document.querySelector("#apiState");
+    if (!el) return;
+
+    const value = String(text || "");
+    el.textContent = value.length > 90 ? `${value.slice(0, 90)}...` : value;
+    el.title = value;
+  };
+
+  window.safeFormatDate = function safeFormatDate(value) {
+    if (!value) return "-";
+
+    try {
+      return new Date(value).toLocaleString();
+    } catch (_) {
+      return "-";
+    }
+  };
+
+  window.safeFormatAmount = function safeFormatAmount(value, currency = "", maximumFractionDigits = 8) {
+    if (value === null || value === undefined || value === "" || Number.isNaN(Number(value))) {
+      return "-";
+    }
+
+    const number = Number(value);
+    const formatted = number.toLocaleString("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits,
+    });
+
+    return `${formatted}${currency ? ` ${currency}` : ""}`;
+  };
+
+  window.safeShortAddr = function safeShortAddr(addr) {
+    if (!addr) return "-";
+    const value = String(addr);
+    if (value.length > 18) return value.slice(0, 8) + "…" + value.slice(-6);
+    return value;
+  };
+
+  window.safeShortHash = function safeShortHash(hash) {
+    if (!hash) return "-";
+    const value = String(hash);
+    if (value.length > 20) return value.slice(0, 10) + "…" + value.slice(-6);
+    return value;
+  };
+
+  window.safeStatusBadge = function safeStatusBadge(status) {
+    const colors = {
+      RECEIVED: "#667085",
+      PARSED: "#1f5fd0",
+      AWAITING_TX_HASH: "#d97706",
+      ALCHEMY_PENDING: "#7c3aed",
+      ALCHEMY_VERIFIED: "#059669",
+      ON_CHAIN_CONFIRMED: "#047857",
+      RECONCILED: "#0f766e",
+      FAILED: "#dc2626",
+      MANUAL_REVIEW: "#c2410c",
+      COMPLETED: "#059669",
+      PENDING: "#d97706",
+      CREATED: "#667085",
+    };
+
+    const value = status || "-";
+    const color = colors[value] || "#667085";
+
+    return `<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:800;background:${color}18;color:${color};border:1px solid ${color}44;">${value}</span>`;
+  };
+
+  window.safePriorityBadge = function safePriorityBadge(priority) {
+    const colors = {
+      LOW: "#667085",
+      NORMAL: "#1f5fd0",
+      HIGH: "#d97706",
+      CRITICAL: "#dc2626",
+    };
+
+    const value = String(priority || "NORMAL").toUpperCase();
+    const color = colors[value] || "#667085";
+
+    return `<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:800;background:${color}18;color:${color};border:1px solid ${color}44;">${value}</span>`;
+  };
+
+  window.safeDecisionBadge = function safeDecisionBadge(decision) {
+    if (!decision) return '<span style="color:#98a2b3;">-</span>';
+
+    const colors = {
+      APPROVED: "#059669",
+      ON_HOLD: "#d97706",
+      REJECTED: "#dc2626",
+      RECONCILED: "#0f766e",
+      MANUAL_REVIEW: "#b45309",
+      NOTED: "#475467",
+    };
+
+    const value = String(decision).toUpperCase();
+    const color = colors[value] || "#667085";
+
+    return `<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:800;background:${color}18;color:${color};border:1px solid ${color}44;">${decision}</span>`;
+  };
+
+  window.renderDashboardOrdersHotfix = function renderDashboardOrdersHotfix(orders) {
+    const body = document.querySelector("#ordersBody");
+    if (!body) return;
+
+    const list = Array.isArray(orders) ? orders : [];
+
+    if (!list.length) {
+      body.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:#667085;">No orders found.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = list
+      .map((order) => {
+        const wallet =
+          order.wallet ||
+          order.treasury_wallet_address ||
+          order.user_wallet_address ||
+          "0xBD682cfD8382a90adfDd6745780D3D7959c4d939";
+
+        const id = order.id || order.transaction_id || order.external_id || "-";
+        const clientLink = `${window.location.origin}/pay/direct/${id}`;
+
+        return `
+          <tr>
+            <td>${order.external_id || id}</td>
+            <td>${window.safeStatusBadge(order.status)}</td>
+            <td>${order.network || "-"}</td>
+            <td>${window.safeFormatAmount(order.fiat_amount, order.fiat_currency || "", 2)}</td>
+            <td>${window.safeFormatAmount(order.crypto_amount, order.crypto_currency || "", 8)}</td>
+            <td class="mono-cell">${wallet}</td>
+            <td>${window.safeFormatDate(order.created_at)}</td>
+            <td class="actions-cell">
+              <button class="small" type="button" data-copy-link="${clientLink}">نسخ رابط العميل</button>
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+  };
+
+  window.renderDashboardLogsHotfix = function renderDashboardLogsHotfix(logs) {
+    const body = document.querySelector("#logsBody");
+    if (!body) return;
+
+    const list = Array.isArray(logs) ? logs : [];
+
+    if (!list.length) {
+      body.innerHTML = '<div class="empty-state">No recent logs.</div>';
+      return;
+    }
+
+    body.innerHTML = list
+      .slice(0, 30)
+      .map((log) => {
+        const eventType = log.event_type || log.type || log.event || "EVENT";
+        const createdAt = log.created_at || log.timestamp || log.time;
+        const details = log.details || log.payload || log;
+
+        return `
+          <article class="log-item">
+            <strong>${eventType}</strong>
+            <span>${window.safeFormatDate(createdAt)}</span>
+            <code>${JSON.stringify(details || {}, null, 2)}</code>
+          </article>
+        `;
+      })
+      .join("");
+  };
+
+  window.renderAlchemyEventsHotfix = function renderAlchemyEventsHotfix(logs) {
+    const body = document.querySelector("#alchemyBody");
+    if (!body) return;
+
+    const list = Array.isArray(logs) ? logs : [];
+    const events = list.filter((log) => String(log.event_type || log.type || "").startsWith("ALCHEMY_"));
+
+    if (!events.length) {
+      body.innerHTML = '<div class="empty-state">لا توجد أحداث Alchemy ضمن آخر السجلات المعروضة.</div>';
+      return;
+    }
+
+    body.innerHTML = events
+      .slice(0, 20)
+      .map((log) => {
+        const details = log.details || {};
+        const txHash = details.tx_hash || details.hash || "";
+        const network = String(details.network || "").toLowerCase();
+        const txUrl = txHash
+          ? network === "base"
+            ? `https://basescan.org/tx/${txHash}`
+            : `https://etherscan.io/tx/${txHash}`
+          : "";
+
+        return `
+          <article class="alchemy-item">
+            <div>
+              <span class="alchemy-status ok">${log.event_type || "ALCHEMY_EVENT"}</span>
+              <strong>${window.safeFormatAmount(details.display_amount || details.amount, details.asset || details.raw_asset || "", 8)}</strong>
+              <small>${window.safeFormatDate(log.created_at)}</small>
+            </div>
+            <dl>
+              <dt>Network</dt><dd>${details.network || "-"}</dd>
+              <dt>Wallet</dt><dd class="mono-cell">${details.to_address || "-"}</dd>
+              <dt>TX</dt><dd class="mono-cell">${txUrl ? `<a href="${txUrl}" target="_blank" rel="noopener">${txHash}</a>` : (txHash || "-")}</dd>
+            </dl>
+          </article>
+        `;
+      })
+      .join("");
+  };
+
+  window.renderReadinessHotfix = function renderReadinessHotfix(report) {
+    const body = document.querySelector("#readinessBody");
+    if (!body) return;
+
+    const warnings = report?.warnings || [];
+    const metrics = report?.metrics || {};
+    const weakCounterparties = report?.weak_counterparties || [];
+
+    const metricCards = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+        <article class="alchemy-item"><div><span class="alchemy-status ok">Counterparties</span><strong>${metrics.counterparties_total ?? 0}</strong><small>Total configured senders</small></div></article>
+        <article class="alchemy-item"><div><span class="alchemy-status ok">Institutional</span><strong>${metrics.institutional_ready ?? 0}</strong><small>Institutional-ready senders</small></div></article>
+        <article class="alchemy-item"><div><span class="alchemy-status warn">Compatibility</span><strong>${metrics.compatibility_counterparties ?? 0}</strong><small>Below target posture</small></div></article>
+        <article class="alchemy-item"><div><span class="alchemy-status warn">Manual Review</span><strong>${metrics.manual_review_payloads ?? 0}</strong><small>Payloads waiting review</small></div></article>
+        <article class="alchemy-item"><div><span class="alchemy-status bad">Failed</span><strong>${metrics.failed_payloads ?? 0}</strong><small>Failed payloads</small></div></article>
+        <article class="alchemy-item"><div><span class="alchemy-status ok">Reconciled</span><strong>${metrics.reconciled_payloads ?? 0}</strong><small>Fully reconciled</small></div></article>
+      </div>
+    `;
+
+    const weakList = weakCounterparties.length
+      ? `
+        <div style="margin-bottom:16px;">
+          <strong style="display:block;margin-bottom:8px;">Counterparties needing hardening</strong>
+          <div style="display:grid;gap:8px;">
+            ${weakCounterparties
+              .map(
+                (client) => `
+                  <article class="alchemy-item">
+                    <div>
+                      <span class="alchemy-status warn">${client.posture}</span>
+                      <strong>${client.name}</strong>
+                      <small>Score ${client.score} · Allowed IPs ${client.allowed_ip_count}</small>
+                    </div>
+                  </article>
+                `
+              )
+              .join("")}
+          </div>
+        </div>
+      `
+      : "";
+
+    const warningList = warnings.length
+      ? warnings
+          .map(
+            (warning) => `
+              <article class="alchemy-item">
+                <div>
+                  <span class="alchemy-status warn">Warning</span>
+                  <strong>${warning}</strong>
+                  <small>Review before onboarding.</small>
+                </div>
+              </article>
+            `
+          )
+          .join("")
+      : '<div class="empty-state">No active enterprise readiness warnings.</div>';
+
+    body.innerHTML = metricCards + weakList + warningList;
+  };
+
+  window.renderSecurityHotfix = function renderSecurityHotfix(report) {
+    const body = document.querySelector("#securityBody");
+    if (!body) return;
+
+    const summary = report?.summary || {};
+    const events = report?.recent_events || [];
+
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+        <article class="alchemy-item"><div><span class="alchemy-status bad">Blocked IPs</span><strong>${summary.blocked_ip_count ?? 0}</strong><small>Currently banned</small></div></article>
+        <article class="alchemy-item"><div><span class="alchemy-status warn">Suspicious IPs</span><strong>${summary.suspicious_ip_count ?? 0}</strong><small>Risk-scored sources</small></div></article>
+        <article class="alchemy-item"><div><span class="alchemy-status bad">Failed Logins</span><strong>${summary.failed_login_count ?? 0}</strong><small>Recent failed attempts</small></div></article>
+        <article class="alchemy-item"><div><span class="alchemy-status warn">Security Events</span><strong>${summary.security_event_count ?? events.length ?? 0}</strong><small>Recent probes and alerts</small></div></article>
+      </div>
+      <div>
+        <strong style="display:block;margin-bottom:8px;">Recent Security Events</strong>
+        ${
+          events.length
+            ? events
+                .slice(0, 10)
+                .map(
+                  (item) => `
+                    <article class="alchemy-item">
+                      <div>
+                        <span class="alchemy-status warn">${item.event_type || item.type || "EVENT"}</span>
+                        <strong>${item.ip || item.request_id || "-"}</strong>
+                        <small>${window.safeFormatDate(item.created_at || item.timestamp)} · ${item.endpoint || item.path || "-"}</small>
+                      </div>
+                    </article>
+                  `
+                )
+                .join("")
+            : '<div class="empty-state">No recent security events.</div>'
+        }
+      </div>
+    `;
+  };
+
+  window.renderCounterpartiesHotfix = function renderCounterpartiesHotfix(report) {
+    const body = document.querySelector("#counterpartiesBody");
+    if (!body) return;
+
+    const clients = report?.clients || [];
+    if (!clients.length) {
+      body.innerHTML =
+        '<tr><td colspan="9" style="padding:20px;text-align:center;color:#667085;">No counterparties found.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = clients
+      .map((client) => {
+        const controls =
+          [
+            client.allowed_ip_count ? `IP(${client.allowed_ip_count})` : null,
+            client.hmac_required ? "HMAC" : null,
+            client.oauth_required ? "OAuth2" : null,
+            client.mtls_required ? "mTLS" : null,
+            client.jws_required ? "JWS" : null,
+            client.jwe_required ? "JWE" : null,
+          ]
+            .filter(Boolean)
+            .join(", ") || "API key only";
+
+        return `
+          <tr>
+            <td>${client.name || "-"}</td>
+            <td><span class="badge ${String(client.posture || "").toUpperCase()}">${client.posture || "-"}</span></td>
+            <td>${client.security_score ?? client.score ?? 0}</td>
+            <td>${client.allowed_ip_count ?? 0}</td>
+            <td>${controls}</td>
+            <td>${client.payload_count ?? 0}</td>
+            <td>${window.safeFormatDate(client.latest_payload_at)}</td>
+            <td>${client.latest_verification_status || "-"}</td>
+            <td class="actions-cell">-</td>
+          </tr>
+        `;
+      })
+      .join("");
+  };
+
+  window.loadPayloads = async function loadPayloadsHotfix() {
+    const body = document.querySelector("#payloadsBody");
+    if (!body) return;
+
+    const filterEl = document.querySelector("#payloadStatusFilter");
+    const filter = filterEl ? filterEl.value : "";
+
+    const url =
+      "/dashboard/api/payloads?limit=50" +
+      (filter ? `&verification_status=${encodeURIComponent(filter)}` : "");
+
+    body.innerHTML =
+      '<tr><td colspan="14" style="padding:20px;text-align:center;color:#667085;">Loading…</td></tr>';
+
+    try {
+      const data = await window.dashboardApi(url);
+      const payloads = data.payloads || data.items || data.results || [];
+
+      if (!payloads.length) {
+        body.innerHTML =
+          '<tr><td colspan="14" style="padding:20px;text-align:center;color:#667085;">No payloads found.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = payloads
+        .map(
+          (p) => `
+            <tr onclick="openPayloadModal('${p.payload_id || p.id}')" style="cursor:pointer;transition:background .1s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+              <td style="padding:9px 8px;font-family:monospace;font-size:11px;color:#667085;">${String(p.payload_id || p.id || "").slice(0, 8)}…</td>
+              <td style="padding:9px 8px;font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.transaction_reference || "-"}</td>
+              <td style="padding:9px 8px;font-family:monospace;font-size:11px;">${window.safeShortAddr(p.sender_wallet)}</td>
+              <td style="padding:9px 8px;font-family:monospace;font-size:11px;">${window.safeShortAddr(p.receiver_wallet)}</td>
+              <td style="padding:9px 8px;font-weight:700;">${window.safeFormatAmount(p.amount, "", 6)}</td>
+              <td style="padding:9px 8px;">${p.asset || "-"}</td>
+              <td style="padding:9px 8px;font-size:11px;">${p.network || "-"}</td>
+              <td style="padding:9px 8px;font-family:monospace;font-size:11px;">${window.safeShortHash(p.tx_hash)}</td>
+              <td style="padding:9px 8px;">${window.safeStatusBadge(p.verification_status)}</td>
+              <td style="padding:9px 8px;">${window.safePriorityBadge(p.review_priority)}</td>
+              <td style="padding:9px 8px;">${window.safeDecisionBadge(p.review_decision)}</td>
+              <td style="padding:9px 8px;font-size:11px;">${p.security_level || "-"}</td>
+              <td style="padding:9px 8px;font-size:11px;">${p.client_ip || "-"}</td>
+              <td style="padding:9px 8px;font-size:11px;">${window.safeFormatDate(p.created_at)}</td>
+            </tr>
+          `
+        )
+        .join("");
+    } catch (err) {
+      console.error("Payloads loading failed:", err);
+      body.innerHTML = `<tr><td colspan="14" style="padding:20px;text-align:center;color:#b83232;">Error: ${err.message}</td></tr>`;
+    }
+  };
+
+  window.refreshAll = async function refreshAllHotfix() {
+    window.safeSetApiState("تحميل");
+
+    const calls = await Promise.allSettled([
+      window.dashboardApi("/dashboard/api/monitoring/live"),
+      window.dashboardApi("/dashboard/api/system/readiness"),
+      window.dashboardApi("/dashboard/api/summary"),
+      window.dashboardApi("/dashboard/api/payloads"),
+    ]);
+
+    const valueAt = (index, fallback) =>
+      calls[index].status === "fulfilled" ? calls[index].value : fallback;
+
+    const live = valueAt(0, {});
+    const readiness = valueAt(1, {
+      warnings: [],
+      metrics: {},
+      weak_counterparties: [],
+    });
+    const summary = valueAt(2, {});
+    const payloadsResponse = valueAt(3, { payloads: [] });
+
+    console.log("Dashboard hotfix live:", live);
+    console.log("Dashboard hotfix readiness:", readiness);
+    console.log("Dashboard hotfix summary:", summary);
+    console.log("Dashboard hotfix payloads:", payloadsResponse);
+
+    const ordersTotal =
+      live.orders?.total ??
+      summary.orders_total ??
+      summary.total_orders ??
+      0;
+
+    const ordersCompleted =
+      live.orders?.by_status?.COMPLETED ??
+      live.orders?.completed ??
+      summary.orders_completed ??
+      summary.completed_orders ??
+      0;
+
+    const fiatCompleted =
+      summary.fiat_completed_total ??
+      summary.total_fiat_amount ??
+      live.orders?.fiat_completed_total ??
+      0;
+
+    window.safeRenderSummary({
+      orders_total: ordersTotal,
+      orders_completed: ordersCompleted,
+      fiat_completed_total: fiatCompleted,
+    });
+
+    window.renderDashboardOrdersHotfix(
+      live.orders?.recent ||
+      summary.orders ||
+      []
+    );
+
+    if (typeof renderDocuments === "function") {
+      renderDocuments(summary.documents || []);
+    }
+
+    window.renderDashboardLogsHotfix(
+      live.recent_events ||
+      summary.audit_logs ||
+      []
+    );
+
+    window.renderAlchemyEventsHotfix(
+      live.recent_events ||
+      summary.alchemy_events ||
+      []
+    );
+
+    window.renderReadinessHotfix(readiness);
+
+    window.renderSecurityHotfix(
+      live.security ||
+      summary.security ||
+      {
+        summary: {},
+        recent_events: live.recent_events || [],
+      }
+    );
+
+    window.renderCounterpartiesHotfix(
+      summary.counterparties ||
+      {
+        clients: [],
+      }
+    );
+
+    if (document.querySelector("#payloadsBody")) {
+      await window.loadPayloads().catch((error) => {
+        console.warn("Payloads loading failed:", error);
+      });
+    }
+
+    const failed = calls
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.status === "rejected");
+
+    if (failed.length) {
+      console.warn("Dashboard partial loading errors:", failed);
+      window.safeSetApiState(`متصل جزئياً: ${failed.length} endpoint يحتاج مراجعة`);
+      return;
+    }
+
+    window.safeSetApiState("متصل");
+  };
+
+  if (document.querySelector("#payloadStatusFilter")) {
+    document.querySelector("#payloadStatusFilter").addEventListener("change", function () {
+      window.loadPayloads();
+    });
+  }
+
+  setTimeout(function () {
+    window.refreshAll().catch(function (error) {
+      console.error("Dashboard hotfix initial load failed:", error);
+      window.safeSetApiState(error.message || "تعذر تحميل الداشبورد");
+    });
+  }, 300);
+})();
