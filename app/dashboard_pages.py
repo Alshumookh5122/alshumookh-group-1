@@ -2031,3 +2031,32 @@ async def dashboard_logout():
     response = Response(content="OK")
     response.delete_cookie(ADMIN_SESSION_COOKIE, path="/")
     return response
+
+
+@router.get("/dashboard/ping")
+async def dashboard_ping(request: Request):
+    """Public diagnostic endpoint — no auth needed."""
+    import subprocess, sys
+    try:
+        commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
+    except Exception:
+        commit = "unknown"
+    session_ok = is_admin_request_authenticated(request)
+    header_key = request.headers.get("X-Admin-API-Key", "")
+    cookie_key = request.cookies.get("als_ak", "")
+    expected = str(settings.admin_api_key or "")
+    header_valid = bool(header_key) and bool(expected) and hmac.compare_digest(header_key, expected)
+    cookie_valid = bool(cookie_key) and bool(expected) and hmac.compare_digest(cookie_key, expected)
+    from fastapi.responses import JSONResponse as _JR
+    return _JR({
+        "status": "ok",
+        "commit": commit,
+        "python": sys.version.split()[0],
+        "auth": {
+            "session_cookie": session_ok,
+            "api_key_header": header_valid,
+            "api_key_cookie": cookie_valid,
+            "any_auth": session_ok or header_valid or cookie_valid,
+        },
+        "hint": "if any_auth=false, enter your Admin API Key in the dashboard top bar",
+    })
