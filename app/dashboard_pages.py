@@ -26,6 +26,8 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status as http_status
 
+import hmac
+
 from app.auth import ADMIN_SESSION_COOKIE, is_admin_request_authenticated
 from app.config import settings
 from app.database import get_db
@@ -447,8 +449,14 @@ def _guard(request: Request):
 
 
 def _guard_api(request: Request) -> None:
-    if not is_admin_request_authenticated(request):
-        raise HTTPException(status_code=http_status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    # Accept: session cookie, als_ak cookie, OR X-Admin-API-Key header
+    if is_admin_request_authenticated(request):
+        return
+    expected_key = str(settings.admin_api_key or '')
+    header_key = str(request.headers.get('X-Admin-API-Key') or '')
+    if expected_key and header_key and hmac.compare_digest(header_key, expected_key):
+        return
+    raise HTTPException(status_code=http_status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
 
 def _enum_value(value):
