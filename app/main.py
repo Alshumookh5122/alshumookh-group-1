@@ -1374,20 +1374,6 @@ async def dashboard_login_submit(request: Request, admin_key: str = Form(...)):
     return response
 
 
-@app.post("/dashboard/logout", tags=["dashboard"])
-async def dashboard_logout():
-    response = RedirectResponse("/login?type=admin", status_code=status.HTTP_303_SEE_OTHER)
-    response.delete_cookie(ADMIN_SESSION_COOKIE)
-    return response
-
-
-@app.get("/dashboard", tags=["dashboard"])
-async def dashboard(request: Request):
-    if not is_admin_request_authenticated(request):
-        return RedirectResponse("/login?type=admin", status_code=status.HTTP_303_SEE_OTHER)
-    from app.dashboard_pages import _OVERVIEW_BODY, _page
-    return HTMLResponse(_page("نظرة عامة", "/dashboard", _OVERVIEW_BODY))
-
 @app.get("/dashboard/legacy", tags=["dashboard"])
 async def dashboard_legacy(request: Request):
     """Old single-page dashboard — kept for reference."""

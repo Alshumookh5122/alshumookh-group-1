@@ -221,7 +221,7 @@ try {
     +'<input id="_ak_inp" type="password" placeholder="أدخل Admin API Key هنا ثم اضغط حفظ..." '
     +'style="flex:1;max-width:440px;padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:13px;outline:none;" />'
     +'<button onclick="saveAK()" style="padding:7px 18px;border-radius:8px;background:#fff;color:#1d4ed8;font-weight:700;border:none;cursor:pointer;font-size:13px;">حفظ ✓</button>'
-    +'<button onclick="(function(){var b=document.getElementById(\'_ak_banner\');if(b)b.style.display=\'none\';})()" style="padding:7px 14px;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer;font-size:12px;">✕</button>';
+    +'<button onclick="(function(){var b=document.getElementById(\\'_ak_banner\\');if(b)b.style.display=\\'none\\';})()" style="padding:7px 14px;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer;font-size:12px;">✕</button>';
   if(document.body) document.body.insertBefore(banner, document.body.firstChild);
   syncAKInputs();
   if(AK){
@@ -656,7 +656,7 @@ function loadOverview() {
       '<div style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:10px;padding:16px;">'
       +'<div style="color:#f87171;font-weight:700;margin-bottom:8px;">❌ فشل الاتصال — الخطأ: '+errMsg+'</div>'
       +'<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">تأكد من إدخال Admin API Key الصحيح</div>'
-      +'<button onclick="var b=document.getElementById(\'_ak_banner\');if(b){b.style.display=\'flex\';}" '
+      +'<button onclick="var b=document.getElementById(\\'_ak_banner\\');if(b){b.style.display=\\'flex\\';}" '
       +'style="background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">🔑 إدخال API Key</button>'
       +'</div>';
   });
@@ -1583,7 +1583,7 @@ function addClient(){
     var fields=[['Client ID',r.id],['API Key',r.api_key],['HMAC Secret',r.hmac_secret||'—'],['OAuth Client ID',r.oauth_client_id||'—'],['OAuth Client Secret',r.oauth_client_secret||'—']];
     document.getElementById('clCreatedBody').innerHTML=
       '<div style="padding:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;margin-bottom:12px;color:#10b981;font-weight:700;">احفظ هذه المعلومات الان - لن تعرض مرة اخرى</div>'
-      +fields.map(function(f){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);"><span style="color:var(--muted);min-width:160px;">'+f[0]+'</span><code style="word-break:break-all;flex:1;" id="fv_'+f[0].replace(/\s/g,'_')+'">'+f[1]+'</code><button class="btn btn-ghost" data-fid="fv_'+f[0].replace(/\s/g,'_')+'" onclick="copyText(document.getElementById(this.dataset.fid).textContent)" style="font-size:10px;padding:2px 8px;">نسخ</button></div>';}).join('');
+      +fields.map(function(f){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);"><span style="color:var(--muted);min-width:160px;">'+f[0]+'</span><code style="word-break:break-all;flex:1;" id="fv_'+f[0].replace(/\\s/g,'_')+'">'+f[1]+'</code><button class="btn btn-ghost" data-fid="fv_'+f[0].replace(/\\s/g,'_')+'" onclick="copyText(document.getElementById(this.dataset.fid).textContent)" style="font-size:10px;padding:2px 8px;">نسخ</button></div>';}).join('');
     document.getElementById('clCreated').style.display='block';
     document.getElementById('clCreated').scrollIntoView({behavior:'smooth'});
     toggleAddCl();loadClients();
