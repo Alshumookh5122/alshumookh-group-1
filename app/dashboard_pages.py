@@ -618,13 +618,15 @@ function loadOverview() {
       : '<p style="color:var(--muted);">لا توجد بيانات</p>';
   }).catch(function(e) {
     var errMsg = e.message||'خطأ غير معروف';
-    // Show error visibly so user can diagnose
     document.getElementById('sTotal').textContent='ERR';
+    document.getElementById('recentEvents').innerHTML='<p style="color:#ef4444;text-align:center;padding:16px;font-size:12px;">فشل التحميل: '+errMsg+'</p>';
+    document.getElementById('recentTransfers').innerHTML='<p style="color:#ef4444;text-align:center;padding:16px;font-size:12px;">فشل التحميل: '+errMsg+'</p>';
+    document.getElementById('payloadStatus').innerHTML='<p style="color:#ef4444;font-size:12px;">فشل التحميل</p>';
+    document.getElementById('ovPlBody').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+errMsg+'</div>';
     document.getElementById('readinessBody').innerHTML =
-      '<div style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:10px;padding:16px;margin-bottom:12px;">'
-      +'<div style="color:#f87171;font-weight:700;margin-bottom:8px;">❌ فشل الاتصال بالـ API</div>'
-      +'<div style="color:#fca5a5;font-size:12px;margin-bottom:12px;">الخطأ: '+errMsg+'</div>'
-      +'<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">الحل: أدخل Admin API Key في الشريط الأزرق أعلى الصفحة</div>'
+      '<div style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:10px;padding:16px;">'
+      +'<div style="color:#f87171;font-weight:700;margin-bottom:8px;">❌ فشل الاتصال — الخطأ: '+errMsg+'</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">تأكد من إدخال Admin API Key الصحيح</div>'
       +'<button onclick="var b=document.getElementById(\'_ak_banner\');if(b){b.style.display=\'flex\';}" '
       +'style="background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">🔑 إدخال API Key</button>'
       +'</div>';
@@ -1272,7 +1274,14 @@ function loadMon(){
       var tb2=tr.map(function(r){return '<tr><td><code style="font-size:10px;">'+r.id.slice(0,10)+'...</code></td><td>'+(r.network||'').toUpperCase()+'</td><td>'+fmtNum(r.amount)+' USDT</td><td>'+badge(r.status)+'</td><td>'+(r.tx_hash?r.tx_hash.slice(0,18)+'...':'—')+'</td><td style="font-size:11px;">'+fmtDate(r.created_at)+'</td></tr>';}).join('');
       document.getElementById('monRecentXfer').innerHTML='<div class="table-wrap"><table><thead><tr>'+th2+'</tr></thead><tbody>'+tb2+'</tbody></table></div>';
     }
-  }).catch(function(e){console.error('Monitor error:',e);});
+  }).catch(function(e){
+    console.error('Monitor error:',e);
+    ['monOrders','monXfers','monM1','monPayloads','monHealth'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) el.innerHTML='<p style="color:#ef4444;font-size:12px;padding:8px;">خطأ: '+(e.message||e)+'</p>';
+    });
+    document.getElementById('monRecentXfer').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+(e.message||e)+'</div>';
+  });
 }
 loadMon();
 _autoTimer=setInterval(loadMon,10000);
@@ -1319,7 +1328,11 @@ function loadPayments(){
         +'</tr>';}).join('');
       document.getElementById('payTable').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
     }else{document.getElementById('payTable').innerHTML='<div class="empty-state"><div class="icon">💳</div>لا توجد طلبات</div>';}
-  }).catch(function(e){console.error(e);});
+  }).catch(function(e){
+    console.error(e);
+    document.getElementById('paySum').innerHTML='<div class="empty-state" style="padding:20px;"><div class="icon">⚠</div>فشل التحميل: '+(e.message||e)+'</div>';
+    document.getElementById('payTable').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+(e.message||e)+'</div>';
+  });
 }
 loadPayments();
 </script>
@@ -1604,7 +1617,7 @@ function loadSec(){
       var th='<th>Client</th><th>Score</th><th>HMAC</th><th>OAuth</th><th>mTLS</th><th>JWS</th><th>IP List</th><th>Posture</th>';
       var tb=rows.map(function(r){return '<tr>'
         +'<td>'+r.name+'</td>'
-        +'<td><strong style="color:'+(r.score>=4?'#10b981':r.score>=2?'#f59e0b':'#ef4444')+';">'+(r.score||0)+'/6</strong></td>'
+        +'<td><strong style="color:'+((r.security_score||r.score||0)>=4?'#10b981':(r.security_score||r.score||0)>=2?'#f59e0b':'#ef4444')+';"> '+(r.security_score||r.score||0)+'/6</strong></td>'
         +'<td>'+(r.hmac_required?'نعم':'—')+'</td>'
         +'<td>'+(r.oauth_required?'نعم':'—')+'</td>'
         +'<td>'+(r.mtls_required?'نعم':'—')+'</td>'
@@ -1616,7 +1629,7 @@ function loadSec(){
     }else{document.getElementById('secPosture').innerHTML='<p style="color:var(--muted);text-align:center;padding:16px;">لا توجد بيانات</p>';}
   }).catch(function(e){document.getElementById('secPosture').innerHTML='<p style="color:var(--muted);">'+e.message+'</p>';});
   api('/api/v1/admin/security-events').then(function(_secData) {
-    _secRows=Array.isArray(_secData)?_secData:[];
+    _secRows=Array.isArray(_secData)?_secData:(_secData.recent_events||[]);
     document.getElementById('secCnt').textContent=_secRows.length+' حدث';
     renderSec(_secRows);
   }).catch(function(e){document.getElementById('secBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});

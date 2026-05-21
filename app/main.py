@@ -281,12 +281,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         request_id = getattr(request.state, "request_id", None)
         country = getattr(request.state, "geo_country", None)
         admin_key_header = str(request.headers.get("x-admin-api-key") or "")
-        is_admin_api_path = path.startswith(f"{settings.api_prefix}/admin")
+        is_admin_api_path = (
+            path.startswith(f"{settings.api_prefix}/admin")
+            or path.startswith("/dashboard/api/")
+        )
+        is_dashboard_path = path.startswith("/dashboard/")
         has_valid_admin_key = bool(settings.admin_api_key) and hmac.compare_digest(
             admin_key_header,
             str(settings.admin_api_key),
         )
-        is_authenticated_admin_request = is_admin_api_path and (
+        is_authenticated_admin_request = (is_admin_api_path or is_dashboard_path) and (
             has_valid_admin_key or is_admin_request_authenticated(request)
         )
         is_waf_exempt = is_public_safe or is_authenticated_admin_request
