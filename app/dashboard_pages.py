@@ -1457,8 +1457,9 @@ function stripeErrorBox(title, msg){
     +'</div>';
 }
 
-function stripeResultBox(title, url, orderId){
+function stripeResultBox(title, url, orderId, invoiceUrl){
   var safeUrl = stripeAttr(url);
+  var safeInvoice = stripeAttr(invoiceUrl || ('/api/v1/admin/orders/'+orderId+'/documents/invoice'));
   document.getElementById('stripeResult').innerHTML =
     '<div class="panel" style="border-color:rgba(16,185,129,.45);">'
     +'<div class="panel-head"><h3>'+title+'</h3></div>'
@@ -1468,6 +1469,7 @@ function stripeResultBox(title, url, orderId){
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
     +'<button class="btn btn-primary" data-url="'+safeUrl+'" data-target="_blank" onclick="window.open(this.dataset.url,this.dataset.target)">Open Stripe Page</button>'
     +'<button class="btn btn-ghost" data-url="'+safeUrl+'" onclick="copyText(this.dataset.url)">Copy Link</button>'
+    +'<button class="btn btn-ghost" data-url="'+safeInvoice+'" data-target="_blank" onclick="window.open(this.dataset.url,this.dataset.target)">Open Invoice</button>'
     +'</div></div></div>';
 }
 function loadStripe(){
@@ -1505,7 +1507,7 @@ function loadStripe(){
       document.getElementById('stripeOrders').innerHTML='<div class="empty-state"><div class="icon">💵</div>لا توجد طلبات Stripe حتى الآن</div>';
       return;
     }
-    var th='<th>Reference</th><th>Amount</th><th>Status</th><th>Email</th><th>Stripe ID</th><th>Link</th><th>Date</th>';
+    var th='<th>Reference</th><th>Amount</th><th>Status</th><th>Email</th><th>Stripe ID</th><th>Link</th><th>Invoice</th><th>Date</th>';
     var tb=orders.map(function(o){
       var link=o.checkout_url||'';
       var safeLink=stripeAttr(link);
@@ -1516,6 +1518,7 @@ function loadStripe(){
         +'<td style="font-size:11px;">'+(o.payer_email||'—')+'</td>'
         +'<td><code style="font-size:10px;">'+(o.provider_order_id||'—')+'</code></td>'
         +'<td>'+(link?'<button class="btn btn-ghost" data-url="'+safeLink+'" data-target="_blank" onclick="window.open(this.dataset.url,this.dataset.target)" style="font-size:11px;padding:4px 8px;">Open</button>':'—')+'</td>'
+        +'<td><button class="btn btn-ghost" data-url="'+stripeAttr(o.invoice_url || ('/api/v1/admin/orders/'+o.id+'/documents/invoice'))+'" data-target="_blank" onclick="window.open(this.dataset.url,this.dataset.target)" style="font-size:11px;padding:4px 8px;">Invoice</button></td>'
         +'<td style="font-size:11px;">'+fmtDate(o.created_at)+'</td>'
         +'</tr>';
     }).join('');
@@ -1533,7 +1536,7 @@ function createStripeCheckout(){
     return;
   }
   api('/api/v1/admin/stripe/checkout-sessions',{method:'POST',body:JSON.stringify(stripeForm('stripeCheckout'))}).then(function(r){
-    stripeResultBox('Checkout Session Created', r.order.checkout_url, r.order.id);
+    stripeResultBox('Checkout Session Created', r.order.checkout_url, r.order.id, r.invoice_url || r.order.invoice_url);
     loadStripe();
   }).catch(function(e){stripeErrorBox('Checkout creation failed', e.message||String(e));showToast(e.message||String(e),'error');});
 }
@@ -1543,7 +1546,7 @@ function createStripePaymentLink(){
     return;
   }
   api('/api/v1/admin/stripe/payment-links',{method:'POST',body:JSON.stringify(stripeForm('stripeLink'))}).then(function(r){
-    stripeResultBox('Payment Link Created', r.order.checkout_url, r.order.id);
+    stripeResultBox('Payment Link Created', r.order.checkout_url, r.order.id, r.invoice_url || r.order.invoice_url);
     loadStripe();
   }).catch(function(e){stripeErrorBox('Payment Link creation failed', e.message||String(e));showToast(e.message||String(e),'error');});
 }

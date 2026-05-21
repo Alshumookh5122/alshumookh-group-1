@@ -142,8 +142,8 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
     if document_type == "invoice":
         title = "Invoice"
         number = _doc_number("INV", order)
-        subtitle = "Payment invoice for MoonPay Commerce or direct crypto transaction"
-        note = "This invoice remains pending until MoonPay, blockchain confirmation, or admin confirmation completes the transaction."
+        subtitle = "Official payment invoice for Stripe, MoonPay Commerce, or direct crypto transaction"
+        note = "This invoice remains pending until Stripe, MoonPay, blockchain confirmation, or admin confirmation completes the transaction."
 
     elif document_type == "pending":
         title = "Pending Notice"

@@ -18,10 +18,12 @@ from sqlalchemy import desc, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit_service import log_event
 from app.config import settings
 from app.database import get_db
 from app.deps import AdminKey
 from app.models import Network, OrderSide, OrderStatus, PaymentOrder, Provider
+from app.request_utils import get_client_ip
 
 router = APIRouter(tags=["stripe"])
 logger = logging.getLogger(__name__)
@@ -92,6 +94,10 @@ def _default_cancel_url(request: Request) -> str:
     return settings.stripe_cancel_url or f"{_request_base_url(request)}/login?type=client"
 
 
+def _invoice_url(request: Request, order_id: str) -> str:
+    return f"{_request_base_url(request)}{settings.api_prefix}/admin/orders/{order_id}/documents/invoice"
+
+
 async def _stripe_request(
     method: str,
     path: str,
@@ -148,6 +154,7 @@ def _base_order(payload: StripePaymentRequest, idempotency_key: str, order_id: s
 
 
 def _order_payload(order: PaymentOrder) -> dict[str, Any]:
+    invoice_path = f"{settings.api_prefix}/admin/orders/{order.id}/documents/invoice"
     return {
         "id": order.id,
         "external_id": order.external_id,
@@ -159,9 +166,59 @@ def _order_payload(order: PaymentOrder) -> dict[str, Any]:
         "payment_reference": order.payment_reference,
         "provider_order_id": order.provider_order_id,
         "checkout_url": order.checkout_url,
+        "invoice_url": invoice_path,
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "updated_at": order.updated_at.isoformat() if order.updated_at else None,
     }
+
+
+async def _save_new_order(db: AsyncSession, order: PaymentOrder) -> None:
+    try:
+        db.add(order)
+        await db.commit()
+        await db.refresh(order)
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        logger.exception("Stripe order persistence failed before creating provider link")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Stripe order could not be saved before link creation: {type(exc).__name__}",
+        ) from exc
+
+
+async def _mark_order_failed(db: AsyncSession, order: PaymentOrder, exc: Exception) -> None:
+    order.status = OrderStatus.FAILED
+    order.failure_reason = str(exc)[:2000]
+    try:
+        await db.commit()
+        await db.refresh(order)
+    except SQLAlchemyError:
+        await db.rollback()
+        logger.exception("Failed to persist Stripe failure state for order %s", order.id)
+
+
+async def _finalize_order(
+    db: AsyncSession,
+    order: PaymentOrder,
+    *,
+    provider_order_id: str,
+    checkout_url: str,
+    quote: dict[str, Any],
+) -> None:
+    order.provider_order_id = provider_order_id
+    order.checkout_url = checkout_url
+    order.status = OrderStatus.PENDING
+    order.quote_json = jsonable_encoder(quote)
+    try:
+        await db.commit()
+        await db.refresh(order)
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        logger.exception("Stripe provider link created but order update failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Stripe link was created but transaction record update failed: {type(exc).__name__}",
+        ) from exc
 
 
 @router.get("/admin/stripe/status")
@@ -200,6 +257,7 @@ async def create_checkout_session(
     idempotency_key = f"stripe-checkout-{uuid.uuid4()}"
     order_id = str(uuid.uuid4())
     order = _base_order(payload, idempotency_key, order_id)
+    await _save_new_order(db, order)
 
     amount_minor = _minor_units(payload.amount, payload.currency)
     data: list[tuple[str, str | int]] = [
@@ -219,30 +277,49 @@ async def create_checkout_session(
     if payload.customer_email:
         data.append(("customer_email", str(payload.customer_email)))
 
-    session = await _stripe_request(
-        "POST",
-        "/checkout/sessions",
-        data,
-        idempotency_key=idempotency_key,
-    )
-    order.provider_order_id = str(session.get("id") or "")
-    order.checkout_url = str(session.get("url") or "")
-    order.status = OrderStatus.PENDING
-    order.quote_json = jsonable_encoder({"stripe_checkout_session": session})
     try:
-        db.add(order)
-        await db.commit()
-        await db.refresh(order)
-    except SQLAlchemyError as exc:
-        await db.rollback()
-        logger.exception("Stripe checkout session created but order persistence failed")
-        return {
-            "order": _order_payload(order),
-            "checkout_session": session,
-            "warning": f"Stripe link was created but database save failed: {type(exc).__name__}",
-        }
+        session = await _stripe_request(
+            "POST",
+            "/checkout/sessions",
+            data,
+            idempotency_key=idempotency_key,
+        )
+    except HTTPException as exc:
+        await _mark_order_failed(db, order, exc)
+        raise
 
-    return {"order": _order_payload(order), "checkout_session": session}
+    await _finalize_order(
+        db,
+        order,
+        provider_order_id=str(session.get("id") or ""),
+        checkout_url=str(session.get("url") or ""),
+        quote={"stripe_checkout_session": session},
+    )
+    await log_event(
+        db,
+        "STRIPE_CHECKOUT_SESSION_CREATED",
+        {
+            "provider_order_id": order.provider_order_id,
+            "checkout_url": order.checkout_url,
+            "invoice_url": _invoice_url(request, order.id),
+            "amount": str(payload.amount),
+            "currency": payload.currency.upper(),
+        },
+        order.id,
+        endpoint=str(request.url.path),
+        method=request.method,
+        ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        status_code=201,
+        transaction_id=order.provider_order_id,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+    return {
+        "order": _order_payload(order),
+        "checkout_session": session,
+        "invoice_url": _invoice_url(request, order.id),
+    }
 
 
 @router.post("/admin/stripe/payment-links")
@@ -258,39 +335,59 @@ async def create_payment_link(
     idempotency_key = f"stripe-link-{uuid.uuid4()}"
     order_id = str(uuid.uuid4())
     order = _base_order(payload, idempotency_key, order_id)
+    await _save_new_order(db, order)
 
     amount_minor = _minor_units(payload.amount, payload.currency)
-    link = await _stripe_request(
-        "POST",
-        "/payment_links",
-        [
-            ("line_items[0][price_data][product_data][name]", payload.description),
-            ("line_items[0][price_data][currency]", payload.currency.lower()),
-            ("line_items[0][price_data][unit_amount]", amount_minor),
-            ("line_items[0][quantity]", 1),
-            ("metadata[order_id]", order.id),
-            ("metadata[payment_reference]", order.payment_reference or order.id),
-        ],
-        idempotency_key=idempotency_key,
-    )
-    order.provider_order_id = str(link.get("id") or "")
-    order.checkout_url = str(link.get("url") or "")
-    order.status = OrderStatus.PENDING
-    order.quote_json = jsonable_encoder({"stripe_payment_link": link})
     try:
-        db.add(order)
-        await db.commit()
-        await db.refresh(order)
-    except SQLAlchemyError as exc:
-        await db.rollback()
-        logger.exception("Stripe payment link created but order persistence failed")
-        return {
-            "order": _order_payload(order),
-            "payment_link": link,
-            "warning": f"Stripe link was created but database save failed: {type(exc).__name__}",
-        }
+        link = await _stripe_request(
+            "POST",
+            "/payment_links",
+            [
+                ("line_items[0][price_data][product_data][name]", payload.description),
+                ("line_items[0][price_data][currency]", payload.currency.lower()),
+                ("line_items[0][price_data][unit_amount]", amount_minor),
+                ("line_items[0][quantity]", 1),
+                ("metadata[order_id]", order.id),
+                ("metadata[payment_reference]", order.payment_reference or order.id),
+            ],
+            idempotency_key=idempotency_key,
+        )
+    except HTTPException as exc:
+        await _mark_order_failed(db, order, exc)
+        raise
 
-    return {"order": _order_payload(order), "payment_link": link}
+    await _finalize_order(
+        db,
+        order,
+        provider_order_id=str(link.get("id") or ""),
+        checkout_url=str(link.get("url") or ""),
+        quote={"stripe_payment_link": link},
+    )
+    await log_event(
+        db,
+        "STRIPE_PAYMENT_LINK_CREATED",
+        {
+            "provider_order_id": order.provider_order_id,
+            "checkout_url": order.checkout_url,
+            "invoice_url": _invoice_url(request, order.id),
+            "amount": str(payload.amount),
+            "currency": payload.currency.upper(),
+        },
+        order.id,
+        endpoint=str(request.url.path),
+        method=request.method,
+        ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        status_code=201,
+        transaction_id=order.provider_order_id,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+    return {
+        "order": _order_payload(order),
+        "payment_link": link,
+        "invoice_url": _invoice_url(request, order.id),
+    }
 
 
 def _verify_stripe_signature(body: bytes, signature_header: str | None) -> None:
