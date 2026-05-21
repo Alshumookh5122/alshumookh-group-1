@@ -306,16 +306,13 @@ function api(url, opts) {
 }
 
 function dashboardUrl(url){
-  var qIdx=url.indexOf('?');
-  var path=qIdx>=0?url.slice(0,qIdx):url;
-  var qs=qIdx>=0?url.slice(qIdx):'';
   var m={
     '/api/v1/admin/monitoring/live':'/dashboard/api/monitoring/live',
     '/api/v1/admin/system/readiness':'/dashboard/api/system/readiness',
     '/api/v1/admin/payloads':'/dashboard/api/payloads',
     '/api/v1/admin/summary':'/dashboard/api/summary'
   };
-  return (m[path]||path)+qs;
+  return m[url]||url;
 }
 
 function dashApi(url, opts){
@@ -584,10 +581,8 @@ _OVERVIEW_BODY = """
 
 <script>
 function loadOverview() {
-  console.log('Loading dashboard overview via dashApi...');
   try{ document.getElementById('readinessBody').innerHTML='<p style="color:var(--muted);font-size:12px;">جاري الاتصال بالخادم...</p>'; }catch(e){}
   dashApi('/api/v1/admin/monitoring/live').then(function(m) {
-    console.log('Dashboard monitoring data:', m);
     document.getElementById('sTotal').textContent     = (m.orders && m.orders.total)||0;
     document.getElementById('sCompleted').textContent = (m.orders && m.orders.by_status && m.orders.by_status['COMPLETED'])||0;
     document.getElementById('sPayloads').textContent  = (m.payloads && m.payloads.total)||0;
@@ -1246,7 +1241,7 @@ function _srows(byStatus,total){
   }).join('')+'<div style="margin-top:10px;font-size:12px;color:var(--muted);">اجمالي: <strong style="color:var(--ink);">'+total+'</strong></div>';
 }
 function loadMon(){
-  dashApi('/api/v1/admin/monitoring/live').then(function(m) {
+  api('/api/v1/admin/monitoring/live').then(function(m) {
     document.getElementById('monLastUp').textContent='اخر تحديث: '+new Date().toLocaleTimeString('ar-SA');
     document.getElementById('monOrders').innerHTML  =_srows(m.orders&&m.orders.by_status||{},m.orders&&m.orders.total||0);
     document.getElementById('monXfers').innerHTML   =_srows(m.outbound_transfers&&m.outbound_transfers.by_status||{},m.outbound_transfers&&m.outbound_transfers.total||0);
@@ -1289,9 +1284,7 @@ _PAYMENTS_BODY = """
 </div>
 <script>
 function loadPayments(){
-  console.log('Loading payments summary via dashApi...');
-  dashApi('/api/v1/admin/summary').then(function(s) {
-    console.log('Payments summary data:', s);
+  api('/api/v1/admin/summary').then(function(s) {
     document.getElementById('paySum').innerHTML='<div class="stat-grid">'
       +'<div class="stat-card"><div class="label">اجمالي الطلبات</div><div class="value">'+(s.orders_total||0)+'</div></div>'
       +'<div class="stat-card"><div class="label">مكتملة</div><div class="value" style="color:#10b981;">'+(s.orders_completed||0)+'</div></div>'
