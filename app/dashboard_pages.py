@@ -306,13 +306,16 @@ function api(url, opts) {
 }
 
 function dashboardUrl(url){
+  var qIdx=url.indexOf('?');
+  var path=qIdx>=0?url.slice(0,qIdx):url;
+  var qs=qIdx>=0?url.slice(qIdx):'';
   var m={
     '/api/v1/admin/monitoring/live':'/dashboard/api/monitoring/live',
     '/api/v1/admin/system/readiness':'/dashboard/api/system/readiness',
     '/api/v1/admin/payloads':'/dashboard/api/payloads',
     '/api/v1/admin/summary':'/dashboard/api/summary'
   };
-  return m[url]||url;
+  return (m[path]||path)+qs;
 }
 
 function dashApi(url, opts){
@@ -1241,7 +1244,7 @@ function _srows(byStatus,total){
   }).join('')+'<div style="margin-top:10px;font-size:12px;color:var(--muted);">اجمالي: <strong style="color:var(--ink);">'+total+'</strong></div>';
 }
 function loadMon(){
-  api('/api/v1/admin/monitoring/live').then(function(m) {
+  dashApi('/api/v1/admin/monitoring/live').then(function(m) {
     document.getElementById('monLastUp').textContent='اخر تحديث: '+new Date().toLocaleTimeString('ar-SA');
     document.getElementById('monOrders').innerHTML  =_srows(m.orders&&m.orders.by_status||{},m.orders&&m.orders.total||0);
     document.getElementById('monXfers').innerHTML   =_srows(m.outbound_transfers&&m.outbound_transfers.by_status||{},m.outbound_transfers&&m.outbound_transfers.total||0);
@@ -1284,7 +1287,7 @@ _PAYMENTS_BODY = """
 </div>
 <script>
 function loadPayments(){
-  api('/api/v1/admin/summary').then(function(s) {
+  dashApi('/api/v1/admin/summary').then(function(s) {
     document.getElementById('paySum').innerHTML='<div class="stat-grid">'
       +'<div class="stat-card"><div class="label">اجمالي الطلبات</div><div class="value">'+(s.orders_total||0)+'</div></div>'
       +'<div class="stat-card"><div class="label">مكتملة</div><div class="value" style="color:#10b981;">'+(s.orders_completed||0)+'</div></div>'
