@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 import hmac
 import logging
+import os
 import time
 import uuid
 from collections import defaultdict
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Form, HTTPException, Request, status
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -67,6 +69,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+APP_STARTED_AT = datetime.now(timezone.utc).isoformat()
 
 sentry_dsn = (settings.sentry_dsn or "").strip()
 CANONICAL_HOST = "api.alshumookh-pay.com"
@@ -1409,6 +1412,21 @@ async def health(request: Request):
 @app.get("/ready", tags=["system"])
 async def ready(request: Request):
     return {"status": "ready"}
+
+
+@app.get("/version", tags=["system"])
+async def version():
+    return {
+        "app": settings.app_name,
+        "environment": settings.app_env,
+        "commit": (
+            os.getenv("RENDER_GIT_COMMIT")
+            or os.getenv("GIT_COMMIT")
+            or os.getenv("COMMIT_SHA")
+            or "unknown"
+        ),
+        "started_at": APP_STARTED_AT,
+    }
 
 
 @app.get("/internal/health", include_in_schema=False)

@@ -308,6 +308,7 @@ function api(url, opts) {
 }
 
 function dashboardUrl(url){
+  url=String(url||'');
   var qIdx=url.indexOf('?');
   var path=qIdx>=0?url.slice(0,qIdx):url;
   var qs=qIdx>=0?url.slice(qIdx):'';
@@ -493,6 +494,10 @@ def _payload_row(p: ExternalPayload) -> dict:
 
 _OVERVIEW_BODY = """
 <div class="page-body">
+  <div id="dashDebug" style="margin-bottom:14px;padding:10px 14px;border-radius:10px;border:1px solid rgba(59,130,246,.30);background:rgba(59,130,246,.08);color:#bfdbfe;font-size:12px;font-weight:700;">
+    Loading dashboard overview...
+  </div>
+
   <div class="stat-grid">
     <div class="stat-card"><div class="label">اجمالي الطلبات</div><div class="value" id="sTotal">—</div></div>
     <div class="stat-card"><div class="label">مكتملة</div><div class="value" id="sCompleted" style="color:#10b981;">—</div></div>
@@ -591,9 +596,31 @@ _OVERVIEW_BODY = """
 </div>
 
 <script>
+function setOverviewDebug(message, ok) {
+  try {
+    var el = document.getElementById('dashDebug');
+    if (!el) return;
+    el.style.borderColor = ok ? 'rgba(16,185,129,.35)' : 'rgba(239,68,68,.35)';
+    el.style.background = ok ? 'rgba(16,185,129,.08)' : 'rgba(239,68,68,.08)';
+    el.style.color = ok ? '#86efac' : '#fca5a5';
+    el.textContent = message;
+  } catch(e) {}
+}
+
+function setOverviewStats(value) {
+  ['sTotal','sCompleted','sPayloads','sUsdt','sPending','sM1'].forEach(function(id) {
+    try { document.getElementById(id).textContent = value; } catch(e) {}
+  });
+}
+
 function loadOverview() {
+  console.log("Loading dashboard overview...");
+  setOverviewDebug('Loading dashboard overview... /dashboard/api/monitoring/live', true);
+  setOverviewStats('...');
   try{ document.getElementById('readinessBody').innerHTML='<p style="color:var(--muted);font-size:12px;">جاري الاتصال بالخادم...</p>'; }catch(e){}
   dashApi('/api/v1/admin/monitoring/live').then(function(m) {
+    console.log("Dashboard monitoring data:", m);
+    setOverviewDebug('Dashboard API OK: /dashboard/api/monitoring/live', true);
     document.getElementById('sTotal').textContent     = (m.orders && m.orders.total)||0;
     document.getElementById('sCompleted').textContent = (m.orders && m.orders.by_status && m.orders.by_status['COMPLETED'])||0;
     document.getElementById('sPayloads').textContent  = (m.payloads && m.payloads.total)||0;
@@ -618,7 +645,9 @@ function loadOverview() {
       : '<p style="color:var(--muted);">لا توجد بيانات</p>';
   }).catch(function(e) {
     var errMsg = e.message||'خطأ غير معروف';
-    document.getElementById('sTotal').textContent='ERR';
+    console.error('Dashboard overview failed:', e);
+    setOverviewDebug('Dashboard API FAILED: '+errMsg+' — route /dashboard/api/monitoring/live', false);
+    setOverviewStats('ERR');
     document.getElementById('recentEvents').innerHTML='<p style="color:#ef4444;text-align:center;padding:16px;font-size:12px;">فشل التحميل: '+errMsg+'</p>';
     document.getElementById('recentTransfers').innerHTML='<p style="color:#ef4444;text-align:center;padding:16px;font-size:12px;">فشل التحميل: '+errMsg+'</p>';
     document.getElementById('payloadStatus').innerHTML='<p style="color:#ef4444;font-size:12px;">فشل التحميل</p>';
