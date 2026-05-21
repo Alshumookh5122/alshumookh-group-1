@@ -277,6 +277,16 @@ function api(url, opts) {
   var method = opts.method||'GET';
   var headers = H(opts.headers||{});
   var body = opts.body||null;
+  function _errMsg(d, status) {
+    if(!d) return 'HTTP '+status;
+    if(typeof d.detail === 'string') return d.detail;
+    if(typeof d.message === 'string') return d.message;
+    if(d.detail) {
+      try { return JSON.stringify(d.detail); } catch(ex) {}
+    }
+    try { return JSON.stringify(d); } catch(ex) {}
+    return 'HTTP '+status;
+  }
   function _authErr(status) {
     try{ var b=document.getElementById('_ak_banner'); if(b)b.style.display='flex'; }catch(ex){}
     showToast('خطأ في المصادقة — أدخل Admin API Key','error');
@@ -285,7 +295,7 @@ function api(url, opts) {
     return fetch(url,{method:method,headers:headers,credentials:'include',body:body}).then(function(r){
       if(r.status===401||r.status===403){ _authErr(r.status); throw new Error('غير مصرح — HTTP '+r.status); }
       if(!r.ok){
-        return r.json().then(function(d){ throw new Error(d.detail||d.message||'HTTP '+r.status); },
+        return r.json().then(function(d){ throw new Error(_errMsg(d, r.status)); },
                              function(){ throw new Error('HTTP '+r.status); });
       }
       return r.json();
@@ -299,7 +309,7 @@ function api(url, opts) {
       if(xhr.readyState!==4) return;
       if(xhr.status===401||xhr.status===403){ _authErr(xhr.status); reject(new Error('غير مصرح — HTTP '+xhr.status)); return; }
       if(xhr.status>=200&&xhr.status<300){ try{resolve(JSON.parse(xhr.responseText));}catch(e){reject(new Error('Parse error'));} }
-      else{ var msg='HTTP '+xhr.status; try{msg=JSON.parse(xhr.responseText).detail||msg;}catch(e){} reject(new Error(msg)); }
+      else{ var msg='HTTP '+xhr.status; try{msg=_errMsg(JSON.parse(xhr.responseText), xhr.status);}catch(e){} reject(new Error(msg)); }
     };
     xhr.onerror=function(){reject(new Error('Network Error'));};
     xhr.ontimeout=function(){reject(new Error('Timeout'));};
@@ -1380,6 +1390,7 @@ _STRIPE_BODY = """
       <button class="btn btn-ghost" onclick="loadStripe()" style="font-size:11px;padding:4px 10px;">تحديث</button>
     </div>
     <div id="stripeStatus" class="stat-grid" style="padding:14px;"></div>
+    <div id="stripeConfigNotice" style="padding:0 14px 14px;"></div>
   </div>
 
   <div class="grid-2">
@@ -1390,7 +1401,7 @@ _STRIPE_BODY = """
         <input id="stripeCheckoutCurrency" placeholder="Currency" value="USD" maxlength="3">
         <input id="stripeCheckoutEmail" placeholder="Customer email (optional)">
         <input id="stripeCheckoutDesc" placeholder="Description" value="ALSHUMOOKH payment">
-        <button class="btn btn-primary" onclick="createStripeCheckout()">Create Checkout Link</button>
+        <button id="stripeCheckoutBtn" class="btn btn-primary" onclick="createStripeCheckout()">Create Checkout Link</button>
       </div>
     </div>
 
@@ -1401,7 +1412,7 @@ _STRIPE_BODY = """
         <input id="stripeLinkCurrency" placeholder="Currency" value="USD" maxlength="3">
         <input id="stripeLinkEmail" placeholder="Customer email (optional)">
         <input id="stripeLinkDesc" placeholder="Description" value="ALSHUMOOKH payment link">
-        <button class="btn btn-primary" onclick="createStripePaymentLink()">Create Payment Link</button>
+        <button id="stripeLinkBtn" class="btn btn-primary" onclick="createStripePaymentLink()">Create Payment Link</button>
       </div>
     </div>
   </div>
@@ -1414,6 +1425,8 @@ _STRIPE_BODY = """
   </div>
 </div>
 <script>
+var _stripeConfigured = false;
+
 function stripeForm(prefix){
   return {
     amount: document.getElementById(prefix+'Amount').value,
@@ -1425,6 +1438,25 @@ function stripeForm(prefix){
 function stripeAttr(v){
   return String(v || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
+
+function setStripeButtons(enabled){
+  ['stripeCheckoutBtn','stripeLinkBtn'].forEach(function(id){
+    var b=document.getElementById(id);
+    if(!b) return;
+    b.disabled=!enabled;
+    b.style.opacity=enabled?'1':'.45';
+    b.style.cursor=enabled?'pointer':'not-allowed';
+  });
+}
+
+function stripeErrorBox(title, msg){
+  document.getElementById('stripeResult').innerHTML =
+    '<div class="panel" style="border-color:rgba(239,68,68,.45);">'
+    +'<div class="panel-head"><h3 style="color:#f87171;">'+stripeAttr(title)+'</h3></div>'
+    +'<div style="padding:14px;color:var(--muted);line-height:1.7;">'+stripeAttr(msg)+'</div>'
+    +'</div>';
+}
+
 function stripeResultBox(title, url, orderId){
   var safeUrl = stripeAttr(url);
   document.getElementById('stripeResult').innerHTML =
@@ -1439,12 +1471,33 @@ function stripeResultBox(title, url, orderId){
     +'</div></div></div>';
 }
 function loadStripe(){
+  setStripeButtons(false);
   api('/api/v1/admin/stripe/status').then(function(st) {
+    _stripeConfigured = !!st.configured;
+    setStripeButtons(_stripeConfigured);
     document.getElementById('stripeStatus').innerHTML =
       '<div class="stat-card"><div class="label">Stripe</div><div class="value" style="font-size:20px;">'+(st.configured?'Configured':'Missing Key')+'</div></div>'
       +'<div class="stat-card"><div class="label">Mode</div><div class="value" style="font-size:20px;">'+(st.mode||'unknown')+'</div></div>'
       +'<div class="stat-card"><div class="label">Webhook</div><div class="value" style="font-size:20px;">'+(st.webhook_configured?'Ready':'Not Set')+'</div></div>'
       +'<div class="stat-card"><div class="label">Webhook URL</div><div style="font-size:11px;word-break:break-all;">'+(st.webhook_url||'')+'</div></div>';
+    var notice = '';
+    if(!st.configured){
+      notice += '<div class="empty-state" style="border-color:rgba(239,68,68,.35);color:#fecaca;text-align:right;">'
+        +'<strong>Stripe غير مربوط بعد.</strong><br>'
+        +'أضف STRIPE_SECRET_KEY في Render Environment Variables ثم أعد تشغيل الخدمة. بدون هذا المفتاح لن يستطيع النظام إنشاء Payment Link أو Checkout Session.'
+        +'</div>';
+    } else if(!st.webhook_configured) {
+      notice += '<div class="empty-state" style="border-color:rgba(245,158,11,.35);color:#fde68a;text-align:right;">'
+        +'<strong>Webhook Secret غير مضبوط.</strong><br>'
+        +'إنشاء الرابط يعمل، لكن تأكيد الدفع التلقائي يحتاج STRIPE_WEBHOOK_SECRET من Stripe.'
+        +'</div>';
+    }
+    if((st.webhook_url||'').indexOf('alshumookh.finance') >= 0){
+      notice += '<div class="empty-state" style="border-color:rgba(245,158,11,.35);color:#fde68a;text-align:right;margin-top:8px;">'
+        +'Webhook URL يظهر على الدومين القديم. اضبط PUBLIC_BASE_URL=https://api.alshumookh-pay.com في Render.'
+        +'</div>';
+    }
+    document.getElementById('stripeConfigNotice').innerHTML = notice;
     return api('/api/v1/admin/stripe/orders?limit=30');
   }).then(function(rows) {
     var orders = rows.orders || [];
@@ -1470,19 +1523,29 @@ function loadStripe(){
   }).catch(function(e){
     console.error(e);
     document.getElementById('stripeStatus').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+(e.message||e)+'</div>';
+    document.getElementById('stripeConfigNotice').innerHTML='';
+    setStripeButtons(false);
   });
 }
 function createStripeCheckout(){
+  if(!_stripeConfigured){
+    stripeErrorBox('Stripe Missing Key', 'لا يمكن إنشاء Checkout Link قبل إضافة STRIPE_SECRET_KEY في Render ثم إعادة تشغيل الخدمة.');
+    return;
+  }
   api('/api/v1/admin/stripe/checkout-sessions',{method:'POST',body:JSON.stringify(stripeForm('stripeCheckout'))}).then(function(r){
     stripeResultBox('Checkout Session Created', r.order.checkout_url, r.order.id);
     loadStripe();
-  }).catch(function(e){showToast(e.message||String(e),'error');});
+  }).catch(function(e){stripeErrorBox('Checkout creation failed', e.message||String(e));showToast(e.message||String(e),'error');});
 }
 function createStripePaymentLink(){
+  if(!_stripeConfigured){
+    stripeErrorBox('Stripe Missing Key', 'لا يمكن إنشاء Payment Link قبل إضافة STRIPE_SECRET_KEY في Render ثم إعادة تشغيل الخدمة.');
+    return;
+  }
   api('/api/v1/admin/stripe/payment-links',{method:'POST',body:JSON.stringify(stripeForm('stripeLink'))}).then(function(r){
     stripeResultBox('Payment Link Created', r.order.checkout_url, r.order.id);
     loadStripe();
-  }).catch(function(e){showToast(e.message||String(e),'error');});
+  }).catch(function(e){stripeErrorBox('Payment Link creation failed', e.message||String(e));showToast(e.message||String(e),'error');});
 }
 loadStripe();
 </script>

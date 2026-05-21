@@ -173,6 +173,9 @@ async def create_checkout_session(
     _: AdminKey,
     db: AsyncSession = Depends(get_db),
 ):
+    if not _stripe_enabled():
+        raise HTTPException(status_code=503, detail="Stripe is not configured. Set STRIPE_SECRET_KEY in Render environment variables.")
+
     idempotency_key = f"stripe-checkout-{uuid.uuid4()}"
     order = _base_order(payload, idempotency_key)
     db.add(order)
@@ -218,6 +221,9 @@ async def create_payment_link(
     _: AdminKey,
     db: AsyncSession = Depends(get_db),
 ):
+    if not _stripe_enabled():
+        raise HTTPException(status_code=503, detail="Stripe is not configured. Set STRIPE_SECRET_KEY in Render environment variables.")
+
     idempotency_key = f"stripe-link-{uuid.uuid4()}"
     order = _base_order(payload, idempotency_key)
     db.add(order)
