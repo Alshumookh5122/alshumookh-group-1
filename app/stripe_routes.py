@@ -8,6 +8,7 @@ import time
 import uuid
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -102,16 +103,18 @@ async def _stripe_request(
 
     headers = {
         "Authorization": f"Bearer {settings.stripe_secret_key}",
+        "Content-Type": "application/x-www-form-urlencoded",
     }
     if idempotency_key:
         headers["Idempotency-Key"] = idempotency_key
 
     form_data = [(key, str(value)) for key, value in (data or [])]
+    encoded_data = urlencode(form_data)
     url = f"{settings.stripe_api_base_url.rstrip('/')}/{path.lstrip('/')}"
     async with httpx.AsyncClient(timeout=30) as client:
         try:
-            response = await client.request(method, url, data=form_data, headers=headers)
-        except (TypeError, ValueError, httpx.RequestError) as exc:
+            response = await client.request(method, url, content=encoded_data, headers=headers)
+        except (RuntimeError, TypeError, ValueError, httpx.RequestError) as exc:
             raise HTTPException(status_code=502, detail=f"Stripe network error: {exc}") from exc
 
     if response.status_code >= 400:
