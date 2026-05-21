@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import time
 import uuid
 from decimal import Decimal, ROUND_HALF_UP
@@ -13,6 +14,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import desc, or_, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -21,6 +23,7 @@ from app.deps import AdminKey
 from app.models import Network, OrderSide, OrderStatus, PaymentOrder, Provider
 
 router = APIRouter(tags=["stripe"])
+logger = logging.getLogger(__name__)
 
 ZERO_DECIMAL_CURRENCIES = {
     "bif",
@@ -72,12 +75,20 @@ def _minor_units(amount: Decimal, currency: str) -> int:
     return int(value)
 
 
-def _default_success_url() -> str:
-    return settings.stripe_success_url or f"{settings.public_base_url}/pay/success?session_id={{CHECKOUT_SESSION_ID}}"
+def _request_base_url(request: Request) -> str:
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    forwarded_host = request.headers.get("x-forwarded-host")
+    proto = (forwarded_proto.split(",", 1)[0].strip() if forwarded_proto else request.url.scheme) or "https"
+    host = (forwarded_host.split(",", 1)[0].strip() if forwarded_host else request.headers.get("host")) or request.url.netloc
+    return f"{proto}://{host}".rstrip("/")
 
 
-def _default_cancel_url() -> str:
-    return settings.stripe_cancel_url or f"{settings.public_base_url}/login?type=client"
+def _default_success_url(request: Request) -> str:
+    return settings.stripe_success_url or f"{_request_base_url(request)}/pay/success?session_id={{CHECKOUT_SESSION_ID}}"
+
+
+def _default_cancel_url(request: Request) -> str:
+    return settings.stripe_cancel_url or f"{_request_base_url(request)}/login?type=client"
 
 
 async def _stripe_request(
@@ -97,7 +108,10 @@ async def _stripe_request(
 
     url = f"{settings.stripe_api_base_url.rstrip('/')}/{path.lstrip('/')}"
     async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.request(method, url, data=data or [], headers=headers)
+        try:
+            response = await client.request(method, url, data=data or [], headers=headers)
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=502, detail=f"Stripe network error: {exc}") from exc
 
     if response.status_code >= 400:
         try:
@@ -110,9 +124,10 @@ async def _stripe_request(
     return response.json()
 
 
-def _base_order(payload: StripePaymentRequest, idempotency_key: str) -> PaymentOrder:
+def _base_order(payload: StripePaymentRequest, idempotency_key: str, order_id: str) -> PaymentOrder:
     reference = payload.external_id or f"STR-{uuid.uuid4().hex[:12].upper()}"
     return PaymentOrder(
+        id=order_id,
         idempotency_key=idempotency_key,
         external_id=payload.external_id,
         provider=Provider.STRIPE,
@@ -146,13 +161,14 @@ def _order_payload(order: PaymentOrder) -> dict[str, Any]:
 
 
 @router.get("/admin/stripe/status")
-async def stripe_status(_: AdminKey):
+async def stripe_status(request: Request, _: AdminKey):
     return {
         "configured": _stripe_enabled(),
         "mode": _stripe_mode(),
         "publishable_key_configured": bool(settings.stripe_publishable_key),
         "webhook_configured": bool(settings.stripe_webhook_secret),
-        "webhook_url": f"{settings.public_base_url}{settings.api_prefix}/webhooks/stripe",
+        "webhook_url": f"{_request_base_url(request)}{settings.api_prefix}/webhooks/stripe",
+        "configured_public_base_url": settings.public_base_url,
     }
 
 
@@ -169,6 +185,7 @@ async def list_stripe_orders(_: AdminKey, db: AsyncSession = Depends(get_db), li
 
 @router.post("/admin/stripe/checkout-sessions")
 async def create_checkout_session(
+    request: Request,
     payload: StripePaymentRequest,
     _: AdminKey,
     db: AsyncSession = Depends(get_db),
@@ -177,15 +194,14 @@ async def create_checkout_session(
         raise HTTPException(status_code=503, detail="Stripe is not configured. Set STRIPE_SECRET_KEY in Render environment variables.")
 
     idempotency_key = f"stripe-checkout-{uuid.uuid4()}"
-    order = _base_order(payload, idempotency_key)
-    db.add(order)
-    await db.flush()
+    order_id = str(uuid.uuid4())
+    order = _base_order(payload, idempotency_key, order_id)
 
     amount_minor = _minor_units(payload.amount, payload.currency)
     data: list[tuple[str, str | int]] = [
         ("mode", "payment"),
-        ("success_url", payload.success_url or _default_success_url()),
-        ("cancel_url", payload.cancel_url or _default_cancel_url()),
+        ("success_url", payload.success_url or _default_success_url(request)),
+        ("cancel_url", payload.cancel_url or _default_cancel_url(request)),
         ("client_reference_id", order.id),
         ("metadata[order_id]", order.id),
         ("metadata[payment_reference]", order.payment_reference or order.id),
@@ -209,14 +225,25 @@ async def create_checkout_session(
     order.checkout_url = str(session.get("url") or "")
     order.status = OrderStatus.PENDING
     order.quote_json = jsonable_encoder({"stripe_checkout_session": session})
-    await db.commit()
-    await db.refresh(order)
+    try:
+        db.add(order)
+        await db.commit()
+        await db.refresh(order)
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        logger.exception("Stripe checkout session created but order persistence failed")
+        return {
+            "order": _order_payload(order),
+            "checkout_session": session,
+            "warning": f"Stripe link was created but database save failed: {type(exc).__name__}",
+        }
 
     return {"order": _order_payload(order), "checkout_session": session}
 
 
 @router.post("/admin/stripe/payment-links")
 async def create_payment_link(
+    request: Request,
     payload: StripePaymentRequest,
     _: AdminKey,
     db: AsyncSession = Depends(get_db),
@@ -225,9 +252,8 @@ async def create_payment_link(
         raise HTTPException(status_code=503, detail="Stripe is not configured. Set STRIPE_SECRET_KEY in Render environment variables.")
 
     idempotency_key = f"stripe-link-{uuid.uuid4()}"
-    order = _base_order(payload, idempotency_key)
-    db.add(order)
-    await db.flush()
+    order_id = str(uuid.uuid4())
+    order = _base_order(payload, idempotency_key, order_id)
 
     amount_minor = _minor_units(payload.amount, payload.currency)
     link = await _stripe_request(
@@ -247,8 +273,18 @@ async def create_payment_link(
     order.checkout_url = str(link.get("url") or "")
     order.status = OrderStatus.PENDING
     order.quote_json = jsonable_encoder({"stripe_payment_link": link})
-    await db.commit()
-    await db.refresh(order)
+    try:
+        db.add(order)
+        await db.commit()
+        await db.refresh(order)
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        logger.exception("Stripe payment link created but order persistence failed")
+        return {
+            "order": _order_payload(order),
+            "payment_link": link,
+            "warning": f"Stripe link was created but database save failed: {type(exc).__name__}",
+        }
 
     return {"order": _order_payload(order), "payment_link": link}
 
