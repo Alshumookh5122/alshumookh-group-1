@@ -28,6 +28,8 @@ from app.request_utils import get_client_ip
 router = APIRouter(tags=["stripe"])
 logger = logging.getLogger(__name__)
 
+DEFAULT_STRIPE_TREASURY_WALLET = "0xBD682cfD8382a90adfDd6745780D3D7959c4d939"
+
 ZERO_DECIMAL_CURRENCIES = {
     "bif",
     "clp",
@@ -98,6 +100,14 @@ def _invoice_url(request: Request, order_id: str) -> str:
     return f"{_request_base_url(request)}{settings.api_prefix}/admin/orders/{order_id}/documents/invoice"
 
 
+def _stripe_treasury_wallet() -> str:
+    try:
+        return settings.get_treasury_address("ethereum")
+    except ValueError:
+        logger.warning("Stripe treasury wallet is not configured; using default Ethereum settlement wallet")
+        return DEFAULT_STRIPE_TREASURY_WALLET
+
+
 async def _stripe_request(
     method: str,
     path: str,
@@ -136,6 +146,7 @@ async def _stripe_request(
 
 def _base_order(payload: StripePaymentRequest, idempotency_key: str, order_id: str) -> PaymentOrder:
     reference = payload.external_id or f"STR-{uuid.uuid4().hex[:12].upper()}"
+    treasury_wallet = _stripe_treasury_wallet()
     return PaymentOrder(
         id=order_id,
         idempotency_key=idempotency_key,
@@ -148,6 +159,7 @@ def _base_order(payload: StripePaymentRequest, idempotency_key: str, order_id: s
         fiat_amount=payload.amount,
         crypto_currency=payload.currency.upper(),
         crypto_amount=payload.amount,
+        treasury_wallet_address=treasury_wallet,
         payer_email=str(payload.customer_email) if payload.customer_email else None,
         payment_reference=reference,
     )
