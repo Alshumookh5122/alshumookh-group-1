@@ -57,6 +57,9 @@ _SIDEBAR_LINKS = [
     ("/dashboard/tokenization",  "🔄", "M1 Tokenization"),
     ("/dashboard/monitoring",    "📊", "Live Monitoring"),
     ("/dashboard/payments",      "💳", "المدفوعات"),
+    ("/client/pay/moonpay",      "🌙", "MoonPay"),
+    ("/client/pay/circle",       "⬤", "Circle USDC"),
+    ("/client/pay/direct",       "🔑", "Direct Wallet"),
     ("/dashboard/stripe",        "💵", "Stripe"),
     ("/dashboard/alchemy",       "⛓", "Alchemy Events"),
     ("/dashboard/counterparties","🔑", "Counterparties"),
@@ -333,6 +336,10 @@ function dashboardUrl(url){
 
 function dashApi(url, opts){
   return api(dashboardUrl(url), opts);
+}
+
+function esc(v){
+  return String(v || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
 
 function badge(s){
@@ -1122,7 +1129,7 @@ function loadTransfers(){
     if(!Array.isArray(rows))rows=[];
     document.getElementById('xtCount').textContent=rows.length+' تحويل';
     if(!rows.length){document.getElementById('xtBody').innerHTML='<div class="empty-state"><div class="icon">🚀</div>لا توجد تحويلات</div>';return;}
-    var th='<th>ID</th><th>Network</th><th>Amount</th><th>To Address</th><th>TX Hash</th><th>الحالة</th><th>Approved By</th><th>التاريخ</th><th>اجراءات</th>';
+    var th='<th>ID</th><th>Network</th><th>Amount</th><th>To Address</th><th>TX Hash</th><th>الحالة</th><th>Error</th><th>Approved By</th><th>التاريخ</th><th>اجراءات</th>';
     var tb=rows.map(function(r){
       var btns=[];
       if(['PENDING','AWAITING_APPROVAL'].indexOf(r.status)>=0)
@@ -1140,6 +1147,7 @@ function loadTransfers(){
         +'<td>'+(r.to_address?'<code style="font-size:10px;" title="'+r.to_address+'">'+r.to_address.slice(0,16)+'...</code>':'—')+'</td>'
         +'<td>'+(r.tx_hash?'<code style="font-size:10px;" title="'+r.tx_hash+'">'+r.tx_hash.slice(0,14)+'...</code>':'—')+'</td>'
         +'<td>'+badge(r.status)+'</td>'
+        +'<td>'+(r.error_message?'<code style="font-size:10px;color:#fca5a5;" title="'+esc(r.error_message)+'">'+esc(r.error_message).slice(0,36)+'...</code>':'—')+'</td>'
         +'<td>'+(r.approved_by||'—')+'</td>'
         +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
         +'<td>'+btns.join(' ')+'</td>'
@@ -1331,6 +1339,15 @@ _autoTimer=setInterval(loadMon,10000);
 
 _PAYMENTS_BODY = """
 <div class="page-body">
+  <div class="panel">
+    <div class="panel-head"><h3>بوابات الدفع</h3></div>
+    <div style="padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+      <a class="btn btn-ghost" href="/client/pay/moonpay" style="text-decoration:none;text-align:center;">🌙 MoonPay</a>
+      <a class="btn btn-ghost" href="/client/pay/circle" style="text-decoration:none;text-align:center;">⬤ Circle USDC</a>
+      <a class="btn btn-ghost" href="/client/pay/direct" style="text-decoration:none;text-align:center;">🔑 Direct Wallet</a>
+      <a class="btn btn-primary" href="/dashboard/stripe" style="text-decoration:none;text-align:center;">💵 Stripe</a>
+    </div>
+  </div>
   <div id="paySum" style="min-height:120px;"></div>
   <div class="panel">
     <div class="panel-head"><h3>توزيع بالحالة</h3><button class="btn btn-ghost" onclick="loadPayments()" style="font-size:11px;padding:4px 10px;">تحديث</button></div>
@@ -1395,6 +1412,17 @@ _STRIPE_BODY = """
 
   <div class="grid-2">
     <div class="panel">
+      <div class="panel-head"><h3>Stripe Balance</h3></div>
+      <div id="stripeBalance" style="padding:14px;"><div class="empty-state"><div class="icon">💵</div>Loading...</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Stripe Activity</h3></div>
+      <div id="stripeActivity" style="padding:14px;"><div class="empty-state"><div class="icon">📊</div>Loading...</div></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
       <div class="panel-head"><h3>Create Checkout Session</h3></div>
       <div style="padding:14px;display:grid;gap:10px;">
         <input id="stripeCheckoutAmount" placeholder="Amount" inputmode="decimal" value="100.00">
@@ -1417,11 +1445,34 @@ _STRIPE_BODY = """
     </div>
   </div>
 
+  <div class="panel">
+    <div class="panel-head"><h3>Create Stripe Invoice</h3></div>
+    <div style="padding:14px;display:grid;gap:10px;">
+      <input id="stripeInvoiceAmount" placeholder="Amount" inputmode="decimal" value="100.00">
+      <input id="stripeInvoiceCurrency" placeholder="Currency" value="USD" maxlength="3">
+      <input id="stripeInvoiceEmail" placeholder="Customer email *">
+      <input id="stripeInvoiceDesc" placeholder="Description" value="ALSHUMOOKH invoice">
+      <input id="stripeInvoiceDays" placeholder="Days until due" inputmode="numeric" value="7">
+      <button id="stripeInvoiceBtn" class="btn btn-primary" onclick="createStripeInvoice()">Create Stripe Invoice</button>
+    </div>
+  </div>
+
   <div id="stripeResult"></div>
 
   <div class="panel">
     <div class="panel-head"><h3>Recent Stripe Orders</h3></div>
     <div id="stripeOrders"><div class="empty-state"><div class="icon">💵</div>جاري التحميل...</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-head"><h3>Recent Payouts</h3></div>
+      <div id="stripePayouts"><div class="empty-state"><div class="icon">🏦</div>Loading...</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Recent Payments</h3></div>
+      <div id="stripePayments"><div class="empty-state"><div class="icon">💳</div>Loading...</div></div>
+    </div>
   </div>
 </div>
 <script>
@@ -1435,12 +1486,21 @@ function stripeForm(prefix){
     description: document.getElementById(prefix+'Desc').value || 'ALSHUMOOKH payment'
   };
 }
+function stripeInvoiceForm(){
+  return {
+    amount: document.getElementById('stripeInvoiceAmount').value,
+    currency: document.getElementById('stripeInvoiceCurrency').value || 'USD',
+    customer_email: document.getElementById('stripeInvoiceEmail').value,
+    description: document.getElementById('stripeInvoiceDesc').value || 'ALSHUMOOKH invoice',
+    days_until_due: Number(document.getElementById('stripeInvoiceDays').value || 7)
+  };
+}
 function stripeAttr(v){
   return String(v || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
 
 function setStripeButtons(enabled){
-  ['stripeCheckoutBtn','stripeLinkBtn'].forEach(function(id){
+  ['stripeCheckoutBtn','stripeLinkBtn','stripeInvoiceBtn'].forEach(function(id){
     var b=document.getElementById(id);
     if(!b) return;
     b.disabled=!enabled;
@@ -1472,6 +1532,60 @@ function stripeResultBox(title, url, orderId, invoiceUrl){
     +'<button class="btn btn-ghost" data-url="'+safeInvoice+'" data-target="_blank" onclick="window.open(this.dataset.url,this.dataset.target)">Open Invoice</button>'
     +'</div></div></div>';
 }
+function stripeMoney(obj){
+  var amount = obj && typeof obj.amount !== 'undefined' ? obj.amount : 0;
+  var cur = (obj && obj.currency ? obj.currency : '').toUpperCase();
+  var zero = ['BIF','CLP','DJF','GNF','JPY','KMF','KRW','MGA','PYG','RWF','UGX','VND','VUV','XAF','XOF','XPF'].indexOf(cur)>=0;
+  var n = Number(amount || 0) / (zero ? 1 : 100);
+  return fmtNum(n) + ' ' + cur;
+}
+function renderStripeBalance(bal){
+  var available=(bal.available||[]).map(stripeMoney).join('<br>')||'—';
+  var pending=(bal.pending||[]).map(stripeMoney).join('<br>')||'—';
+  document.getElementById('stripeBalance').innerHTML =
+    '<div class="stat-grid">'
+    +'<div class="stat-card"><div class="label">Available</div><div class="value" style="font-size:20px;">'+available+'</div></div>'
+    +'<div class="stat-card"><div class="label">Pending</div><div class="value" style="font-size:20px;">'+pending+'</div></div>'
+    +'</div>';
+}
+function renderMiniList(id, items, emptyText, formatter){
+  if(!items || !items.length){
+    document.getElementById(id).innerHTML='<div class="empty-state"><div class="icon">—</div>'+emptyText+'</div>';
+    return;
+  }
+  document.getElementById(id).innerHTML='<div style="display:grid;gap:8px;padding:12px;">'+items.map(formatter).join('')+'</div>';
+}
+function loadStripeExtended(){
+  api('/api/v1/admin/stripe/balance').then(renderStripeBalance).catch(function(e){
+    document.getElementById('stripeBalance').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+stripeAttr(e.message||e)+'</div>';
+  });
+  Promise.all([
+    api('/api/v1/admin/stripe/payment-intents?limit=8').catch(function(){return {data:[]};}),
+    api('/api/v1/admin/stripe/charges?limit=8').catch(function(){return {data:[]};})
+  ]).then(function(results){
+    var intents=results[0].data||[];
+    var charges=results[1].data||[];
+    document.getElementById('stripeActivity').innerHTML =
+      '<div class="stat-grid">'
+      +'<div class="stat-card"><div class="label">Payment Intents</div><div class="value" style="font-size:20px;">'+intents.length+'</div></div>'
+      +'<div class="stat-card"><div class="label">Charges</div><div class="value" style="font-size:20px;">'+charges.length+'</div></div>'
+      +'</div>';
+    renderMiniList('stripePayments', intents.concat(charges).slice(0,8), 'No Stripe payments yet', function(x){
+      return '<div style="border:1px solid var(--line);border-radius:8px;padding:10px;">'
+        +'<strong>'+stripeAttr(x.id)+'</strong><span style="float:left;color:var(--muted);">'+stripeAttr(x.status||'')+'</span><br>'
+        +'<span style="color:var(--muted);font-size:12px;">'+stripeMoney(x)+'</span></div>';
+    });
+  });
+  api('/api/v1/admin/stripe/payouts?limit=8').then(function(p){
+    renderMiniList('stripePayouts', p.data||[], 'No Stripe payouts yet', function(x){
+      return '<div style="border:1px solid var(--line);border-radius:8px;padding:10px;">'
+        +'<strong>'+stripeAttr(x.id)+'</strong><span style="float:left;color:var(--muted);">'+stripeAttr(x.status||'')+'</span><br>'
+        +'<span style="color:var(--muted);font-size:12px;">'+stripeMoney(x)+'</span></div>';
+    });
+  }).catch(function(e){
+    document.getElementById('stripePayouts').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+stripeAttr(e.message||e)+'</div>';
+  });
+}
 function loadStripe(){
   setStripeButtons(false);
   api('/api/v1/admin/stripe/status').then(function(st) {
@@ -1500,6 +1614,7 @@ function loadStripe(){
         +'</div>';
     }
     document.getElementById('stripeConfigNotice').innerHTML = notice;
+    if(_stripeConfigured){ loadStripeExtended(); }
     return api('/api/v1/admin/stripe/orders?limit=30');
   }).then(function(rows) {
     var orders = rows.orders || [];
@@ -1549,6 +1664,18 @@ function createStripePaymentLink(){
     stripeResultBox('Payment Link Created', r.order.checkout_url, r.order.id, r.invoice_url || r.order.invoice_url);
     loadStripe();
   }).catch(function(e){stripeErrorBox('Payment Link creation failed', e.message||String(e));showToast(e.message||String(e),'error');});
+}
+function createStripeInvoice(){
+  if(!_stripeConfigured){
+    stripeErrorBox('Stripe Missing Key', 'لا يمكن إنشاء Stripe Invoice قبل إضافة STRIPE_SECRET_KEY في Render ثم إعادة تشغيل الخدمة.');
+    return;
+  }
+  var body = stripeInvoiceForm();
+  if(!body.customer_email){showToast('Customer email مطلوب للفاتورة','error');return;}
+  api('/api/v1/admin/stripe/invoices',{method:'POST',body:JSON.stringify(body)}).then(function(r){
+    stripeResultBox('Stripe Invoice Created', r.hosted_invoice_url || r.invoice_pdf || r.order.checkout_url, r.order.id, r.invoice_url || r.order.invoice_url);
+    loadStripe();
+  }).catch(function(e){stripeErrorBox('Stripe invoice creation failed', e.message||String(e));showToast(e.message||String(e),'error');});
 }
 loadStripe();
 </script>

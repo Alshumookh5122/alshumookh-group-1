@@ -44,10 +44,10 @@ _FX_PROVIDERS = [
 
 
 async def _fetch_eur_usd_frankfurter() -> tuple[Decimal, str]:
-    """Fetch EUR/USD from api.frankfurter.app (free, ECB data)."""
-    async with httpx.AsyncClient(timeout=8) as client:
+    """Fetch EUR/USD from Frankfurter (free, ECB data)."""
+    async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
         r = await client.get(
-            "https://api.frankfurter.app/latest",
+            "https://api.frankfurter.dev/v1/latest",
             params={"from": "EUR", "to": "USD"},
         )
         r.raise_for_status()

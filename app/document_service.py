@@ -82,6 +82,12 @@ def _payment_url(order: PaymentOrder) -> str:
     )
 
 
+def _is_stripe_order(order: PaymentOrder) -> bool:
+    provider = getattr(order, "provider", "")
+    value = getattr(provider, "value", provider)
+    return str(value).lower() == "stripe"
+
+
 def _qr_url(data: str, size: int = 180) -> str:
     return (
         "https://api.qrserver.com/v1/create-qr-code/"
@@ -104,6 +110,10 @@ def _wallet_qr_url(order: PaymentOrder, size: int = 180) -> str:
     )
 
     return _qr_url(data, size)
+
+
+def _payment_qr_url(order: PaymentOrder, size: int = 180) -> str:
+    return _qr_url(_payment_url(order), size)
 
 
 def document_summary(order: PaymentOrder) -> dict:
@@ -171,8 +181,46 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
     created_at = order.created_at.strftime("%Y-%m-%d %H:%M UTC") if order.created_at else "-"
 
     payment_url = _payment_url(order)
-    qr_url = _wallet_qr_url(order)
+    is_stripe = _is_stripe_order(order)
+    qr_url = _payment_qr_url(order) if is_stripe and getattr(order, "checkout_url", None) else _wallet_qr_url(order)
     logo_url = _logo_url()
+    payment_url_label = "Stripe Payment Link" if is_stripe else "Payment URL"
+    qr_label = "Stripe Payment QR" if is_stripe else "Wallet Payment QR"
+
+    if is_stripe:
+        method_cards = f"""
+          <div class="method">
+            <strong>Stripe Card Payment</strong>
+            <span>Open the secure Stripe-hosted payment page to pay by supported card or wallet methods enabled in Stripe.</span>
+          </div>
+
+          <div class="method">
+            <strong>Stripe Payment Link</strong>
+            <span>The official payment link is listed in this invoice and embedded in the QR code.</span>
+          </div>
+
+          <div class="method">
+            <strong>Official Invoice Record</strong>
+            <span>This invoice is tied to internal order {escape(str(order.id))} and Stripe reference {escape(getattr(order, "provider_order_id", None) or "-")}.</span>
+          </div>
+        """
+    else:
+        method_cards = f"""
+          <div class="method">
+            <strong>Card Payment</strong>
+            <span>Open the MoonPay payment link. Payment options depend on MoonPay and payer eligibility.</span>
+          </div>
+
+          <div class="method">
+            <strong>Bank Transfer</strong>
+            <span>MoonPay may offer supported card, wallet, or local payment options inside checkout where available.</span>
+          </div>
+
+          <div class="method">
+            <strong>Direct Crypto</strong>
+            <span>Scan the QR code or send only {escape(order.crypto_currency)} on {escape(order.network.value)} to the Ledger destination wallet.</span>
+          </div>
+        """
 
     rows = [
         ("Document Number", number),
@@ -184,7 +232,7 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
         ("Crypto Amount", _money(order.crypto_amount, order.crypto_currency)),
         ("Network", order.network.value),
         ("Ledger Destination Wallet", _wallet_address(order)),
-        ("Payment URL", payment_url),
+        (payment_url_label, payment_url),
         ("Provider Order ID", getattr(order, "provider_order_id", None) or "-"),
         ("Transaction Hash", getattr(order, "tx_hash", None) or "-"),
         ("Created At", created_at),
@@ -198,6 +246,13 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
         f"<tr><th>{escape(label)}</th><td>{escape(str(value))}</td></tr>"
         for label, value in rows
     )
+
+    payment_button = ""
+    if is_stripe and payment_url:
+        payment_button = (
+            f'<a class="payment-link" href="{escape(payment_url)}" target="_blank" '
+            'rel="noopener">Open Stripe Payment Page</a>'
+        )
 
     return f"""<!doctype html>
 <html lang="en">
@@ -363,6 +418,17 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
       line-height: 1.45;
     }}
 
+    .payment-link {{
+      display: inline-block;
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 6px;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 800;
+      text-decoration: none;
+    }}
+
     table {{
       width: 100%;
       border-collapse: collapse;
@@ -486,26 +552,15 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
         <h2>Payment Methods</h2>
 
         <div class="methods">
-          <div class="method">
-            <strong>Card Payment</strong>
-            <span>Open the MoonPay payment link. Payment options depend on MoonPay and payer eligibility.</span>
-          </div>
-
-          <div class="method">
-            <strong>Bank Transfer</strong>
-            <span>MoonPay may offer supported card, wallet, or local payment options inside checkout where available.</span>
-          </div>
-
-          <div class="method">
-            <strong>Direct Crypto</strong>
-            <span>Scan the QR code or send only {escape(order.crypto_currency)} on {escape(order.network.value)} to the Ledger destination wallet.</span>
-          </div>
+          {method_cards}
         </div>
+
+        {payment_button}
       </div>
 
       <div class="qr-box">
         <img src="{escape(qr_url)}" alt="Wallet Payment QR Code">
-        <strong>Wallet Payment QR</strong>
+        <strong>{escape(qr_label)}</strong>
       </div>
     </div>
 

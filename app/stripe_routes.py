@@ -60,6 +60,15 @@ class StripePaymentRequest(BaseModel):
     cancel_url: str | None = Field(default=None, max_length=2048)
 
 
+class StripeInvoiceRequest(BaseModel):
+    amount: Decimal = Field(..., gt=0)
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+    customer_email: EmailStr
+    description: str = Field(default="ALSHUMOOKH invoice", max_length=180)
+    days_until_due: int = Field(default=7, ge=1, le=60)
+    external_id: str | None = Field(default=None, max_length=128)
+
+
 def _stripe_enabled() -> bool:
     return bool(str(settings.stripe_secret_key or "").strip())
 
@@ -129,7 +138,11 @@ async def _stripe_request(
     url = f"{settings.stripe_api_base_url.rstrip('/')}/{path.lstrip('/')}"
     async with httpx.AsyncClient(timeout=30) as client:
         try:
-            response = await client.request(method, url, content=encoded_data, headers=headers)
+            if method.upper() == "GET":
+                headers.pop("Content-Type", None)
+                response = await client.request(method, url, headers=headers)
+            else:
+                response = await client.request(method, url, content=encoded_data, headers=headers)
         except (RuntimeError, TypeError, ValueError, httpx.RequestError) as exc:
             raise HTTPException(status_code=502, detail=f"Stripe network error: {exc}") from exc
 
@@ -179,6 +192,7 @@ def _order_payload(order: PaymentOrder) -> dict[str, Any]:
         "provider_order_id": order.provider_order_id,
         "checkout_url": order.checkout_url,
         "invoice_url": invoice_path,
+        "payment_url": order.checkout_url,
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "updated_at": order.updated_at.isoformat() if order.updated_at else None,
     }
@@ -254,6 +268,29 @@ async def list_stripe_orders(_: AdminKey, db: AsyncSession = Depends(get_db), li
         .limit(max(1, min(limit, 100)))
     )
     return {"orders": [_order_payload(order) for order in result.scalars().all()]}
+
+
+@router.get("/admin/stripe/balance")
+async def stripe_balance(_: AdminKey):
+    return await _stripe_request("GET", "/balance")
+
+
+@router.get("/admin/stripe/payouts")
+async def stripe_payouts(_: AdminKey, limit: int = 10):
+    safe_limit = max(1, min(limit, 100))
+    return await _stripe_request("GET", f"/payouts?limit={safe_limit}")
+
+
+@router.get("/admin/stripe/payment-intents")
+async def stripe_payment_intents(_: AdminKey, limit: int = 10):
+    safe_limit = max(1, min(limit, 100))
+    return await _stripe_request("GET", f"/payment_intents?limit={safe_limit}")
+
+
+@router.get("/admin/stripe/charges")
+async def stripe_charges(_: AdminKey, limit: int = 10):
+    safe_limit = max(1, min(limit, 100))
+    return await _stripe_request("GET", f"/charges?limit={safe_limit}")
 
 
 @router.post("/admin/stripe/checkout-sessions")
@@ -398,6 +435,119 @@ async def create_payment_link(
     return {
         "order": _order_payload(order),
         "payment_link": link,
+        "invoice_url": _invoice_url(request, order.id),
+    }
+
+
+@router.post("/admin/stripe/invoices")
+async def create_stripe_invoice(
+    request: Request,
+    payload: StripeInvoiceRequest,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    if not _stripe_enabled():
+        raise HTTPException(status_code=503, detail="Stripe is not configured. Set STRIPE_SECRET_KEY in Render environment variables.")
+
+    idempotency_key = f"stripe-invoice-{uuid.uuid4()}"
+    order_id = str(uuid.uuid4())
+    order = _base_order(
+        StripePaymentRequest(
+            amount=payload.amount,
+            currency=payload.currency,
+            description=payload.description,
+            customer_email=payload.customer_email,
+            external_id=payload.external_id,
+        ),
+        idempotency_key,
+        order_id,
+    )
+    await _save_new_order(db, order)
+
+    amount_minor = _minor_units(payload.amount, payload.currency)
+    try:
+        customer = await _stripe_request(
+            "POST",
+            "/customers",
+            [
+                ("email", str(payload.customer_email)),
+                ("metadata[order_id]", order.id),
+                ("metadata[payment_reference]", order.payment_reference or order.id),
+            ],
+            idempotency_key=f"{idempotency_key}-customer",
+        )
+        customer_id = str(customer.get("id") or "")
+        await _stripe_request(
+            "POST",
+            "/invoiceitems",
+            [
+                ("customer", customer_id),
+                ("amount", amount_minor),
+                ("currency", payload.currency.lower()),
+                ("description", payload.description),
+                ("metadata[order_id]", order.id),
+                ("metadata[payment_reference]", order.payment_reference or order.id),
+            ],
+            idempotency_key=f"{idempotency_key}-item",
+        )
+        invoice = await _stripe_request(
+            "POST",
+            "/invoices",
+            [
+                ("customer", customer_id),
+                ("collection_method", "send_invoice"),
+                ("days_until_due", payload.days_until_due),
+                ("metadata[order_id]", order.id),
+                ("metadata[payment_reference]", order.payment_reference or order.id),
+            ],
+            idempotency_key=f"{idempotency_key}-invoice",
+        )
+        invoice_id = str(invoice.get("id") or "")
+        finalized = await _stripe_request(
+            "POST",
+            f"/invoices/{invoice_id}/finalize",
+            [],
+            idempotency_key=f"{idempotency_key}-finalize",
+        )
+    except HTTPException as exc:
+        await _mark_order_failed(db, order, exc)
+        raise
+
+    hosted_url = str(finalized.get("hosted_invoice_url") or invoice.get("hosted_invoice_url") or "")
+    invoice_pdf = str(finalized.get("invoice_pdf") or invoice.get("invoice_pdf") or "")
+    await _finalize_order(
+        db,
+        order,
+        provider_order_id=str(finalized.get("id") or invoice.get("id") or ""),
+        checkout_url=hosted_url or invoice_pdf,
+        quote={"stripe_invoice": finalized, "stripe_customer": customer},
+    )
+    await log_event(
+        db,
+        "STRIPE_INVOICE_CREATED",
+        {
+            "provider_order_id": order.provider_order_id,
+            "hosted_invoice_url": hosted_url,
+            "invoice_pdf": invoice_pdf,
+            "internal_invoice_url": _invoice_url(request, order.id),
+            "amount": str(payload.amount),
+            "currency": payload.currency.upper(),
+        },
+        order.id,
+        endpoint=str(request.url.path),
+        method=request.method,
+        ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        status_code=201,
+        transaction_id=order.provider_order_id,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+    return {
+        "order": _order_payload(order),
+        "stripe_invoice": finalized,
+        "hosted_invoice_url": hosted_url,
+        "invoice_pdf": invoice_pdf,
         "invoice_url": _invoice_url(request, order.id),
     }
 

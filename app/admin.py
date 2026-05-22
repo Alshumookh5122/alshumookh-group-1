@@ -2432,6 +2432,8 @@ async def retry_transfer(
 
     try:
         ot = await broadcast_outbound_transfer(db, transfer_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Retry broadcast failed: {exc}")
 

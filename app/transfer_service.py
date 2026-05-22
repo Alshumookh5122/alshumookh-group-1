@@ -113,6 +113,10 @@ async def _send_erc20_usdt(to_address: str, amount: Decimal, network: str = "eth
     """Send USDT via ERC-20 on Ethereum or Base."""
     if not settings.eth_treasury_private_key:
         raise ValueError("ETH_TREASURY_PRIVATE_KEY is not configured")
+    if not settings.eth_treasury_address:
+        raise ValueError("ETH_TREASURY_ADDRESS is not configured")
+    if network != "base" and not settings.usdt_eth_contract:
+        raise ValueError("USDT_ETH_CONTRACT is not configured")
 
     if network == "base":
         client = base_client()
@@ -167,6 +171,8 @@ async def _send_trc20_usdt(to_address: str, amount: Decimal) -> dict[str, Any]:
     """Send USDT via TRC-20 on TRON."""
     if not settings.tron_treasury_private_key:
         raise ValueError("TRON_TREASURY_PRIVATE_KEY is not configured")
+    if not settings.usdt_tron_contract:
+        raise ValueError("USDT_TRON_CONTRACT is not configured")
 
     client = tron_client()
     private_key = PrivateKey(bytes.fromhex(settings.tron_treasury_private_key))
