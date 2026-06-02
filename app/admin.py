@@ -8,6 +8,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request
 from pydantic import BaseModel
 from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
@@ -49,6 +50,7 @@ from app.transfer_service import (
     broadcast_outbound_transfer,
     cancel_outbound_transfer,
     create_outbound_transfer,
+    estimate_usdt_transfer_fee,
 )
 from app.tokenization_service import (
     create_tokenization_job,
@@ -579,13 +581,11 @@ async def create_admin_circle_payment(
 
     checkout_url, quote = await provider.create_widget_url(provider_payload)
 
-    # Use Provider.MOONPAY in DB until PostgreSQL ENUM migration for 'circle' is confirmed.
-    # Circle orders are identified by the "CIR-" prefix in external_id.
     order = PaymentOrder(
         client_id=None,
         idempotency_key=f"admin-circle-{uuid.uuid4()}",
         external_id=external_id,
-        provider=Provider.MOONPAY,
+        provider=Provider.CIRCLE,
         side=OrderSide.BUY,
         status=OrderStatus.CREATED,
         network=network,
@@ -599,9 +599,40 @@ async def create_admin_circle_payment(
         quote_json=quote,
     )
 
-    db.add(order)
-    await db.commit()
-    await db.refresh(order)
+    try:
+        db.add(order)
+        await db.commit()
+        await db.refresh(order)
+        provider_stored = Provider.CIRCLE.value
+    except SQLAlchemyError:
+        await db.rollback()
+        fallback_quote = {
+            "provider_alias": "circle",
+            "circle_checkout_url": checkout_url,
+            "circle_quote": quote,
+            "storage_note": "Stored with fallback provider because the database enum did not accept circle.",
+        }
+        order = PaymentOrder(
+            client_id=None,
+            idempotency_key=f"admin-circle-fallback-{uuid.uuid4()}",
+            external_id=external_id,
+            provider=Provider.MOONPAY,
+            side=OrderSide.BUY,
+            status=OrderStatus.CREATED,
+            network=network,
+            fiat_currency=fiat_currency,
+            fiat_amount=payload.get("fiat_amount"),
+            crypto_currency="USDC",
+            user_wallet_address=destination_address,
+            treasury_wallet_address=destination_address,
+            payment_reference=external_id,
+            checkout_url=checkout_url,
+            quote_json=fallback_quote,
+        )
+        db.add(order)
+        await db.commit()
+        await db.refresh(order)
+        provider_stored = "circle:fallback"
 
     request.state.transaction_id = str(order.id)
     request.state.order_id = order.id
@@ -614,6 +645,7 @@ async def create_admin_circle_payment(
             "external_id": external_id,
             "destination_address": destination_address,
             "checkout_url": checkout_url,
+            "provider_stored": provider_stored,
         },
         order.id,
     )
@@ -768,6 +800,35 @@ async def update_order_status(
         "status": order.status.value,
         "old_status": old_status.value,
     }
+
+
+@router.delete("/orders/{order_id}")
+async def delete_order(
+    order_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(PaymentOrder).where(cast(PaymentOrder.id, String) == str(order_id))
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    await log_event(
+        db,
+        "ORDER_DELETED",
+        {
+            "order_id": str(order.id),
+            "external_id": order.external_id,
+            "provider": order.provider.value if hasattr(order.provider, "value") else str(order.provider),
+            "status": order.status.value if hasattr(order.status, "value") else str(order.status),
+        },
+        None,
+    )
+    await db.delete(order)
+    await db.commit()
+    return {"deleted": True, "order_id": str(order_id)}
 
 
 @router.post("/clients", response_model=ApiClientCreated)
@@ -2440,6 +2501,38 @@ async def retry_transfer(
     return _transfer_dict(ot)
 
 
+@router.delete("/outbound-transfers/{transfer_id}", tags=["admin-transfers"])
+async def delete_transfer(
+    transfer_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(OutboundTransfer).where(OutboundTransfer.id == transfer_id)
+    )
+    ot = result.scalar_one_or_none()
+    if not ot:
+        raise HTTPException(status_code=404, detail="Transfer not found")
+    if ot.status == OutboundTransferStatus.BROADCASTING.value:
+        raise HTTPException(status_code=400, detail="Cannot delete a transfer while it is broadcasting")
+
+    await log_event(
+        db,
+        "OUTBOUND_TRANSFER_DELETED",
+        {
+            "transfer_id": ot.id,
+            "status": ot.status,
+            "network": ot.network,
+            "amount": str(ot.amount),
+            "to_address": ot.to_address,
+        },
+        ot.order_id,
+    )
+    await db.delete(ot)
+    await db.commit()
+    return {"deleted": True, "transfer_id": transfer_id}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # M1 TOKENIZATION JOBS — Admin Management
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2578,6 +2671,129 @@ async def process_job(
         )
 
     return summary
+
+
+@router.post("/tokenization-jobs/gas-fee/estimate", tags=["admin-tokenization"])
+async def estimate_m1_gas_fee(
+    request: Request,
+    _: AdminKey,
+):
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    return await estimate_usdt_transfer_fee(
+        network=str(body.get("network") or "ethereum"),
+        to_address=body.get("destination_wallet") or body.get("to_address"),
+        amount=body.get("amount") or body.get("usdt_amount") or "1",
+    )
+
+
+@router.post("/tokenization-jobs/{job_id}/gas-fee-invoice", tags=["admin-tokenization"])
+async def create_m1_gas_fee_invoice(
+    job_id: str,
+    request: Request,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(M1TokenizationJob).where(M1TokenizationJob.id == job_id)
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Tokenization job not found")
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    estimate = await estimate_usdt_transfer_fee(
+        network=body.get("network") or job.network,
+        to_address=body.get("destination_wallet") or job.destination_wallet,
+        amount=body.get("amount") or job.usdt_amount or "1",
+    )
+    external_id = f"M1-GAS-{uuid.uuid4().hex[:10].upper()}"
+    native_symbol = str(estimate.get("native_symbol") or "ETH")
+    native_fee = str(estimate.get("estimated_native_fee") or "0")
+    network_value = Network.BASE if estimate.get("network") == "base" else Network.TRON if estimate.get("network") == "tron" else Network.ETHEREUM
+    wallet = job.destination_wallet or _ledger_address(network_value)
+
+    order = PaymentOrder(
+        client_id=None,
+        idempotency_key=f"m1-gas-fee-{uuid.uuid4()}",
+        external_id=external_id,
+        provider=Provider.MANUAL,
+        side=OrderSide.BUY,
+        status=OrderStatus.CREATED,
+        network=network_value,
+        fiat_currency=str(body.get("fiat_currency") or "USD").upper(),
+        fiat_amount=body.get("fiat_amount"),
+        crypto_currency=native_symbol,
+        crypto_amount=native_fee,
+        user_wallet_address=wallet,
+        treasury_wallet_address=wallet,
+        payment_reference=external_id,
+        quote_json={
+            "type": "M1_GAS_FEE_INVOICE",
+            "tokenization_job_id": job.id,
+            "gas_fee_estimate": estimate,
+        },
+    )
+    db.add(order)
+    await db.commit()
+    await db.refresh(order)
+
+    await log_event(
+        db,
+        "M1_GAS_FEE_INVOICE_CREATED",
+        {
+            "job_id": job.id,
+            "order_id": str(order.id),
+            "external_id": external_id,
+            "estimate": estimate,
+        },
+        order.id,
+    )
+
+    return {
+        "order": _order_response(order),
+        "estimate": estimate,
+        "invoice_url": f"/api/v1/admin/orders/{order.id}/documents/invoice",
+    }
+
+
+@router.delete("/tokenization-jobs/{job_id}", tags=["admin-tokenization"])
+async def delete_tokenization_job(
+    job_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(M1TokenizationJob).where(M1TokenizationJob.id == job_id)
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Tokenization job not found")
+    if job.status == M1TokenizationStatus.SENDING.value:
+        raise HTTPException(status_code=400, detail="Cannot delete a job while it is sending")
+
+    await log_event(
+        db,
+        "M1_TOKENIZATION_JOB_DELETED",
+        {
+            "job_id": job.id,
+            "status": job.status,
+            "sender_reference": job.sender_reference,
+            "eur_amount": str(job.eur_amount),
+        },
+        None,
+    )
+    await db.delete(job)
+    await db.commit()
+    return {"deleted": True, "job_id": job_id}
 
 
 @router.get("/tokenization-jobs/fx-rate/live", tags=["admin-tokenization"])

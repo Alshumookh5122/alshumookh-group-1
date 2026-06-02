@@ -93,6 +93,87 @@ def base_client() -> Web3:
     return Web3(Web3.HTTPProvider(_base_rpc_url()))
 
 
+async def estimate_usdt_transfer_fee(
+    network: str = "ethereum",
+    to_address: str | None = None,
+    amount: Decimal | str | int | float | None = None,
+) -> dict[str, Any]:
+    """
+    Estimate the native network fee for a USDT/USDC transfer.
+    This is a preflight estimate for dashboard invoicing; it does not sign or broadcast.
+    """
+    normalized = (network or "ethereum").strip().lower()
+    amount_dec = _to_decimal(amount)
+
+    if normalized in {"tron", "trx", "trc20"}:
+        fee_limit_sun = 20_000_000
+        return {
+            "network": "tron",
+            "asset": "USDT",
+            "native_symbol": "TRX",
+            "amount": str(amount_dec),
+            "gas_limit": fee_limit_sun,
+            "gas_price_wei": None,
+            "estimated_native_fee": "20",
+            "estimated_fee_label": "20 TRX fee limit",
+            "source": "tron_fee_limit",
+        }
+
+    if normalized == "base":
+        client = base_client()
+        default_gas_limit = 65000
+        native_symbol = "ETH"
+    else:
+        client = evm_client()
+        default_gas_limit = 65000
+        native_symbol = "ETH"
+
+    gas_price = None
+    gas_limit = default_gas_limit
+    source = "default_erc20_transfer"
+    try:
+        gas_price = int(client.eth.gas_price)
+        sender = settings.eth_treasury_address
+        if normalized == "base":
+            contract_address = (
+                getattr(settings, "usdt_base_contract", None)
+                or "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+            )
+        else:
+            contract_address = settings.usdt_eth_contract
+        if sender and to_address and contract_address:
+            contract = client.eth.contract(address=Web3.to_checksum_address(contract_address), abi=ERC20_ABI)
+            recipient = Web3.to_checksum_address(to_address)
+            value = int(amount_dec * Decimal(10**6)) if amount_dec > 0 else 1
+            gas_limit = int(
+                contract.functions.transfer(recipient, value).estimate_gas(
+                    {"from": Web3.to_checksum_address(sender)}
+                )
+            )
+            source = "rpc_estimate_gas"
+        else:
+            source = "rpc_gas_price_default_limit"
+    except Exception as exc:
+        if gas_price is None:
+            gas_price = 1_500_000_000 if normalized == "base" else 25_000_000_000
+        source = f"fallback_estimate: {exc}"
+
+    total_wei = int(gas_price) * int(gas_limit)
+    native_fee = Decimal(total_wei) / Decimal(10**18)
+    return {
+        "network": "base" if normalized == "base" else "ethereum",
+        "asset": "USDT" if normalized != "base" else "USDC",
+        "native_symbol": native_symbol,
+        "amount": str(amount_dec),
+        "gas_limit": gas_limit,
+        "gas_price_wei": str(gas_price),
+        "gas_price_gwei": str(Decimal(int(gas_price)) / Decimal(10**9)),
+        "estimated_native_fee": format(native_fee, "f"),
+        "estimated_fee_label": f"{native_fee:.8f} {native_symbol}",
+        "source": source,
+    }
+
+
 # ─── Duplicate payout guard ────────────────────────────────────────────────────
 
 async def payout_already_sent(db: AsyncSession, order_id: str) -> bool:

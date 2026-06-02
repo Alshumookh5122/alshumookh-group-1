@@ -50,16 +50,16 @@ router = APIRouter(tags=["dashboard-pages"])
 # ═══════════════════════════════════════════════════════════════════
 
 _SIDEBAR_LINKS = [
-    ("/dashboard",               "🏠", "نظرة عامة"),
-    ("/dashboard/orders",        "📋", "الطلبات"),
+    ("/dashboard",               "🏠", "Overview"),
+    ("/dashboard/orders",        "📋", "Orders"),
     ("/dashboard/payloads",      "📥", "Settlement Payloads"),
     ("/dashboard/transfers",     "🚀", "Outbound Transfers"),
     ("/dashboard/tokenization",  "🔄", "M1 Tokenization"),
     ("/dashboard/monitoring",    "📊", "Live Monitoring"),
-    ("/dashboard/payments",      "💳", "المدفوعات"),
-    ("/client/pay/moonpay",      "🌙", "MoonPay"),
-    ("/client/pay/circle",       "⬤", "Circle USDC"),
-    ("/client/pay/direct",       "🔑", "Direct Wallet"),
+    ("/dashboard/payments",      "💳", "Payments"),
+    ("/dashboard/payments#moonpay", "🌙", "MoonPay"),
+    ("/dashboard/payments#circle",  "⬤", "Circle USDC"),
+    ("/dashboard/payments#direct",  "🔑", "Direct Crypto"),
     ("/dashboard/stripe",        "💵", "Stripe"),
     ("/dashboard/alchemy",       "⛓", "Alchemy Events"),
     ("/dashboard/counterparties","🔑", "Counterparties"),
@@ -104,7 +104,7 @@ def _sidebar(active_path: str) -> str:
        style="margin-top:12px;display:block;text-align:center;padding:7px;
               background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);
               border-radius:6px;color:#f87171;font-size:11px;font-weight:700;text-decoration:none;">
-      &#9211; تسجيل الخروج
+      &#9211; Logout
     </a>
   </div>
 </aside>
@@ -122,7 +122,7 @@ def _topbar(title: str, subtitle: str = "Admin Panel") -> str:
     <input id="_top_ak_inp" type="password" placeholder="Admin API Key"
            style="width:220px;max-width:38vw;background:var(--panel-solid);border:1px solid var(--line-strong);
                   border-radius:8px;padding:7px 10px;color:var(--ink);font-size:11px;outline:none;" />
-    <button class="btn btn-primary" onclick="saveTopAK()" style="padding:7px 10px;font-size:11px;">حفظ المفتاح</button>
+    <button class="btn btn-primary" onclick="saveTopAK()" style="padding:7px 10px;font-size:11px;">Save Key</button>
     <span id="_liveTime" style="color:var(--muted);font-size:12px;"></span>
     <span style="width:8px;height:8px;border-radius:50%;background:#34d399;
                  display:inline-block;box-shadow:0 0 6px #34d39988;"></span>
@@ -133,7 +133,7 @@ def _topbar(title: str, subtitle: str = "Admin Panel") -> str:
 (function(){{
   function tick(){{
     var el=document.getElementById('_liveTime');
-    if(el) el.textContent=new Date().toLocaleTimeString('ar-SA');
+    if(el) el.textContent=new Date().toLocaleTimeString('en-US');
   }}
   tick(); setInterval(tick,1000);
 }})();
@@ -221,9 +221,9 @@ try {
   banner.id = '_ak_banner';
   banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:10px 20px;display:flex;align-items:center;gap:12px;font-size:13px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,.4);';
   banner.innerHTML = '<span style="font-weight:700;">🔑 Admin API Key:</span>'
-    +'<input id="_ak_inp" type="password" placeholder="أدخل Admin API Key هنا ثم اضغط حفظ..." '
+    +'<input id="_ak_inp" type="password" placeholder="Enter Admin API Key, then click Save..." '
     +'style="flex:1;max-width:440px;padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:13px;outline:none;" />'
-    +'<button onclick="saveAK()" style="padding:7px 18px;border-radius:8px;background:#fff;color:#1d4ed8;font-weight:700;border:none;cursor:pointer;font-size:13px;">حفظ ✓</button>'
+    +'<button onclick="saveAK()" style="padding:7px 18px;border-radius:8px;background:#fff;color:#1d4ed8;font-weight:700;border:none;cursor:pointer;font-size:13px;">Save</button>'
     +'<button onclick="(function(){var b=document.getElementById(\\'_ak_banner\\');if(b)b.style.display=\\'none\\';})()" style="padding:7px 14px;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer;font-size:12px;">✕</button>';
   if(document.body) document.body.insertBefore(banner, document.body.firstChild);
   syncAKInputs();
@@ -232,7 +232,7 @@ try {
     var ind = document.createElement('div');
     ind.id='_ak_ind';
     ind.style.cssText='position:fixed;bottom:24px;left:24px;z-index:9998;background:rgba(5,150,105,.9);color:#fff;padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;';
-    ind.textContent='🔑 API Key مُعيّن';
+    ind.textContent='API Key set';
     ind.onclick=function(){var b=document.getElementById('_ak_banner');if(b)b.style.display='flex';};
     if(document.body) document.body.appendChild(ind);
   }
@@ -242,30 +242,30 @@ function saveAK(){
   try{
     var v=(document.getElementById('_ak_inp')||{}).value||'';
     v=v.trim();
-    if(!v){alert('أدخل Admin API Key أولاً');return;}
+    if(!v){alert('Enter Admin API Key first');return;}
     AK=v;
     try{sessionStorage.setItem('als_admin_key',v);}catch(e){}
     try{localStorage.setItem('als_admin_key',v);}catch(e){}
     try{document.cookie='als_ak='+encodeURIComponent(v)+';path=/;max-age=86400;samesite=lax';}catch(e){}
     try{var b=document.getElementById('_ak_banner');if(b)b.style.display='none';}catch(e){}
-    showToast('تم حفظ Admin API Key ✓ جاري التحديث...','ok');
+    showToast('Admin API Key saved. Refreshing...','ok');
     setTimeout(function(){location.reload();},1200);
-  }catch(e){alert('خطأ: '+e.message);}
+  }catch(e){alert('Error: '+e.message);}
 }
 
 function saveTopAK(){
   try{
     var v=(document.getElementById('_top_ak_inp')||{}).value||'';
     v=v.trim();
-    if(!v){alert('أدخل Admin API Key أولاً');return;}
+    if(!v){alert('Enter Admin API Key first');return;}
     AK=v;
     try{sessionStorage.setItem('als_admin_key',v);}catch(e){}
     try{localStorage.setItem('als_admin_key',v);}catch(e){}
     try{document.cookie='als_ak='+encodeURIComponent(v)+';path=/;max-age=86400;samesite=lax';}catch(e){}
     syncAKInputs();
-    showToast('تم حفظ Admin API Key ✓ جاري التحديث...','ok');
+    showToast('Admin API Key saved. Refreshing...','ok');
     setTimeout(function(){location.reload();},900);
-  }catch(e){alert('خطأ: '+e.message);}
+  }catch(e){alert('Error: '+e.message);}
 }
 
 function H(extra) {
@@ -292,11 +292,11 @@ function api(url, opts) {
   }
   function _authErr(status) {
     try{ var b=document.getElementById('_ak_banner'); if(b)b.style.display='flex'; }catch(ex){}
-    showToast('خطأ في المصادقة — أدخل Admin API Key','error');
+    showToast('Authentication failed. Enter the Admin API Key.','error');
   }
   if(typeof fetch !== 'undefined') {
     return fetch(url,{method:method,headers:headers,credentials:'include',body:body}).then(function(r){
-      if(r.status===401||r.status===403){ _authErr(r.status); throw new Error('غير مصرح — HTTP '+r.status); }
+      if(r.status===401||r.status===403){ _authErr(r.status); throw new Error('Unauthorized - HTTP '+r.status); }
       if(!r.ok){
         return r.json().then(function(d){ throw new Error(_errMsg(d, r.status)); },
                              function(){ throw new Error('HTTP '+r.status); });
@@ -310,7 +310,7 @@ function api(url, opts) {
     Object.keys(headers).forEach(function(k){ try{xhr.setRequestHeader(k,headers[k]);}catch(e){} });
     xhr.onreadystatechange=function(){
       if(xhr.readyState!==4) return;
-      if(xhr.status===401||xhr.status===403){ _authErr(xhr.status); reject(new Error('غير مصرح — HTTP '+xhr.status)); return; }
+      if(xhr.status===401||xhr.status===403){ _authErr(xhr.status); reject(new Error('Unauthorized - HTTP '+xhr.status)); return; }
       if(xhr.status>=200&&xhr.status<300){ try{resolve(JSON.parse(xhr.responseText));}catch(e){reject(new Error('Parse error'));} }
       else{ var msg='HTTP '+xhr.status; try{msg=_errMsg(JSON.parse(xhr.responseText), xhr.status);}catch(e){} reject(new Error(msg)); }
     };
@@ -388,7 +388,7 @@ function showToast(msg,type){
 }
 
 function copyText(txt){
-  navigator.clipboard.writeText(txt).then(function(){showToast('تم النسخ','ok');});
+  navigator.clipboard.writeText(txt).then(function(){showToast('Copied','ok');});
 }
 
 // Mark active nav link
@@ -409,7 +409,7 @@ def _page(title: str, active: str, body: str) -> str:
     # Use the CSS as-is (no format string in CSS)
     return (
         "<!doctype html>\n"
-        '<html lang="ar" dir="rtl">\n'
+        '<html lang="en" dir="ltr">\n'
         "<head>\n"
         '  <meta charset="utf-8">\n'
         '  <meta name="viewport" content="width=device-width,initial-scale=1">\n'
@@ -516,35 +516,35 @@ _OVERVIEW_BODY = """
   </div>
 
   <div class="stat-grid">
-    <div class="stat-card"><div class="label">اجمالي الطلبات</div><div class="value" id="sTotal">—</div></div>
-    <div class="stat-card"><div class="label">مكتملة</div><div class="value" id="sCompleted" style="color:#10b981;">—</div></div>
+    <div class="stat-card"><div class="label">Total Orders</div><div class="value" id="sTotal">—</div></div>
+    <div class="stat-card"><div class="label">Completed</div><div class="value" id="sCompleted" style="color:#10b981;">—</div></div>
     <div class="stat-card"><div class="label">Settlement Payloads</div><div class="value" id="sPayloads">—</div></div>
-    <div class="stat-card"><div class="label">USDT المرسل</div><div class="value" id="sUsdt" style="color:#a78bfa;">—</div><div class="sub">اجمالي المكتملة</div></div>
-    <div class="stat-card"><div class="label">تحويلات معلقة</div><div class="value" id="sPending" style="color:#f59e0b;">—</div></div>
-    <div class="stat-card"><div class="label">وظائف M1</div><div class="value" id="sM1">—</div></div>
+    <div class="stat-card"><div class="label">USDT Sent</div><div class="value" id="sUsdt" style="color:#a78bfa;">—</div><div class="sub">Completed total</div></div>
+    <div class="stat-card"><div class="label">Pending Transfers</div><div class="value" id="sPending" style="color:#f59e0b;">—</div></div>
+    <div class="stat-card"><div class="label">M1 Jobs</div><div class="value" id="sM1">—</div></div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
     <div class="panel">
-      <div class="panel-head"><h3>اخر الاحداث</h3></div>
+      <div class="panel-head"><h3>Recent Events</h3></div>
       <div id="recentEvents" style="padding:12px 16px;min-height:80px;"></div>
     </div>
     <div class="panel">
-      <div class="panel-head"><h3>اخر التحويلات</h3></div>
+      <div class="panel-head"><h3>Recent Transfers</h3></div>
       <div id="recentTransfers" style="padding:12px 16px;min-height:80px;"></div>
     </div>
   </div>
 
   <div class="panel">
-    <div class="panel-head"><h3>Settlement Payloads - توزيع الحالة</h3></div>
+    <div class="panel-head"><h3>Settlement Payloads - Status Distribution</h3></div>
     <div id="payloadStatus" style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;min-height:40px;"></div>
   </div>
 
   <!-- Settlement Payloads List with Actions -->
   <div class="panel" id="ovPlPanel">
     <div class="panel-head">
-      <h3>📥 Settlement Payloads — إجراءات سريعة</h3>
-      <button class="btn btn-ghost" onclick="loadOvPayloads()" style="font-size:11px;padding:4px 10px;">تحديث</button>
+      <h3>Settlement Payloads - Quick Actions</h3>
+      <button class="btn btn-ghost" onclick="loadOvPayloads()" style="font-size:11px;padding:4px 10px;">Refresh</button>
     </div>
     <!-- Detail modal like legacy dashboard -->
     <div id="ovPlDetail" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.70);overflow-y:auto;padding:24px;">
@@ -555,7 +555,7 @@ _OVERVIEW_BODY = """
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" id="ovBtnVerify" onclick="ovVerify()">Verify with Alchemy</button>
           <button class="btn btn-ghost"   id="ovBtnManual" onclick="ovManual()">Manual Review</button>
-          <button class="btn btn-ghost"   onclick="ovClosePayload()" style="font-size:11px;">✕ إغلاق</button>
+          <button class="btn btn-ghost"   onclick="ovClosePayload()" style="font-size:11px;">Close</button>
         </div>
       </div>
       </div>
@@ -600,13 +600,13 @@ _OVERVIEW_BODY = """
       </div>
       </div>
     </div>
-    <div id="ovPlBody" style="padding:0;"><div class="empty-state"><div class="icon">📥</div>جاري التحميل...</div></div>
+    <div id="ovPlBody" style="padding:0;"><div class="empty-state"><div class="icon">📥</div>Loading...</div></div>
   </div>
 
   <div class="panel">
     <div class="panel-head">
       <h3>System Readiness</h3>
-      <button class="btn btn-ghost" onclick="loadOverview()" style="font-size:11px;padding:4px 10px;">تحديث</button>
+      <button class="btn btn-ghost" onclick="loadOverview()" style="font-size:11px;padding:4px 10px;">Refresh</button>
     </div>
     <div id="readinessBody" style="padding:14px 16px;"></div>
   </div>
@@ -634,7 +634,7 @@ function loadOverview() {
   console.log("Loading dashboard overview...");
   setOverviewDebug('Loading dashboard overview... /dashboard/api/monitoring/live', true);
   setOverviewStats('...');
-  try{ document.getElementById('readinessBody').innerHTML='<p style="color:var(--muted);font-size:12px;">جاري الاتصال بالخادم...</p>'; }catch(e){}
+  try{ document.getElementById('readinessBody').innerHTML='<p style="color:var(--muted);font-size:12px;">Connecting to server...</p>'; }catch(e){}
   dashApi('/api/v1/admin/monitoring/live').then(function(m) {
     console.log("Dashboard monitoring data:", m);
     setOverviewDebug('Dashboard API OK: /dashboard/api/monitoring/live', true);
@@ -648,33 +648,33 @@ function loadOverview() {
     var ev = (m.recent_events)||[];
     document.getElementById('recentEvents').innerHTML = ev.length
       ? ev.map(function(e){return '<div style="padding:7px 0;border-bottom:1px solid var(--line);font-size:12px;"><span style="color:var(--gold);font-weight:700;">'+e.event_type+'</span><span style="float:left;color:var(--muted);font-size:11px;">'+fmtDate(e.created_at)+'</span></div>';}).join('')
-      : '<p style="color:var(--muted);text-align:center;padding:16px;">لا توجد احداث</p>';
+      : '<p style="color:var(--muted);text-align:center;padding:16px;">No events found</p>';
 
     var tr = (m.outbound_transfers && m.outbound_transfers.recent)||[];
     document.getElementById('recentTransfers').innerHTML = tr.length
       ? tr.map(function(t){return '<div style="padding:7px 0;border-bottom:1px solid var(--line);font-size:12px;"><span style="color:var(--brand);font-weight:600;">'+(t.network||'').toUpperCase()+'</span><span style="margin:0 8px;">'+fmtNum(t.amount)+' USDT</span>'+badge(t.status)+'<div style="color:var(--muted);font-size:11px;margin-top:2px;">'+(t.tx_hash?t.tx_hash.slice(0,22)+'...':'No TX yet')+'</div></div>';}).join('')
-      : '<p style="color:var(--muted);text-align:center;padding:16px;">لا توجد تحويلات</p>';
+      : '<p style="color:var(--muted);text-align:center;padding:16px;">No transfers found</p>';
 
     var ps = (m.payloads && m.payloads.by_status)||{};
     var psKeys = Object.keys(ps);
     document.getElementById('payloadStatus').innerHTML = psKeys.length
       ? psKeys.map(function(s){return '<div style="padding:8px 14px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--line);">'+badge(s)+' <strong style="color:var(--ink);margin-right:6px;">'+ps[s]+'</strong></div>';}).join('')
-      : '<p style="color:var(--muted);">لا توجد بيانات</p>';
+      : '<p style="color:var(--muted);">No data available</p>';
   }).catch(function(e) {
-    var errMsg = e.message||'خطأ غير معروف';
+    var errMsg = e.message||'Unknown error';
     console.error('Dashboard overview failed:', e);
     setOverviewDebug('Dashboard API FAILED: '+errMsg+' — route /dashboard/api/monitoring/live', false);
     setOverviewStats('ERR');
-    document.getElementById('recentEvents').innerHTML='<p style="color:#ef4444;text-align:center;padding:16px;font-size:12px;">فشل التحميل: '+errMsg+'</p>';
-    document.getElementById('recentTransfers').innerHTML='<p style="color:#ef4444;text-align:center;padding:16px;font-size:12px;">فشل التحميل: '+errMsg+'</p>';
-    document.getElementById('payloadStatus').innerHTML='<p style="color:#ef4444;font-size:12px;">فشل التحميل</p>';
+    document.getElementById('recentEvents').innerHTML='<p style="color:#ef4444;text-align:center;padding:16px;font-size:12px;">Load failed: '+errMsg+'</p>';
+    document.getElementById('recentTransfers').innerHTML='<p style="color:#ef4444;text-align:center;padding:16px;font-size:12px;">Load failed: '+errMsg+'</p>';
+    document.getElementById('payloadStatus').innerHTML='<p style="color:#ef4444;font-size:12px;">Load failed</p>';
     document.getElementById('ovPlBody').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+errMsg+'</div>';
     document.getElementById('readinessBody').innerHTML =
       '<div style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:10px;padding:16px;">'
-      +'<div style="color:#f87171;font-weight:700;margin-bottom:8px;">❌ فشل الاتصال — الخطأ: '+errMsg+'</div>'
-      +'<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">تأكد من إدخال Admin API Key الصحيح</div>'
-      +'<button onclick="var b=document.getElementById(\\'_ak_banner\\');if(b){b.style.display=\\'flex\\';}" '
-      +'style="background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">🔑 إدخال API Key</button>'
+      +'<div style="color:#f87171;font-weight:700;margin-bottom:8px;">Connection failed - error: '+errMsg+'</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Make sure the correct Admin API Key is entered.</div>'
+      +'<button onclick="var b=document.getElementById(&quot;_ak_banner&quot;);if(b){b.style.display=&quot;flex&quot;;}" '
+      +'style="background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">Enter API Key</button>'
       +'</div>';
   });
 
@@ -688,7 +688,7 @@ function loadOverview() {
     if(warnings.length){
       html += '<div style="margin-top:12px;">'+warnings.map(function(w){return '<div style="padding:6px 10px;margin-top:4px;border-radius:6px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);font-size:12px;color:#fbbf24;">'+w+'</div>';}).join('')+'</div>';
     }
-    document.getElementById('readinessBody').innerHTML = html||'<p style="color:var(--muted);">لا توجد بيانات</p>';
+    document.getElementById('readinessBody').innerHTML = html||'<p style="color:var(--muted);">No data available</p>';
   }).catch(function(e) {
     // readinessBody might already show error from monitoring, that's ok
   });
@@ -725,10 +725,10 @@ function loadOvPayloads() {
   dashApi('/api/v1/admin/payloads').then(function(res) {
     var rows = res.payloads||[];
     if(!rows.length){
-      document.getElementById('ovPlBody').innerHTML='<div class="empty-state"><div class="icon">📥</div>لا توجد payloads</div>';
+      document.getElementById('ovPlBody').innerHTML='<div class="empty-state"><div class="icon">📥</div>No payloads found</div>';
       return;
     }
-    var th='<th>Reference</th><th>Amount</th><th>Network</th><th>Status</th><th>Security</th><th>TX Hash</th><th>التاريخ</th><th>إجراء</th>';
+    var th='<th>Reference</th><th>Amount</th><th>Network</th><th>Status</th><th>Security</th><th>TX Hash</th><th>Date</th><th>Action</th>';
     var tb=rows.map(function(r){
       var rid=r.id||r.payload_id;
       var ref=r.transaction_reference||(rid?rid.slice(0,12)+'...':'—');
@@ -782,7 +782,7 @@ function ovViewPayload(id) {
     ovTab('raw');
     document.getElementById('ovPlDetail').style.display='block';
     document.body.style.overflow='hidden';
-  }).catch(function(e){ showToast('خطأ: '+e.message,'error'); });
+  }).catch(function(e){ showToast('Error: '+e.message,'error'); });
 }
 
 function ovClosePayload(){
@@ -815,38 +815,38 @@ function ovTab(tab) {
 function ovVerify(){
   if(!_ovCurrentPl){return;}
   var pid=_ovCurrentPl.id||_ovCurrentPl.payload_id;
-  api('/api/v1/admin/payloads/'+pid+'/verify',{method:'POST'}).then(function(){showToast('تم إرسال طلب التحقق','ok');loadOvPayloads();ovViewPayload(pid);}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/payloads/'+pid+'/verify',{method:'POST'}).then(function(){showToast('Verification request sent','ok');loadOvPayloads();ovViewPayload(pid);}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function ovManual(){
   if(!_ovCurrentPl){return;}
   var pid=_ovCurrentPl.id||_ovCurrentPl.payload_id;
-  api('/api/v1/admin/payloads/'+pid+'/mark-manual-review',{method:'POST'}).then(function(){showToast('تم التحديد للمراجعة','ok');loadOvPayloads();ovViewPayload(pid);}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/payloads/'+pid+'/mark-manual-review',{method:'POST'}).then(function(){showToast('Marked for manual review','ok');loadOvPayloads();ovViewPayload(pid);}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function ovReview(decision){
   if(!_ovCurrentPl){return;}
   var note=document.getElementById('ovReviewNote').value||'';
   var action=(decision||'').toUpperCase();
   var priority=document.getElementById('ovPriority').value||'NORMAL';
-  api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:action,note:note,priority:priority})}).then(function(){showToast(action==='APPROVE'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();ovClosePayload();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:action,note:note,priority:priority})}).then(function(){showToast(action==='APPROVE'?'Approved':'Rejected','ok');loadOvPayloads();ovClosePayload();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function ovHold(){
   if(!_ovCurrentPl){return;}
   var reason=document.getElementById('ovHoldReason').value;
   var note='HOLD: '+(reason||document.getElementById('ovReviewNote').value||'on hold');
   var priority=document.getElementById('ovPriority').value||'NORMAL';
-  api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:'HOLD',note:note,hold_reason:reason||note,priority:priority})}).then(function(){showToast('تم وضع الـ Payload في الانتظار','ok');loadOvPayloads();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:'HOLD',note:note,hold_reason:reason||note,priority:priority})}).then(function(){showToast('Payload placed on hold','ok');loadOvPayloads();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function ovSaveNote(){
   if(!_ovCurrentPl){return;}
   var note=document.getElementById('ovReviewNote').value;
-  if(!note){showToast('اكتب ملاحظة أولاً','error');return;}
+  if(!note){showToast('Write a note first','error');return;}
   var priority=document.getElementById('ovPriority').value||'NORMAL';
-  api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:'NOTE',note:note,priority:priority})}).then(function(){showToast('تم حفظ الملاحظة','ok');}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/payloads/'+(_ovCurrentPl.id||_ovCurrentPl.payload_id)+'/review',{method:'POST',body:JSON.stringify({action:'NOTE',note:note,priority:priority})}).then(function(){showToast('Note saved','ok');}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function ovQuickAction(id,decision){
   var note=decision==='approve'?'Quick approval from dashboard':'Quick rejection from dashboard';
   var action=(decision||'').toUpperCase();
-  api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})}).then(function(){showToast(action==='APPROVE'?'تمت الموافقة ✅':'تم الرفض ❌','ok');loadOvPayloads();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})}).then(function(){showToast(action==='APPROVE'?'Approved':'Rejected','ok');loadOvPayloads();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 try{ loadOvPayloads(); }catch(e){ console.error('loadOvPayloads error:',e); }
 document.addEventListener('keydown', function(e){
@@ -864,18 +864,18 @@ _ORDERS_BODY = """
 <div class="page-body">
   <div class="filter-bar">
     <select id="ordStatus" onchange="loadOrders()" style="min-width:140px;">
-      <option value="">جميع الحالات</option>
+      <option value="">All statuses</option>
       <option>CREATED</option><option>PENDING</option><option>PROCESSING</option>
       <option>COMPLETED</option><option>FAILED</option><option>REFUNDED</option><option>EXPIRED</option>
     </select>
-    <button class="btn btn-ghost" onclick="loadOrders()">تحديث</button>
+    <button class="btn btn-ghost" onclick="loadOrders()">Refresh</button>
   </div>
   <div class="panel">
     <div class="panel-head">
-      <h3>قائمة الطلبات</h3>
+      <h3>Orders List</h3>
       <span id="ordCount" style="color:var(--muted);font-size:12px;"></span>
     </div>
-    <div id="ordersBody"><div class="empty-state"><div class="icon">📋</div>جاري التحميل...</div></div>
+    <div id="ordersBody"><div class="empty-state"><div class="icon">📋</div>Loading...</div></div>
   </div>
 </div>
 <script>
@@ -884,12 +884,12 @@ function loadOrders() {
   var url = '/api/v1/admin/orders' + (st ? '?status='+st : '');
   api(url).then(function(rows) {
     if(!Array.isArray(rows)) rows = rows.orders||[];
-    document.getElementById('ordCount').textContent = rows.length + ' طلب';
+    document.getElementById('ordCount').textContent = rows.length + ' orders';
     if(!rows.length){
-      document.getElementById('ordersBody').innerHTML='<div class="empty-state"><div class="icon">📋</div>لا توجد طلبات</div>';
+      document.getElementById('ordersBody').innerHTML='<div class="empty-state"><div class="icon">📋</div>No orders found</div>';
       return;
     }
-    var th = '<th>ID</th><th>Provider</th><th>Fiat</th><th>Crypto</th><th>الحالة</th><th>Network</th><th>Email</th><th>Ref</th><th>TX</th><th>التاريخ</th>';
+    var th = '<th>ID</th><th>Provider</th><th>Fiat</th><th>Crypto</th><th>Status</th><th>Network</th><th>Email</th><th>Ref</th><th>TX</th><th>Date</th><th>Action</th>';
     var tb = rows.map(function(o){return '<tr>'
       +'<td><code style="font-size:10px;" title="'+o.id+'">'+o.id.slice(0,10)+'...</code></td>'
       +'<td>'+(o.provider||'—')+'</td>'
@@ -901,11 +901,16 @@ function loadOrders() {
       +'<td>'+(o.payment_reference?'<code style="font-size:10px;">'+o.payment_reference+'</code>':'—')+'</td>'
       +'<td>'+(o.tx_hash?'<code style="font-size:10px;" title="'+o.tx_hash+'">'+o.tx_hash.slice(0,14)+'...</code>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(o.created_at)+'</td>'
+      +'<td><button class="btn btn-danger" data-oid="'+o.id+'" onclick="deleteOrderPage(this.dataset.oid)" style="font-size:11px;padding:3px 8px;">Delete</button></td>'
       +'</tr>';}).join('');
     document.getElementById('ordersBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e) {
     document.getElementById('ordersBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';
   });
+}
+function deleteOrderPage(id){
+  if(!confirm('Delete this order? This cannot be undone.'))return;
+  api('/api/v1/admin/orders/'+id,{method:'DELETE'}).then(function(){showToast('Order deleted','ok');loadOrders();}).catch(function(e){showToast(e.message||String(e),'error');});
 }
 loadOrders();
 </script>
@@ -917,19 +922,19 @@ _PAYLOADS_BODY = """
 <div class="page-body">
   <div class="filter-bar">
     <select id="plStatus" onchange="loadPayloads()" style="min-width:180px;">
-      <option value="">جميع الحالات</option>
+      <option value="">All statuses</option>
       <option>RECEIVED</option><option>PARSED</option><option>AWAITING_TX_HASH</option>
       <option>ALCHEMY_PENDING</option><option>ALCHEMY_VERIFIED</option>
       <option>ON_CHAIN_CONFIRMED</option><option>RECONCILED</option>
       <option>FAILED</option><option>MANUAL_REVIEW</option>
     </select>
-    <button class="btn btn-ghost" onclick="loadPayloads()">تحديث</button>
+    <button class="btn btn-ghost" onclick="loadPayloads()">Refresh</button>
   </div>
 
   <div id="plDetail" style="display:none;" class="panel">
     <div class="panel-head">
-      <h3>تفاصيل الـ Payload</h3>
-      <button class="btn btn-ghost" onclick="document.getElementById('plDetail').style.display='none'" style="font-size:11px;padding:4px 10px;">اغلاق</button>
+      <h3>Payload Details</h3>
+      <button class="btn btn-ghost" onclick="document.getElementById('plDetail').style.display='none'" style="font-size:11px;padding:4px 10px;">Close</button>
     </div>
     <div id="plDetailBody" style="padding:16px;font-size:12px;line-height:1.8;"></div>
     <div id="plActions" style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap;"></div>
@@ -940,7 +945,7 @@ _PAYLOADS_BODY = """
       <h3>Settlement Payloads</h3>
       <span id="plCount" style="color:var(--muted);font-size:12px;"></span>
     </div>
-    <div id="plBody"><div class="empty-state"><div class="icon">📥</div>جاري التحميل...</div></div>
+    <div id="plBody"><div class="empty-state"><div class="icon">📥</div>Loading...</div></div>
   </div>
 </div>
 <script>
@@ -951,10 +956,10 @@ function loadPayloads() {
     var rows = res.payloads||[];
     document.getElementById('plCount').textContent = (res.count||rows.length)+' payload';
     if(!rows.length){
-      document.getElementById('plBody').innerHTML='<div class="empty-state"><div class="icon">📥</div>لا توجد payloads</div>';
+      document.getElementById('plBody').innerHTML='<div class="empty-state"><div class="icon">📥</div>No payloads found</div>';
       return;
     }
-    var th = '<th>ID</th><th>Amount</th><th>Network</th><th>Sender</th><th>TX Hash</th><th>Security</th><th>الحالة</th><th>التاريخ</th><th>عرض</th>';
+    var th = '<th>ID</th><th>Amount</th><th>Network</th><th>Sender</th><th>TX Hash</th><th>Security</th><th>Status</th><th>Date</th><th>View</th>';
     var tb = rows.map(function(r){var rid=r.id||r.payload_id;return '<tr data-rid="'+rid+'" onclick="viewPayload(this.dataset.rid)" style="cursor:pointer;">'
       +'<td><code style="font-size:10px;cursor:pointer;color:var(--brand);">'+rid.slice(0,10)+'...</code></td>'
       +'<td>'+fmtNum(r.amount)+' '+(r.asset||'USDT')+'</td>'
@@ -964,7 +969,7 @@ function loadPayloads() {
       +'<td><span style="font-size:10px;color:var(--muted);">'+(r.security_level||'—')+'</span></td>'
       +'<td>'+badge(r.verification_status)+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><button class="btn btn-ghost" data-rid="'+rid+'" onclick="event.stopPropagation();viewPayload(this.dataset.rid)" style="font-size:11px;padding:4px 10px;">عرض</button></td>'
+      +'<td><button class="btn btn-ghost" data-rid="'+rid+'" onclick="event.stopPropagation();viewPayload(this.dataset.rid)" style="font-size:11px;padding:4px 10px;">View</button></td>'
       +'</tr>';}).join('');
     document.getElementById('plBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e) {
@@ -1007,19 +1012,19 @@ function viewPayload(id) {
     document.getElementById('plActions').innerHTML=acts.join('');
     document.getElementById('plDetail').style.display='block';
     document.getElementById('plDetail').scrollIntoView({behavior:'smooth'});
-  }).catch(function(e){ showToast('خطأ: '+e.message,'error'); });
+  }).catch(function(e){ showToast('Error: '+e.message,'error'); });
 }
 
 function verifyPl(id){
-  api('/api/v1/admin/payloads/'+id+'/verify',{method:'POST'}).then(function(){showToast('تم ارسال طلب التحقق','ok');loadPayloads();viewPayload(id);}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/payloads/'+id+'/verify',{method:'POST'}).then(function(){showToast('Verification request sent','ok');loadPayloads();viewPayload(id);}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function markManual(id){
-  api('/api/v1/admin/payloads/'+id+'/mark-manual-review',{method:'POST'}).then(function(){showToast('تم التحديد للمراجعة','ok');loadPayloads();viewPayload(id);}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/payloads/'+id+'/mark-manual-review',{method:'POST'}).then(function(){showToast('Marked for manual review','ok');loadPayloads();viewPayload(id);}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function reviewPl(id,decision){
-  var note=prompt('ملاحظة ('+(decision==='approve'?'موافقة':'رفض')+'): ')||'';
+  var note=prompt('Review note ('+(decision==='approve'?'approve':'reject')+'): ')||'';
   var action=(decision||'').toUpperCase();
-  api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})}).then(function(){showToast('تم '+(action==='APPROVE'?'القبول':'الرفض'),'ok');loadPayloads();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})}).then(function(){showToast(action==='APPROVE'?'Approved':'Rejected','ok');loadPayloads();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 loadPayloads();
 </script>
@@ -1031,29 +1036,29 @@ _TRANSFERS_BODY = """
 <div class="page-body">
   <div class="filter-bar">
     <select id="xtStatus" onchange="loadTransfers()" style="min-width:160px;">
-      <option value="">جميع الحالات</option>
+      <option value="">All statuses</option>
       <option>PENDING</option><option>AWAITING_APPROVAL</option><option>APPROVED</option>
       <option>BROADCASTING</option><option>COMPLETED</option><option>FAILED</option><option>CANCELLED</option>
     </select>
     <select id="xtNetwork" onchange="loadTransfers()" style="min-width:130px;">
-      <option value="">جميع الشبكات</option>
+      <option value="">All networks</option>
       <option value="ethereum">Ethereum</option>
       <option value="tron">TRON</option>
       <option value="base">Base</option>
     </select>
-    <button class="btn btn-ghost" onclick="loadTransfers()">تحديث</button>
-    <button class="btn btn-primary" onclick="toggleCF()">+ انشاء تحويل</button>
+    <button class="btn btn-ghost" onclick="loadTransfers()">Refresh</button>
+    <button class="btn btn-primary" onclick="toggleCF()">+ Create Transfer</button>
   </div>
 
   <div id="createXferForm" style="display:none;" class="panel">
-    <div class="panel-head"><h3>انشاء تحويل USDT جديد</h3></div>
+    <div class="panel-head"><h3>Create New USDT Transfer</h3></div>
     <div style="padding:16px;">
       <div class="form-grid">
-        <div class="form-field"><label>عنوان المستلم *</label>
-          <input id="cfTo" placeholder="0x... او T..."></div>
-        <div class="form-field"><label>المبلغ (USDT) *</label>
+        <div class="form-field"><label>Recipient Address *</label>
+          <input id="cfTo" placeholder="0x... or T..."></div>
+        <div class="form-field"><label>Amount (USDT) *</label>
           <input id="cfAmt" type="number" step="0.01" placeholder="0.00"></div>
-        <div class="form-field"><label>الشبكة *</label>
+        <div class="form-field"><label>Network *</label>
           <select id="cfNet">
             <option value="ethereum">Ethereum (ERC-20)</option>
             <option value="tron">TRON (TRC-20)</option>
@@ -1061,22 +1066,22 @@ _TRANSFERS_BODY = """
           </select></div>
         <div class="form-field"><label>Callback URL</label>
           <input id="cfCb" placeholder="https://..."></div>
-        <div class="form-field" style="grid-column:span 2;"><label>ملاحظات</label>
-          <input id="cfNotes" placeholder="ملاحظات اختيارية"></div>
+        <div class="form-field" style="grid-column:span 2;"><label>Notes</label>
+          <input id="cfNotes" placeholder="Optional notes"></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;">
-        <button class="btn btn-success" onclick="createTransfer()">انشاء</button>
-        <button class="btn btn-ghost" onclick="toggleCF()">الغاء</button>
+        <button class="btn btn-success" onclick="createTransfer()">Create</button>
+        <button class="btn btn-ghost" onclick="toggleCF()">Cancel</button>
       </div>
     </div>
   </div>
 
   <div class="panel">
     <div class="panel-head">
-      <h3>التحويلات الصادرة</h3>
+      <h3>Outbound Transfers</h3>
       <span id="xtCount" style="color:var(--muted);font-size:12px;"></span>
     </div>
-    <div id="xtBody"><div class="empty-state"><div class="icon">🚀</div>جاري التحميل...</div></div>
+    <div id="xtBody"><div class="empty-state"><div class="icon">🚀</div>Loading...</div></div>
   </div>
 </div>
 <script>
@@ -1093,31 +1098,35 @@ function createTransfer(){
     callback_url:document.getElementById('cfCb').value.trim()||null,
     notes:document.getElementById('cfNotes').value.trim()||null
   };
-  if(!body.to_address){showToast('عنوان المستلم مطلوب','error');return;}
-  if(!body.amount){showToast('المبلغ مطلوب','error');return;}
+  if(!body.to_address){showToast('Recipient address is required','error');return;}
+  if(!body.amount){showToast('Amount is required','error');return;}
   api('/api/v1/admin/outbound-transfers',{method:'POST',body:JSON.stringify(body)}).then(function(){
-    showToast('تم انشاء التحويل','ok');
+    showToast('Transfer created','ok');
     toggleCF();
     document.getElementById('cfTo').value='';document.getElementById('cfAmt').value='';
     document.getElementById('cfCb').value='';document.getElementById('cfNotes').value='';
     loadTransfers();
-  }).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  }).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 
 function approveXfer(id){
-  if(!confirm('تاكيد الموافقة؟'))return;
-  api('/api/v1/admin/outbound-transfers/'+id+'/approve',{method:'POST'}).then(function(){showToast('تمت الموافقة','ok');loadTransfers();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  if(!confirm('Approve this transfer?'))return;
+  api('/api/v1/admin/outbound-transfers/'+id+'/approve',{method:'POST'}).then(function(){showToast('Transfer approved','ok');loadTransfers();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function broadcastXfer(id){
-  if(!confirm('تاكيد البث على الشبكة؟'))return;
-  api('/api/v1/admin/outbound-transfers/'+id+'/broadcast',{method:'POST'}).then(function(){showToast('جاري البث','ok');loadTransfers();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  if(!confirm('Broadcast this transfer on-chain?'))return;
+  api('/api/v1/admin/outbound-transfers/'+id+'/broadcast',{method:'POST'}).then(function(){showToast('Broadcast submitted','ok');loadTransfers();}).catch(function(e){showToast('Broadcast error: '+e.message,'error');});
 }
 function cancelXfer(id){
-  var r=prompt('سبب الالغاء:')||'Cancelled by admin';
-  api('/api/v1/admin/outbound-transfers/'+id+'/cancel',{method:'POST',body:JSON.stringify({reason:r})}).then(function(){showToast('تم الالغاء','ok');loadTransfers();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  var r=prompt('Cancellation reason:')||'Cancelled by admin';
+  api('/api/v1/admin/outbound-transfers/'+id+'/cancel',{method:'POST',body:JSON.stringify({reason:r})}).then(function(){showToast('Transfer cancelled','ok');loadTransfers();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function retryXfer(id){
-  api('/api/v1/admin/outbound-transfers/'+id+'/retry',{method:'POST'}).then(function(){showToast('تمت اعادة المحاولة','ok');loadTransfers();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/outbound-transfers/'+id+'/retry',{method:'POST'}).then(function(){showToast('Retry started','ok');loadTransfers();}).catch(function(e){showToast('Retry error: '+e.message,'error');});
+}
+function deleteXfer(id){
+  if(!confirm('Delete this transfer? This cannot be undone.'))return;
+  api('/api/v1/admin/outbound-transfers/'+id,{method:'DELETE'}).then(function(){showToast('Transfer deleted','ok');loadTransfers();}).catch(function(e){showToast('Delete error: '+e.message,'error');});
 }
 
 function loadTransfers(){
@@ -1127,19 +1136,21 @@ function loadTransfers(){
   if(st)url+='&status='+st;if(nt)url+='&network='+nt;
   api(url).then(function(rows) {
     if(!Array.isArray(rows))rows=[];
-    document.getElementById('xtCount').textContent=rows.length+' تحويل';
-    if(!rows.length){document.getElementById('xtBody').innerHTML='<div class="empty-state"><div class="icon">🚀</div>لا توجد تحويلات</div>';return;}
-    var th='<th>ID</th><th>Network</th><th>Amount</th><th>To Address</th><th>TX Hash</th><th>الحالة</th><th>Error</th><th>Approved By</th><th>التاريخ</th><th>اجراءات</th>';
+    document.getElementById('xtCount').textContent=rows.length+' transfers';
+    if(!rows.length){document.getElementById('xtBody').innerHTML='<div class="empty-state"><div class="icon">🚀</div>No transfers found</div>';return;}
+    var th='<th>ID</th><th>Network</th><th>Amount</th><th>To Address</th><th>TX Hash</th><th>Status</th><th>Error</th><th>Approved By</th><th>Date</th><th>Actions</th>';
     var tb=rows.map(function(r){
       var btns=[];
       if(['PENDING','AWAITING_APPROVAL'].indexOf(r.status)>=0)
-        btns.push('<button class="btn btn-success" data-xid="'+r.id+'" onclick="approveXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">موافقة</button>');
+        btns.push('<button class="btn btn-success" data-xid="'+r.id+'" onclick="approveXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Approve</button>');
       if(r.status==='APPROVED')
-        btns.push('<button class="btn btn-primary" data-xid="'+r.id+'" onclick="broadcastXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">بث</button>');
+        btns.push('<button class="btn btn-primary" data-xid="'+r.id+'" onclick="broadcastXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Broadcast</button>');
       if(r.status==='FAILED')
-        btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="retryXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">اعادة</button>');
+        btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="retryXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Retry</button>');
       if(['COMPLETED','CANCELLED'].indexOf(r.status)<0)
-        btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="cancelXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">الغاء</button>');
+        btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="cancelXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Cancel</button>');
+      if(r.status!=='BROADCASTING')
+        btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="deleteXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Delete</button>');
       return '<tr>'
         +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,10)+'...</code></td>'
         +'<td><strong>'+(r.network||'').toUpperCase()+'</strong></td>'
@@ -1167,54 +1178,56 @@ _TOKENIZATION_BODY = """
 <div class="page-body">
   <div class="panel">
     <div class="panel-head">
-      <h3>سعر الصرف المباشر EUR/USD</h3>
-      <button class="btn btn-ghost" onclick="loadFx()" style="font-size:11px;padding:4px 10px;">تحديث</button>
+      <h3>Live EUR/USD FX Rate</h3>
+      <button class="btn btn-ghost" onclick="loadFx()" style="font-size:11px;padding:4px 10px;">Refresh</button>
     </div>
     <div id="fxBanner" style="padding:14px 16px;display:flex;gap:24px;align-items:center;min-height:48px;"></div>
   </div>
 
   <div class="filter-bar">
     <select id="m1Status" onchange="loadJobs()" style="min-width:140px;">
-      <option value="">جميع الحالات</option>
+      <option value="">All statuses</option>
       <option>QUEUED</option><option>FX_FETCHED</option><option>CONVERTING</option>
       <option>SENDING</option><option>COMPLETED</option><option>FAILED</option>
     </select>
-    <button class="btn btn-ghost" onclick="loadJobs()">تحديث</button>
-    <button class="btn btn-primary" onclick="toggleM1F()">+ انشاء وظيفة</button>
+    <button class="btn btn-ghost" onclick="loadJobs()">Refresh</button>
+    <button class="btn btn-primary" onclick="toggleM1F()">+ Create Job</button>
   </div>
 
   <div id="m1Form" style="display:none;" class="panel">
-    <div class="panel-head"><h3>انشاء وظيفة M1 Tokenization</h3></div>
+    <div class="panel-head"><h3>Create M1 Tokenization Job</h3></div>
     <div style="padding:16px;">
       <div class="form-grid">
-        <div class="form-field"><label>مبلغ EUR *</label><input id="m1Eur" type="number" step="0.01" placeholder="0.00"></div>
-        <div class="form-field"><label>محفظة الوجهة *</label><input id="m1Dest" placeholder="0x... او T..."></div>
-        <div class="form-field"><label>المرجع</label><input id="m1Ref" placeholder="اختياري"></div>
-        <div class="form-field"><label>اسم المرسل</label><input id="m1Name" placeholder="اختياري"></div>
-        <div class="form-field"><label>الشبكة</label>
+        <div class="form-field"><label>EUR Amount *</label><input id="m1Eur" type="number" step="0.01" placeholder="0.00"></div>
+        <div class="form-field"><label>Destination Wallet *</label><input id="m1Dest" placeholder="0x... or T..."></div>
+        <div class="form-field"><label>Reference</label><input id="m1Ref" placeholder="Optional"></div>
+        <div class="form-field"><label>Sender Name</label><input id="m1Name" placeholder="Optional"></div>
+        <div class="form-field"><label>Network</label>
           <select id="m1Net"><option value="ethereum">Ethereum</option><option value="tron">TRON</option><option value="base">Base</option></select></div>
-        <div class="form-field"><label>IBAN</label><input id="m1Iban" placeholder="اختياري"></div>
+        <div class="form-field"><label>IBAN</label><input id="m1Iban" placeholder="Optional"></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;">
-        <button class="btn btn-success" onclick="createJob()">انشاء</button>
-        <button class="btn btn-ghost" onclick="toggleM1F()">الغاء</button>
+        <button class="btn btn-ghost" onclick="estimateM1GasFromForm()">Estimate Gas Fee</button>
+        <button class="btn btn-success" onclick="createJob()">Create</button>
+        <button class="btn btn-ghost" onclick="toggleM1F()">Cancel</button>
       </div>
+      <div id="m1GasEstimate" style="margin-top:12px;"></div>
     </div>
   </div>
 
   <div class="panel">
     <div class="panel-head">
-      <h3>وظائف M1 Tokenization</h3>
+      <h3>M1 Tokenization Jobs</h3>
       <span id="m1Count" style="color:var(--muted);font-size:12px;"></span>
     </div>
-    <div id="m1Body"><div class="empty-state"><div class="icon">🔄</div>جاري التحميل...</div></div>
+    <div id="m1Body"><div class="empty-state"><div class="icon">🔄</div>Loading...</div></div>
   </div>
 </div>
 <script>
 function loadFx(){
   api('/api/v1/admin/tokenization-jobs/fx-rate/live').then(function(r) {
     document.getElementById('fxBanner').innerHTML='<div style="font-size:28px;font-weight:800;color:var(--gold);">1 EUR = '+parseFloat(r.eur_usd).toFixed(4)+' USD</div><div style="color:var(--muted);font-size:12px;">Provider: '+(r.provider||'—')+'<br>'+fmtDate(r.timestamp)+'</div>';
-  }).catch(function(e){document.getElementById('fxBanner').innerHTML='<span style="color:var(--muted);">غير متاح: '+e.message+'</span>';});
+  }).catch(function(e){document.getElementById('fxBanner').innerHTML='<span style="color:var(--muted);">Unavailable: '+e.message+'</span>';});
 }
 function toggleM1F(){
   var el=document.getElementById('m1Form');
@@ -1222,23 +1235,62 @@ function toggleM1F(){
 }
 function createJob(){
   var body={eur_amount:document.getElementById('m1Eur').value,destination_wallet:document.getElementById('m1Dest').value.trim(),sender_reference:document.getElementById('m1Ref').value.trim()||null,sender_name:document.getElementById('m1Name').value.trim()||null,sender_iban:document.getElementById('m1Iban').value.trim()||null,network:document.getElementById('m1Net').value};
-  if(!body.eur_amount){showToast('مبلغ EUR مطلوب','error');return;}
-  if(!body.destination_wallet){showToast('محفظة الوجهة مطلوبة','error');return;}
-  api('/api/v1/admin/tokenization-jobs',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('تم انشاء الوظيفة','ok');toggleM1F();loadJobs();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  if(!body.eur_amount){showToast('EUR amount is required','error');return;}
+  if(!body.destination_wallet){showToast('Destination wallet is required','error');return;}
+  api('/api/v1/admin/tokenization-jobs',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('Job created','ok');toggleM1F();loadJobs();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function processJob(id){
-  if(!confirm('تشغيل وظيفة EUR->USDT الان؟'))return;
-  api('/api/v1/admin/tokenization-jobs/'+id+'/process',{method:'POST'}).then(function(){showToast('تمت المعالجة','ok');loadJobs();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  if(!confirm('Run EUR to USDT tokenization now?'))return;
+  api('/api/v1/admin/tokenization-jobs/'+id+'/process',{method:'POST'}).then(function(){showToast('Job processed','ok');loadJobs();}).catch(function(e){showToast('Processing error: '+e.message,'error');});
+}
+function renderGasEstimate(target, r){
+  var html='<div class="panel" style="border-color:rgba(59,130,246,.35);margin:0;"><div style="padding:12px;font-size:12px;line-height:1.7;">'
+    +'<strong>Estimated gas fee:</strong> '+esc(String(r.estimated_native_fee||'0'))+' '+esc(r.native_symbol||'')
+    +'<br><span style="color:var(--muted);">Network: '+esc(r.network||'')+' · Gas limit: '+esc(String(r.gas_limit||'n/a'))+' · Source: '+esc(r.source||'estimate')+'</span>'
+    +'</div></div>';
+  var el=document.getElementById(target);
+  if(el) el.innerHTML=html;
+  showToast('Gas fee estimated','ok');
+}
+function estimateM1Gas(network,wallet,amount,target){
+  api('/api/v1/admin/tokenization-jobs/gas-fee/estimate',{method:'POST',body:JSON.stringify({network:network,destination_wallet:wallet,amount:amount||'1'})})
+    .then(function(r){renderGasEstimate(target||'m1GasEstimate',r);})
+    .catch(function(e){showToast('Gas estimate error: '+e.message,'error');});
+}
+function estimateM1GasFromForm(){
+  var eur=parseFloat(document.getElementById('m1Eur').value||'0');
+  var approximateUsdt=eur>0?String(eur):'1';
+  estimateM1Gas(document.getElementById('m1Net').value,document.getElementById('m1Dest').value.trim(),approximateUsdt,'m1GasEstimate');
+}
+function gasJobInvoice(id){
+  api('/api/v1/admin/tokenization-jobs/'+id+'/gas-fee-invoice',{method:'POST',body:'{}'}).then(function(r){
+    showToast('Gas fee invoice created','ok');
+    if(r.invoice_url) window.open(r.invoice_url,'_blank');
+    loadJobs();
+  }).catch(function(e){showToast('Gas invoice error: '+e.message,'error');});
+}
+function deleteJob(id){
+  if(!confirm('Delete this M1 job? This cannot be undone.'))return;
+  api('/api/v1/admin/tokenization-jobs/'+id,{method:'DELETE'}).then(function(){showToast('M1 job deleted','ok');loadJobs();}).catch(function(e){showToast('Delete error: '+e.message,'error');});
 }
 function loadJobs(){
   var st=document.getElementById('m1Status').value;
   var url='/api/v1/admin/tokenization-jobs?limit=100'+(st?'&status='+st:'');
   api(url).then(function(rows) {
     if(!Array.isArray(rows))rows=[];
-    document.getElementById('m1Count').textContent=rows.length+' وظيفة';
-    if(!rows.length){document.getElementById('m1Body').innerHTML='<div class="empty-state"><div class="icon">🔄</div>لا توجد وظائف</div>';return;}
-    var th='<th>ID</th><th>Ref</th><th>Sender</th><th>EUR</th><th>FX Rate</th><th>USDT</th><th>Network</th><th>الحالة</th><th>Transfer</th><th>التاريخ</th><th>اجراء</th>';
-    var tb=rows.map(function(r){return '<tr>'
+    document.getElementById('m1Count').textContent=rows.length+' jobs';
+    if(!rows.length){document.getElementById('m1Body').innerHTML='<div class="empty-state"><div class="icon">🔄</div>No M1 jobs found</div>';return;}
+    var th='<th>ID</th><th>Ref</th><th>Sender</th><th>EUR</th><th>FX Rate</th><th>USDT</th><th>Network</th><th>Status</th><th>Error</th><th>Transfer</th><th>Date</th><th>Actions</th>';
+    var tb=rows.map(function(r){
+      var wallet=esc(r.destination_wallet||'');
+      var amount=esc(r.usdt_amount||r.eur_amount||'1');
+      var net=esc(r.network||'ethereum');
+      var btns=[];
+      if(r.status==='QUEUED') btns.push('<button class="btn btn-primary" data-jid="'+r.id+'" onclick="processJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Process</button>');
+      btns.push('<button class="btn btn-ghost" data-net="'+net+'" data-wallet="'+wallet+'" data-amount="'+amount+'" data-target="m1GasEstimate" onclick="estimateM1Gas(this.dataset.net,this.dataset.wallet,this.dataset.amount,this.dataset.target)" style="font-size:11px;padding:3px 8px;">Gas</button>');
+      btns.push('<button class="btn btn-success" data-jid="'+r.id+'" onclick="gasJobInvoice(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Gas Invoice</button>');
+      if(r.status!=='SENDING') btns.push('<button class="btn btn-danger" data-jid="'+r.id+'" onclick="deleteJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Delete</button>');
+      return '<tr>'
       +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,10)+'...</code></td>'
       +'<td>'+(r.sender_reference||'—')+'</td>'
       +'<td>'+(r.sender_name||'—')+'</td>'
@@ -1247,9 +1299,10 @@ function loadJobs(){
       +'<td>'+(r.usdt_amount?'<strong style="color:#a78bfa;">'+fmtNum(r.usdt_amount)+' USDT</strong>':'—')+'</td>'
       +'<td>'+((r.network||'').toUpperCase())+'</td>'
       +'<td>'+badge(r.status)+'</td>'
+      +'<td>'+(r.error_message?'<code style="font-size:10px;color:#fca5a5;" title="'+esc(r.error_message)+'">'+esc(r.error_message).slice(0,36)+'...</code>':'—')+'</td>'
       +'<td>'+(r.outbound_transfer_id?'<code style="font-size:10px;">'+r.outbound_transfer_id.slice(0,10)+'...</code>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td>'+(r.status==='QUEUED'?'<button class="btn btn-primary" data-jid="'+r.id+'" onclick="processJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">تشغيل</button>':'—')+'</td>'
+      +'<td>'+btns.join(' ')+'</td>'
       +'</tr>';}).join('');
     document.getElementById('m1Body').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('m1Body').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
@@ -1267,15 +1320,15 @@ _MONITORING_BODY = """
     <span id="monLastUp" style="color:var(--muted);font-size:12px;">—</span>
     <div style="display:flex;gap:8px;">
       <label style="color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px;">
-        <input type="checkbox" id="autoR" checked onchange="toggleAuto()"> تحديث تلقائي (10 ثانية)
+        <input type="checkbox" id="autoR" checked onchange="toggleAuto()"> Auto refresh (10 seconds)
       </label>
-      <button class="btn btn-ghost" onclick="loadMon()">تحديث</button>
+      <button class="btn btn-ghost" onclick="loadMon()">Refresh</button>
     </div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
-    <div class="panel"><div class="panel-head"><h3>الطلبات Orders</h3></div><div id="monOrders" style="padding:14px;"></div></div>
-    <div class="panel"><div class="panel-head"><h3>التحويلات</h3></div><div id="monXfers" style="padding:14px;"></div></div>
+    <div class="panel"><div class="panel-head"><h3>Orders</h3></div><div id="monOrders" style="padding:14px;"></div></div>
+    <div class="panel"><div class="panel-head"><h3>Transfers</h3></div><div id="monXfers" style="padding:14px;"></div></div>
     <div class="panel"><div class="panel-head"><h3>M1 Jobs</h3></div><div id="monM1" style="padding:14px;"></div></div>
   </div>
 
@@ -1285,7 +1338,7 @@ _MONITORING_BODY = """
   </div>
 
   <div class="panel">
-    <div class="panel-head"><h3>اخر 5 تحويلات</h3></div>
+    <div class="panel-head"><h3>Latest 5 Transfers</h3></div>
     <div id="monRecentXfer"></div>
   </div>
 </div>
@@ -1298,11 +1351,11 @@ function toggleAuto(){
 function _srows(byStatus,total){
   return Object.keys(byStatus).map(function(s){
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);">'+badge(s)+'<strong style="color:var(--ink);">'+byStatus[s]+'</strong></div>';
-  }).join('')+'<div style="margin-top:10px;font-size:12px;color:var(--muted);">اجمالي: <strong style="color:var(--ink);">'+total+'</strong></div>';
+  }).join('')+'<div style="margin-top:10px;font-size:12px;color:var(--muted);">Total: <strong style="color:var(--ink);">'+total+'</strong></div>';
 }
 function loadMon(){
   dashApi('/api/v1/admin/monitoring/live').then(function(m) {
-    document.getElementById('monLastUp').textContent='اخر تحديث: '+new Date().toLocaleTimeString('ar-SA');
+    document.getElementById('monLastUp').textContent='Last updated: '+new Date().toLocaleTimeString('en-US');
     document.getElementById('monOrders').innerHTML  =_srows(m.orders&&m.orders.by_status||{},m.orders&&m.orders.total||0);
     document.getElementById('monXfers').innerHTML   =_srows(m.outbound_transfers&&m.outbound_transfers.by_status||{},m.outbound_transfers&&m.outbound_transfers.total||0);
     document.getElementById('monM1').innerHTML      =_srows(m.tokenization_jobs&&m.tokenization_jobs.by_status||{},m.tokenization_jobs&&m.tokenization_jobs.total||0);
@@ -1317,7 +1370,7 @@ function loadMon(){
       +'<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="color:var(--muted);">M1 Awaiting Approval</span><strong style="color:'+(m.tokenization_jobs&&m.tokenization_jobs.m1_awaiting_approval>0?'#f59e0b':'#10b981')+';">'+(m.tokenization_jobs&&m.tokenization_jobs.m1_awaiting_approval||0)+'</strong></div>';
     var tr=m.outbound_transfers&&m.outbound_transfers.recent||[];
     if(tr.length){
-      var th2='<th>ID</th><th>Network</th><th>Amount</th><th>الحالة</th><th>TX</th><th>التاريخ</th>';
+      var th2='<th>ID</th><th>Network</th><th>Amount</th><th>Status</th><th>TX</th><th>Date</th>';
       var tb2=tr.map(function(r){return '<tr><td><code style="font-size:10px;">'+r.id.slice(0,10)+'...</code></td><td>'+(r.network||'').toUpperCase()+'</td><td>'+fmtNum(r.amount)+' USDT</td><td>'+badge(r.status)+'</td><td>'+(r.tx_hash?r.tx_hash.slice(0,18)+'...':'—')+'</td><td style="font-size:11px;">'+fmtDate(r.created_at)+'</td></tr>';}).join('');
       document.getElementById('monRecentXfer').innerHTML='<div class="table-wrap"><table><thead><tr>'+th2+'</tr></thead><tbody>'+tb2+'</tbody></table></div>';
     }
@@ -1325,7 +1378,7 @@ function loadMon(){
     console.error('Monitor error:',e);
     ['monOrders','monXfers','monM1','monPayloads','monHealth'].forEach(function(id){
       var el=document.getElementById(id);
-      if(el) el.innerHTML='<p style="color:#ef4444;font-size:12px;padding:8px;">خطأ: '+(e.message||e)+'</p>';
+      if(el) el.innerHTML='<p style="color:#ef4444;font-size:12px;padding:8px;">Error: '+(e.message||e)+'</p>';
     });
     document.getElementById('monRecentXfer').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+(e.message||e)+'</div>';
   });
@@ -1340,40 +1393,92 @@ _autoTimer=setInterval(loadMon,10000);
 _PAYMENTS_BODY = """
 <div class="page-body">
   <div class="panel">
-    <div class="panel-head"><h3>بوابات الدفع</h3></div>
+    <div class="panel-head"><h3>Payment Gateways</h3></div>
     <div style="padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
-      <a class="btn btn-ghost" href="/client/pay/moonpay" style="text-decoration:none;text-align:center;">🌙 MoonPay</a>
-      <a class="btn btn-ghost" href="/client/pay/circle" style="text-decoration:none;text-align:center;">⬤ Circle USDC</a>
-      <a class="btn btn-ghost" href="/client/pay/direct" style="text-decoration:none;text-align:center;">🔑 Direct Wallet</a>
+      <a class="btn btn-ghost" href="#moonpay" style="text-decoration:none;text-align:center;">🌙 MoonPay</a>
+      <a class="btn btn-ghost" href="#circle" style="text-decoration:none;text-align:center;">⬤ Circle USDC</a>
+      <a class="btn btn-ghost" href="#direct" style="text-decoration:none;text-align:center;">🔑 Direct Crypto</a>
       <a class="btn btn-primary" href="/dashboard/stripe" style="text-decoration:none;text-align:center;">💵 Stripe</a>
     </div>
   </div>
+  <div class="grid-2">
+    <div id="moonpay" class="panel">
+      <div class="panel-head"><h3>MoonPay Link</h3></div>
+      <div style="padding:14px;display:grid;gap:10px;">
+        <input id="mpAmount" placeholder="Fiat amount" inputmode="decimal" value="100.00">
+        <input id="mpCurrency" placeholder="Fiat currency" value="USD" maxlength="3">
+        <select id="mpNetwork"><option value="ethereum">Ethereum</option><option value="base">Base</option><option value="tron">TRON</option></select>
+        <input id="mpEmail" placeholder="Customer email (optional)">
+        <button class="btn btn-primary" onclick="createGatewayPayment('moonpay')">Create MoonPay Link</button>
+      </div>
+    </div>
+    <div id="circle" class="panel">
+      <div class="panel-head"><h3>Circle USDC Payment</h3></div>
+      <div style="padding:14px;display:grid;gap:10px;">
+        <input id="circleAmount" placeholder="USD amount" inputmode="decimal" value="100.00">
+        <select id="circleNetwork"><option value="ethereum">Ethereum</option><option value="base">Base</option></select>
+        <input id="circleEmail" placeholder="Customer email (optional)">
+        <button class="btn btn-primary" onclick="createGatewayPayment('circle')">Create Circle Payment</button>
+      </div>
+    </div>
+  </div>
+  <div id="direct" class="panel">
+    <div class="panel-head"><h3>Direct Crypto Payment</h3></div>
+    <div style="padding:14px;display:grid;gap:10px;">
+      <input id="directAmount" placeholder="Crypto amount" inputmode="decimal" value="100.00">
+      <input id="directAsset" placeholder="Crypto asset" value="USDT" maxlength="8">
+      <select id="directNetwork"><option value="ethereum">Ethereum</option><option value="base">Base</option><option value="tron">TRON</option></select>
+      <input id="directEmail" placeholder="Payer email (optional)">
+      <button class="btn btn-primary" onclick="createGatewayPayment('direct')">Create Direct Crypto Payment</button>
+    </div>
+  </div>
+  <div id="gatewayResult"></div>
   <div id="paySum" style="min-height:120px;"></div>
   <div class="panel">
-    <div class="panel-head"><h3>توزيع بالحالة</h3><button class="btn btn-ghost" onclick="loadPayments()" style="font-size:11px;padding:4px 10px;">تحديث</button></div>
+    <div class="panel-head"><h3>Status Distribution</h3><button class="btn btn-ghost" onclick="loadPayments()" style="font-size:11px;padding:4px 10px;">Refresh</button></div>
     <div id="payStatus" style="padding:14px;display:flex;flex-wrap:wrap;gap:10px;"></div>
   </div>
   <div class="panel">
-    <div class="panel-head"><h3>اخر الطلبات</h3></div>
-    <div id="payTable"><div class="empty-state"><div class="icon">💳</div>جاري التحميل...</div></div>
+    <div class="panel-head"><h3>Latest Orders</h3></div>
+    <div id="payTable"><div class="empty-state"><div class="icon">💳</div>Loading...</div></div>
   </div>
 </div>
 <script>
+function gatewayResultBox(title, url, orderId){
+  document.getElementById('gatewayResult').innerHTML='<div class="panel" style="border-color:rgba(16,185,129,.45);"><div class="panel-head"><h3>'+esc(title)+'</h3></div><div style="padding:14px;display:grid;gap:10px;"><div><span style="color:var(--muted);font-size:12px;">Order ID</span><br><code>'+esc(orderId||'')+'</code></div><input readonly value="'+esc(url||'')+'" onclick="this.select()"><div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-primary" data-url="'+esc(url||'')+'" data-target="_blank" onclick="window.open(this.dataset.url,this.dataset.target)">Open Payment Page</button><button class="btn btn-ghost" data-url="'+esc(url||'')+'" onclick="copyText(this.dataset.url)">Copy Link</button></div></div></div>';
+}
+function createGatewayPayment(kind){
+  var endpoint='', body={};
+  if(kind==='moonpay'){
+    endpoint='/api/v1/admin/transactions';
+    body={fiat_amount:document.getElementById('mpAmount').value,fiat_currency:document.getElementById('mpCurrency').value||'USD',network:document.getElementById('mpNetwork').value,customer_email:document.getElementById('mpEmail').value||null,crypto_currency:'USDC'};
+  } else if(kind==='circle'){
+    endpoint='/api/v1/admin/circle-payment';
+    body={fiat_amount:document.getElementById('circleAmount').value,fiat_currency:'USD',network:document.getElementById('circleNetwork').value,payer_email:document.getElementById('circleEmail').value||null};
+  } else {
+    endpoint='/api/v1/admin/direct-payment';
+    body={crypto_amount:document.getElementById('directAmount').value,crypto_currency:document.getElementById('directAsset').value||'USDT',network:document.getElementById('directNetwork').value,payer_email:document.getElementById('directEmail').value||null};
+  }
+  api(endpoint,{method:'POST',body:JSON.stringify(body)}).then(function(r){
+    gatewayResultBox(kind.toUpperCase()+' payment created', r.payment_url || r.checkout_url, r.id || r.transaction_id);
+    loadPayments();
+  }).catch(function(e){showToast(e.message||String(e),'error');});
+}
 function loadPayments(){
   dashApi('/api/v1/admin/summary').then(function(s) {
     document.getElementById('paySum').innerHTML='<div class="stat-grid">'
-      +'<div class="stat-card"><div class="label">اجمالي الطلبات</div><div class="value">'+(s.orders_total||0)+'</div></div>'
-      +'<div class="stat-card"><div class="label">مكتملة</div><div class="value" style="color:#10b981;">'+(s.orders_completed||0)+'</div></div>'
-      +'<div class="stat-card"><div class="label">معلقة</div><div class="value" style="color:#f59e0b;">'+(s.pending_orders||0)+'</div></div>'
-      +'<div class="stat-card"><div class="label">فاشلة</div><div class="value" style="color:#ef4444;">'+(s.failed_orders||0)+'</div></div>'
-      +'<div class="stat-card"><div class="label">اجمالي Fiat</div><div class="value">'+fmtNum(s.total_fiat_amount)+'</div></div>'
-      +'<div class="stat-card"><div class="label">اجمالي Crypto</div><div class="value">'+fmtNum(s.total_crypto_amount,6)+'</div></div>'
+      +'<div class="stat-card"><div class="label">Total Orders</div><div class="value">'+(s.orders_total||0)+'</div></div>'
+      +'<div class="stat-card"><div class="label">Completed</div><div class="value" style="color:#10b981;">'+(s.orders_completed||0)+'</div></div>'
+      +'<div class="stat-card"><div class="label">Pending</div><div class="value" style="color:#f59e0b;">'+(s.pending_orders||0)+'</div></div>'
+      +'<div class="stat-card"><div class="label">Failed</div><div class="value" style="color:#ef4444;">'+(s.failed_orders||0)+'</div></div>'
+      +'<div class="stat-card"><div class="label">Total Fiat</div><div class="value">'+fmtNum(s.total_fiat_amount)+'</div></div>'
+      +'<div class="stat-card"><div class="label">Total Crypto</div><div class="value">'+fmtNum(s.total_crypto_amount,6)+'</div></div>'
       +'</div>';
     var bs=s.by_status||{};
     document.getElementById('payStatus').innerHTML=Object.keys(bs).map(function(st){return '<div style="padding:8px 14px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--line);">'+badge(st)+' <strong style="margin-right:6px;">'+bs[st]+'</strong></div>';}).join('');
     var latest=s.latest_orders||[];
     if(latest.length){
-      var th='<th>ID</th><th>Fiat</th><th>Crypto</th><th>Network</th><th>الحالة</th><th>التاريخ</th>';
+      var th='<th>ID</th><th>Fiat</th><th>Crypto</th><th>Network</th><th>Status</th><th>Date</th><th>Action</th>';
       var tb=latest.map(function(r){return '<tr>'
         +'<td><code style="font-size:10px;">'+r.id.slice(0,10)+'...</code></td>'
         +'<td>'+fmtNum(r.fiat_amount)+' '+(r.fiat_currency||'')+'</td>'
@@ -1381,14 +1486,19 @@ function loadPayments(){
         +'<td>'+(r.network||'—')+'</td>'
         +'<td>'+badge(r.status)+'</td>'
         +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
+        +'<td><button class="btn btn-danger" data-oid="'+r.id+'" onclick="deleteOrder(this.dataset.oid)" style="font-size:11px;padding:3px 8px;">Delete</button></td>'
         +'</tr>';}).join('');
       document.getElementById('payTable').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-    }else{document.getElementById('payTable').innerHTML='<div class="empty-state"><div class="icon">💳</div>لا توجد طلبات</div>';}
+    }else{document.getElementById('payTable').innerHTML='<div class="empty-state"><div class="icon">💳</div>No orders found</div>';}
   }).catch(function(e){
     console.error(e);
-    document.getElementById('paySum').innerHTML='<div class="empty-state" style="padding:20px;"><div class="icon">⚠</div>فشل التحميل: '+(e.message||e)+'</div>';
+    document.getElementById('paySum').innerHTML='<div class="empty-state" style="padding:20px;"><div class="icon">⚠</div>Load failed: '+(e.message||e)+'</div>';
     document.getElementById('payTable').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+(e.message||e)+'</div>';
   });
+}
+function deleteOrder(id){
+  if(!confirm('Delete this order? This cannot be undone.'))return;
+  api('/api/v1/admin/orders/'+id,{method:'DELETE'}).then(function(){showToast('Order deleted','ok');loadPayments();}).catch(function(e){showToast(e.message||String(e),'error');});
 }
 loadPayments();
 </script>
@@ -1402,9 +1512,9 @@ _STRIPE_BODY = """
     <div class="panel-head">
       <div>
         <h3>Stripe Payments</h3>
-        <p style="margin:4px 0 0;color:var(--muted);font-size:12px;">Checkout و Payment Links من داخل الداشبورد</p>
+        <p style="margin:4px 0 0;color:var(--muted);font-size:12px;">Checkout and Payment Links inside the dashboard</p>
       </div>
-      <button class="btn btn-ghost" onclick="loadStripe()" style="font-size:11px;padding:4px 10px;">تحديث</button>
+      <button class="btn btn-ghost" onclick="loadStripe()" style="font-size:11px;padding:4px 10px;">Refresh</button>
     </div>
     <div id="stripeStatus" class="stat-grid" style="padding:14px;"></div>
     <div id="stripeConfigNotice" style="padding:0 14px 14px;"></div>
@@ -1461,7 +1571,7 @@ _STRIPE_BODY = """
 
   <div class="panel">
     <div class="panel-head"><h3>Recent Stripe Orders</h3></div>
-    <div id="stripeOrders"><div class="empty-state"><div class="icon">💵</div>جاري التحميل...</div></div>
+    <div id="stripeOrders"><div class="empty-state"><div class="icon">💵</div>Loading...</div></div>
   </div>
 
   <div class="grid-2">
@@ -1599,18 +1709,18 @@ function loadStripe(){
     var notice = '';
     if(!st.configured){
       notice += '<div class="empty-state" style="border-color:rgba(239,68,68,.35);color:#fecaca;text-align:right;">'
-        +'<strong>Stripe غير مربوط بعد.</strong><br>'
-        +'أضف STRIPE_SECRET_KEY في Render Environment Variables ثم أعد تشغيل الخدمة. بدون هذا المفتاح لن يستطيع النظام إنشاء Payment Link أو Checkout Session.'
+        +'<strong>Stripe is not connected yet.</strong><br>'
+        +'Add STRIPE_SECRET_KEY in Render Environment Variables, then restart the service. Without this key, the system cannot create Payment Links or Checkout Sessions.'
         +'</div>';
     } else if(!st.webhook_configured) {
       notice += '<div class="empty-state" style="border-color:rgba(245,158,11,.35);color:#fde68a;text-align:right;">'
-        +'<strong>Webhook Secret غير مضبوط.</strong><br>'
-        +'إنشاء الرابط يعمل، لكن تأكيد الدفع التلقائي يحتاج STRIPE_WEBHOOK_SECRET من Stripe.'
+        +'<strong>Webhook Secret is not configured.</strong><br>'
+        +'Link creation works, but automatic payment confirmation requires STRIPE_WEBHOOK_SECRET from Stripe.'
         +'</div>';
     }
     if((st.webhook_url||'').indexOf('alshumookh.finance') >= 0){
       notice += '<div class="empty-state" style="border-color:rgba(245,158,11,.35);color:#fde68a;text-align:right;margin-top:8px;">'
-        +'Webhook URL يظهر على الدومين القديم. اضبط PUBLIC_BASE_URL=https://api.alshumookh-pay.com في Render.'
+        +'Webhook URL is showing the old domain. Set PUBLIC_BASE_URL=https://api.alshumookh-pay.com in Render.'
         +'</div>';
     }
     document.getElementById('stripeConfigNotice').innerHTML = notice;
@@ -1619,7 +1729,7 @@ function loadStripe(){
   }).then(function(rows) {
     var orders = rows.orders || [];
     if(!orders.length){
-      document.getElementById('stripeOrders').innerHTML='<div class="empty-state"><div class="icon">💵</div>لا توجد طلبات Stripe حتى الآن</div>';
+      document.getElementById('stripeOrders').innerHTML='<div class="empty-state"><div class="icon">💵</div>No Stripe orders yet</div>';
       return;
     }
     var th='<th>Reference</th><th>Amount</th><th>Status</th><th>Email</th><th>Stripe ID</th><th>Link</th><th>Invoice</th><th>Date</th>';
@@ -1647,7 +1757,7 @@ function loadStripe(){
 }
 function createStripeCheckout(){
   if(!_stripeConfigured){
-    stripeErrorBox('Stripe Missing Key', 'لا يمكن إنشاء Checkout Link قبل إضافة STRIPE_SECRET_KEY في Render ثم إعادة تشغيل الخدمة.');
+    stripeErrorBox('Stripe Missing Key', 'Cannot create a Checkout Link before adding STRIPE_SECRET_KEY in Render and restarting the service.');
     return;
   }
   api('/api/v1/admin/stripe/checkout-sessions',{method:'POST',body:JSON.stringify(stripeForm('stripeCheckout'))}).then(function(r){
@@ -1657,7 +1767,7 @@ function createStripeCheckout(){
 }
 function createStripePaymentLink(){
   if(!_stripeConfigured){
-    stripeErrorBox('Stripe Missing Key', 'لا يمكن إنشاء Payment Link قبل إضافة STRIPE_SECRET_KEY في Render ثم إعادة تشغيل الخدمة.');
+    stripeErrorBox('Stripe Missing Key', 'Cannot create a Payment Link before adding STRIPE_SECRET_KEY in Render and restarting the service.');
     return;
   }
   api('/api/v1/admin/stripe/payment-links',{method:'POST',body:JSON.stringify(stripeForm('stripeLink'))}).then(function(r){
@@ -1667,11 +1777,11 @@ function createStripePaymentLink(){
 }
 function createStripeInvoice(){
   if(!_stripeConfigured){
-    stripeErrorBox('Stripe Missing Key', 'لا يمكن إنشاء Stripe Invoice قبل إضافة STRIPE_SECRET_KEY في Render ثم إعادة تشغيل الخدمة.');
+    stripeErrorBox('Stripe Missing Key', 'Cannot create a Stripe Invoice before adding STRIPE_SECRET_KEY in Render and restarting the service.');
     return;
   }
   var body = stripeInvoiceForm();
-  if(!body.customer_email){showToast('Customer email مطلوب للفاتورة','error');return;}
+  if(!body.customer_email){showToast('Customer email is required for invoices','error');return;}
   api('/api/v1/admin/stripe/invoices',{method:'POST',body:JSON.stringify(body)}).then(function(r){
     stripeResultBox('Stripe Invoice Created', r.hosted_invoice_url || r.invoice_pdf || r.order.checkout_url, r.order.id, r.invoice_url || r.order.invoice_url);
     loadStripe();
@@ -1686,12 +1796,12 @@ loadStripe();
 _ALCHEMY_BODY = """
 <div class="page-body">
   <div class="filter-bar">
-    <input id="alchQ" placeholder="بحث..." style="min-width:200px;" oninput="filterAlch()">
-    <button class="btn btn-ghost" onclick="loadAlch()">تحديث</button>
+    <input id="alchQ" placeholder="Search..." style="min-width:200px;" oninput="filterAlch()">
+    <button class="btn btn-ghost" onclick="loadAlch()">Refresh</button>
   </div>
   <div class="panel">
     <div class="panel-head"><h3>Alchemy Blockchain Events</h3><span id="alchCnt" style="color:var(--muted);font-size:12px;"></span></div>
-    <div id="alchBody"><div class="empty-state"><div class="icon">⛓</div>جاري التحميل...</div></div>
+    <div id="alchBody"><div class="empty-state"><div class="icon">⛓</div>Loading...</div></div>
   </div>
 </div>
 <script>
@@ -1699,7 +1809,7 @@ var _alchRows=[];
 function loadAlch(){
   api('/api/v1/admin/alchemy-events?limit=200').then(function(data){
     _alchRows=Array.isArray(data)?data:[];
-    document.getElementById('alchCnt').textContent=_alchRows.length+' حدث';
+    document.getElementById('alchCnt').textContent=_alchRows.length+' events';
     renderAlch(_alchRows);
   }).catch(function(e){document.getElementById('alchBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
@@ -1708,8 +1818,8 @@ function filterAlch(){
   renderAlch(q?_alchRows.filter(function(r){return JSON.stringify(r).toLowerCase().indexOf(q)>=0;}):_alchRows);
 }
 function renderAlch(rows){
-  if(!rows.length){document.getElementById('alchBody').innerHTML='<div class="empty-state"><div class="icon">⛓</div>لا توجد احداث Alchemy</div>';return;}
-  var th='<th>Event Type</th><th>Order ID</th><th>TX ID</th><th>Status</th><th>IP</th><th>Details</th><th>التاريخ</th>';
+  if(!rows.length){document.getElementById('alchBody').innerHTML='<div class="empty-state"><div class="icon">⛓</div>No Alchemy events found</div>';return;}
+  var th='<th>Event Type</th><th>Order ID</th><th>TX ID</th><th>Status</th><th>IP</th><th>Details</th><th>Date</th>';
   var tb=rows.map(function(r){return '<tr>'
     +'<td><strong style="color:var(--brand);">'+r.event_type+'</strong></td>'
     +'<td>'+(r.order_id?'<code style="font-size:10px;">'+r.order_id.slice(0,10)+'...</code>':'—')+'</td>'
@@ -1730,37 +1840,37 @@ loadAlch();
 _COUNTERPARTIES_BODY = """
 <div class="page-body">
   <div class="filter-bar">
-    <button class="btn btn-ghost" onclick="loadClients()">تحديث</button>
-    <button class="btn btn-primary" onclick="toggleAddCl()">+ اضافة Counterparty</button>
+    <button class="btn btn-ghost" onclick="loadClients()">Refresh</button>
+    <button class="btn btn-primary" onclick="toggleAddCl()">+ Add Counterparty</button>
   </div>
 
   <div id="addClForm" style="display:none;" class="panel">
-    <div class="panel-head"><h3>اضافة Counterparty جديد</h3></div>
+    <div class="panel-head"><h3>Add New Counterparty</h3></div>
     <div style="padding:16px;">
       <div class="form-grid">
-        <div class="form-field"><label>الاسم *</label><input id="clName" placeholder="اسم الطرف المقابل"></div>
-        <div class="form-field"><label>IPs المسموحة (فاصلة)</label><input id="clIps" placeholder="1.2.3.4,5.6.7.8 (اختياري)"></div>
+        <div class="form-field"><label>Name *</label><input id="clName" placeholder="Counterparty name"></div>
+        <div class="form-field"><label>Allowed IPs (comma-separated)</label><input id="clIps" placeholder="1.2.3.4,5.6.7.8 (optional)"></div>
         <div class="form-field" style="grid-column:span 2;">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input type="checkbox" id="clHmac" style="width:auto;"> تطلب HMAC Signature
+            <input type="checkbox" id="clHmac" style="width:auto;"> Require HMAC Signature
           </label>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;">
-        <button class="btn btn-success" onclick="addClient()">انشاء</button>
-        <button class="btn btn-ghost" onclick="toggleAddCl()">الغاء</button>
+        <button class="btn btn-success" onclick="addClient()">Create</button>
+        <button class="btn btn-ghost" onclick="toggleAddCl()">Cancel</button>
       </div>
     </div>
   </div>
 
   <div id="clCreated" style="display:none;" class="panel">
-    <div class="panel-head"><h3>تم انشاء الـ Client — احفظ هذه البيانات الان</h3></div>
+    <div class="panel-head"><h3>Client Created - Save These Credentials Now</h3></div>
     <div id="clCreatedBody" style="padding:16px;font-size:12px;"></div>
   </div>
 
   <div class="panel">
-    <div class="panel-head"><h3>قائمة الـ Counterparties</h3><span id="clCnt" style="color:var(--muted);font-size:12px;"></span></div>
-    <div id="clBody"><div class="empty-state"><div class="icon">🔑</div>جاري التحميل...</div></div>
+    <div class="panel-head"><h3>Counterparties List</h3><span id="clCnt" style="color:var(--muted);font-size:12px;"></span></div>
+    <div id="clBody"><div class="empty-state"><div class="icon">🔑</div>Loading...</div></div>
   </div>
 </div>
 <script>
@@ -1771,38 +1881,38 @@ function toggleAddCl(){
 function addClient(){
   var ips=document.getElementById('clIps').value.trim();
   var body={name:document.getElementById('clName').value.trim(),allowed_ips:ips?ips.split(',').map(function(s){return s.trim();}).filter(Boolean):null,hmac_required:document.getElementById('clHmac').checked};
-  if(!body.name){showToast('الاسم مطلوب','error');return;}
+  if(!body.name){showToast('Name is required','error');return;}
   api('/api/v1/admin/clients',{method:'POST',body:JSON.stringify(body)}).then(function(r){
     var fields=[['Client ID',r.id],['API Key',r.api_key],['HMAC Secret',r.hmac_secret||'—'],['OAuth Client ID',r.oauth_client_id||'—'],['OAuth Client Secret',r.oauth_client_secret||'—']];
     document.getElementById('clCreatedBody').innerHTML=
-      '<div style="padding:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;margin-bottom:12px;color:#10b981;font-weight:700;">احفظ هذه المعلومات الان - لن تعرض مرة اخرى</div>'
-      +fields.map(function(f){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);"><span style="color:var(--muted);min-width:160px;">'+f[0]+'</span><code style="word-break:break-all;flex:1;" id="fv_'+f[0].replace(/\\s/g,'_')+'">'+f[1]+'</code><button class="btn btn-ghost" data-fid="fv_'+f[0].replace(/\\s/g,'_')+'" onclick="copyText(document.getElementById(this.dataset.fid).textContent)" style="font-size:10px;padding:2px 8px;">نسخ</button></div>';}).join('');
+      '<div style="padding:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;margin-bottom:12px;color:#10b981;font-weight:700;">Save these credentials now. They will not be shown again.</div>'
+      +fields.map(function(f){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);"><span style="color:var(--muted);min-width:160px;">'+f[0]+'</span><code style="word-break:break-all;flex:1;" id="fv_'+f[0].replace(/\\s/g,'_')+'">'+f[1]+'</code><button class="btn btn-ghost" data-fid="fv_'+f[0].replace(/\\s/g,'_')+'" onclick="copyText(document.getElementById(this.dataset.fid).textContent)" style="font-size:10px;padding:2px 8px;">Copy</button></div>';}).join('');
     document.getElementById('clCreated').style.display='block';
     document.getElementById('clCreated').scrollIntoView({behavior:'smooth'});
     toggleAddCl();loadClients();
-  }).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  }).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function toggleClient(id,active){
   active = active === true || active === 'true';
-  api('/api/v1/admin/clients/'+id,{method:'PATCH',body:JSON.stringify({is_active:active})}).then(function(){showToast(active?'تم التفعيل':'تم التعطيل','ok');loadClients();}).catch(function(e){showToast('خطأ: '+e.message,'error');});
+  api('/api/v1/admin/clients/'+id,{method:'PATCH',body:JSON.stringify({is_active:active})}).then(function(){showToast(active?'Activated':'Deactivated','ok');loadClients();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function loadClients(){
   api('/api/v1/admin/clients').then(function(rows) {
     if(!Array.isArray(rows))rows=[];
     document.getElementById('clCnt').textContent=rows.length+' client';
-    if(!rows.length){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">🔑</div>لا يوجد clients</div>';return;}
-    var th='<th>ID</th><th>Name</th><th>Active</th><th>HMAC</th><th>OAuth</th><th>mTLS</th><th>JWS</th><th>IPs</th><th>تاريخ الانشاء</th><th>اجراء</th>';
+    if(!rows.length){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">🔑</div>No clients found</div>';return;}
+    var th='<th>ID</th><th>Name</th><th>Active</th><th>HMAC</th><th>OAuth</th><th>mTLS</th><th>JWS</th><th>IPs</th><th>Created</th><th>Action</th>';
     var tb=rows.map(function(r){return '<tr>'
       +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,12)+'...</code></td>'
       +'<td><strong>'+r.name+'</strong></td>'
-      +'<td>'+(r.is_active?'<span style="color:#10b981;font-weight:700;">نشط</span>':'<span style="color:#ef4444;">معطل</span>')+'</td>'
-      +'<td>'+(r.hmac_required?'<span style="color:#10b981;">نعم</span>':'—')+'</td>'
-      +'<td>'+(r.oauth_required?'<span style="color:#10b981;">نعم</span>':'—')+'</td>'
-      +'<td>'+(r.mtls_required?'<span style="color:#10b981;">نعم</span>':'—')+'</td>'
-      +'<td>'+(r.jws_required?'<span style="color:#10b981;">نعم</span>':'—')+'</td>'
-      +'<td>'+((r.allowed_ips||[]).length?r.allowed_ips.join(', '):'اي IP')+'</td>'
+      +'<td>'+(r.is_active?'<span style="color:#10b981;font-weight:700;">Active</span>':'<span style="color:#ef4444;">Disabled</span>')+'</td>'
+      +'<td>'+(r.hmac_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
+      +'<td>'+(r.oauth_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
+      +'<td>'+(r.mtls_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
+      +'<td>'+(r.jws_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
+      +'<td>'+((r.allowed_ips||[]).length?r.allowed_ips.join(', '):'Any IP')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active)" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'تعطيل':'تفعيل')+'</button></td>'
+      +'<td><button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active)" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'Disable':'Enable')+'</button></td>'
       +'</tr>';}).join('');
     document.getElementById('clBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
@@ -1816,8 +1926,8 @@ loadClients();
 _SECURITY_BODY = """
 <div class="page-body">
   <div class="filter-bar">
-    <input id="secQ" placeholder="بحث..." style="min-width:200px;" oninput="filterSec()">
-    <button class="btn btn-ghost" onclick="loadSec()">تحديث</button>
+    <input id="secQ" placeholder="Search..." style="min-width:200px;" oninput="filterSec()">
+    <button class="btn btn-ghost" onclick="loadSec()">Refresh</button>
   </div>
 
   <div class="panel">
@@ -1826,8 +1936,8 @@ _SECURITY_BODY = """
   </div>
 
   <div class="panel">
-    <div class="panel-head"><h3>احداث الامان</h3><span id="secCnt" style="color:var(--muted);font-size:12px;"></span></div>
-    <div id="secBody"><div class="empty-state"><div class="icon">🛡</div>جاري التحميل...</div></div>
+    <div class="panel-head"><h3>Security Events</h3><span id="secCnt" style="color:var(--muted);font-size:12px;"></span></div>
+    <div id="secBody"><div class="empty-state"><div class="icon">🛡</div>Loading...</div></div>
   </div>
 </div>
 <script>
@@ -1840,19 +1950,19 @@ function loadSec(){
       var tb=rows.map(function(r){return '<tr>'
         +'<td>'+r.name+'</td>'
         +'<td><strong style="color:'+((r.security_score||r.score||0)>=4?'#10b981':(r.security_score||r.score||0)>=2?'#f59e0b':'#ef4444')+';"> '+(r.security_score||r.score||0)+'/6</strong></td>'
-        +'<td>'+(r.hmac_required?'نعم':'—')+'</td>'
-        +'<td>'+(r.oauth_required?'نعم':'—')+'</td>'
-        +'<td>'+(r.mtls_required?'نعم':'—')+'</td>'
-        +'<td>'+(r.jws_required?'نعم':'—')+'</td>'
-        +'<td>'+((r.allowed_ips||[]).length?'نعم':'—')+'</td>'
+        +'<td>'+(r.hmac_required?'Yes':'—')+'</td>'
+        +'<td>'+(r.oauth_required?'Yes':'—')+'</td>'
+        +'<td>'+(r.mtls_required?'Yes':'—')+'</td>'
+        +'<td>'+(r.jws_required?'Yes':'—')+'</td>'
+        +'<td>'+((r.allowed_ips||[]).length?'Yes':'—')+'</td>'
         +'<td>'+badge(r.posture||'UNKNOWN')+'</td>'
         +'</tr>';}).join('');
       document.getElementById('secPosture').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-    }else{document.getElementById('secPosture').innerHTML='<p style="color:var(--muted);text-align:center;padding:16px;">لا توجد بيانات</p>';}
+    }else{document.getElementById('secPosture').innerHTML='<p style="color:var(--muted);text-align:center;padding:16px;">No data available</p>';}
   }).catch(function(e){document.getElementById('secPosture').innerHTML='<p style="color:var(--muted);">'+e.message+'</p>';});
   api('/api/v1/admin/security-events').then(function(_secData) {
     _secRows=Array.isArray(_secData)?_secData:(_secData.recent_events||[]);
-    document.getElementById('secCnt').textContent=_secRows.length+' حدث';
+    document.getElementById('secCnt').textContent=_secRows.length+' events';
     renderSec(_secRows);
   }).catch(function(e){document.getElementById('secBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
@@ -1861,8 +1971,8 @@ function filterSec(){
   renderSec(q?_secRows.filter(function(r){return JSON.stringify(r).toLowerCase().indexOf(q)>=0;}):_secRows);
 }
 function renderSec(rows){
-  if(!rows.length){document.getElementById('secBody').innerHTML='<div class="empty-state"><div class="icon">🛡</div>لا توجد احداث امان</div>';return;}
-  var th='<th>Event</th><th>IP</th><th>Path</th><th>Status</th><th>User Agent</th><th>التاريخ</th>';
+  if(!rows.length){document.getElementById('secBody').innerHTML='<div class="empty-state"><div class="icon">🛡</div>No security events found</div>';return;}
+  var th='<th>Event</th><th>IP</th><th>Path</th><th>Status</th><th>User Agent</th><th>Date</th>';
   var tb=rows.map(function(r){
     var isAlert=r.event_type&&(r.event_type.indexOf('BLOCK')>=0||r.event_type.indexOf('BAN')>=0);
     return '<tr>'
@@ -1884,20 +1994,20 @@ loadSec();
 _DOCUMENTS_BODY = """
 <div class="page-body">
   <div class="filter-bar">
-    <button class="btn btn-ghost" onclick="loadDocs()">تحديث</button>
+    <button class="btn btn-ghost" onclick="loadDocs()">Refresh</button>
   </div>
   <div class="panel">
-    <div class="panel-head"><h3>مستندات الطلبات</h3><span id="docsCnt" style="color:var(--muted);font-size:12px;"></span></div>
-    <div id="docsBody"><div class="empty-state"><div class="icon">📄</div>جاري التحميل...</div></div>
+    <div class="panel-head"><h3>Order Documents</h3><span id="docsCnt" style="color:var(--muted);font-size:12px;"></span></div>
+    <div id="docsBody"><div class="empty-state"><div class="icon">📄</div>Loading...</div></div>
   </div>
 </div>
 <script>
 function loadDocs(){
   api('/api/v1/admin/documents?limit=100').then(function(rows) {
     if(!Array.isArray(rows))rows=[];
-    document.getElementById('docsCnt').textContent=rows.length+' مستند';
-    if(!rows.length){document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">📄</div>لا توجد مستندات</div>';return;}
-    var th='<th>Order ID</th><th>External ID</th><th>Fiat</th><th>Crypto</th><th>Network</th><th>الحالة</th><th>التاريخ</th><th>مستندات</th>';
+    document.getElementById('docsCnt').textContent=rows.length+' documents';
+    if(!rows.length){document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">📄</div>No documents found</div>';return;}
+    var th='<th>Order ID</th><th>External ID</th><th>Fiat</th><th>Crypto</th><th>Network</th><th>Status</th><th>Date</th><th>Documents</th>';
     var tb=rows.map(function(r){return '<tr>'
       +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,10)+'...</code></td>'
       +'<td>'+(r.external_id||'—')+'</td>'
@@ -1924,17 +2034,17 @@ _LOGS_BODY = """
 <div class="page-body">
   <div class="filter-bar">
     <select id="logLim" onchange="loadLogs()" style="min-width:110px;">
-      <option value="50">50 سجل</option>
-      <option value="100" selected>100 سجل</option>
-      <option value="250">250 سجل</option>
-      <option value="500">500 سجل</option>
+      <option value="50">50 records</option>
+      <option value="100" selected>100 records</option>
+      <option value="250">250 records</option>
+      <option value="500">500 records</option>
     </select>
-    <input id="logQ" placeholder="بحث..." style="min-width:200px;" oninput="filterLogs()">
-    <button class="btn btn-ghost" onclick="loadLogs()">تحديث</button>
+    <input id="logQ" placeholder="Search..." style="min-width:200px;" oninput="filterLogs()">
+    <button class="btn btn-ghost" onclick="loadLogs()">Refresh</button>
   </div>
   <div class="panel">
-    <div class="panel-head"><h3>سجل التدقيق</h3><span id="logCnt" style="color:var(--muted);font-size:12px;"></span></div>
-    <div id="logBody"><div class="empty-state"><div class="icon">📝</div>جاري التحميل...</div></div>
+    <div class="panel-head"><h3>Audit Log</h3><span id="logCnt" style="color:var(--muted);font-size:12px;"></span></div>
+    <div id="logBody"><div class="empty-state"><div class="icon">📝</div>Loading...</div></div>
   </div>
 </div>
 <script>
@@ -1943,7 +2053,7 @@ function loadLogs(){
   var lim=document.getElementById('logLim').value;
   api('/api/v1/admin/audit-logs?limit='+lim).then(function(data){
     _logRows=Array.isArray(data)?data:[];
-    document.getElementById('logCnt').textContent=_logRows.length+' سجل';
+    document.getElementById('logCnt').textContent=_logRows.length+' records';
     filterLogs();
   }).catch(function(e){document.getElementById('logBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
@@ -1952,8 +2062,8 @@ function filterLogs(){
   renderLogs(q?_logRows.filter(function(r){return JSON.stringify(r).toLowerCase().indexOf(q)>=0;}):_logRows);
 }
 function renderLogs(rows){
-  if(!rows.length){document.getElementById('logBody').innerHTML='<div class="empty-state"><div class="icon">📝</div>لا توجد سجلات</div>';return;}
-  var th='<th>Event</th><th>Order ID</th><th>Client</th><th>Method</th><th>Endpoint</th><th>IP</th><th>Status</th><th>TX ID</th><th>Error</th><th>التاريخ</th>';
+  if(!rows.length){document.getElementById('logBody').innerHTML='<div class="empty-state"><div class="icon">📝</div>No logs found</div>';return;}
+  var th='<th>Event</th><th>Order ID</th><th>Client</th><th>Method</th><th>Endpoint</th><th>IP</th><th>Status</th><th>TX ID</th><th>Error</th><th>Date</th>';
   var tb=rows.map(function(r){return '<tr>'
     +'<td><strong style="color:var(--brand);font-size:11px;">'+r.event_type+'</strong></td>'
     +'<td>'+(r.order_id?'<code style="font-size:10px;">'+r.order_id.slice(0,10)+'...</code>':'—')+'</td>'
@@ -2143,7 +2253,7 @@ async def dashboard_home(request: Request):
     g = _guard(request)
     if g:
         return g
-    return HTMLResponse(_page("نظرة عامة", "/dashboard", _OVERVIEW_BODY))
+    return HTMLResponse(_page("Overview", "/dashboard", _OVERVIEW_BODY))
 
 
 @router.get("/dashboard/overview", response_class=HTMLResponse)
@@ -2156,7 +2266,7 @@ async def dashboard_orders(request: Request):
     g = _guard(request)
     if g:
         return g
-    return HTMLResponse(_page("الطلبات", "/dashboard/orders", _ORDERS_BODY))
+    return HTMLResponse(_page("Orders", "/dashboard/orders", _ORDERS_BODY))
 
 
 @router.get("/dashboard/payloads", response_class=HTMLResponse)
@@ -2196,7 +2306,7 @@ async def dashboard_payments(request: Request):
     g = _guard(request)
     if g:
         return g
-    return HTMLResponse(_page("المدفوعات", "/dashboard/payments", _PAYMENTS_BODY))
+    return HTMLResponse(_page("Payments", "/dashboard/payments", _PAYMENTS_BODY))
 
 
 @router.get("/dashboard/stripe", response_class=HTMLResponse)
