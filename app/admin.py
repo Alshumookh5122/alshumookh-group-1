@@ -27,6 +27,7 @@ from app.document_service import document_summary, render_order_document
 from app.models import (
     ApiClient,
     AuditLog,
+    ClientAccount,
     ExternalPayload,
     M1TokenizationJob,
     M1TokenizationStatus,
@@ -917,6 +918,103 @@ async def list_clients(_: AdminKey, db: AsyncSession = Depends(get_db)):
         )
         for client in clients
     ]
+
+
+@router.get("/clients/{client_id}/details")
+async def client_details(
+    client_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ApiClient).where(cast(ApiClient.id, String) == str(client_id))
+    )
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    accounts_result = await db.execute(
+        select(ClientAccount)
+        .where(cast(ClientAccount.api_client_id, String) == str(client_id))
+        .order_by(ClientAccount.created_at.desc())
+    )
+    orders_result = await db.execute(
+        select(PaymentOrder)
+        .where(cast(PaymentOrder.client_id, String) == str(client_id))
+        .order_by(PaymentOrder.created_at.desc())
+        .limit(50)
+    )
+    payloads_result = await db.execute(
+        select(ExternalPayload)
+        .where(cast(ExternalPayload.api_client_id, String) == str(client_id))
+        .order_by(ExternalPayload.received_at.desc())
+        .limit(30)
+    )
+    logs_result = await db.execute(
+        select(AuditLog)
+        .where(cast(AuditLog.client_id, String) == str(client_id))
+        .order_by(AuditLog.created_at.desc())
+        .limit(30)
+    )
+
+    accounts = accounts_result.scalars().all()
+    orders = orders_result.scalars().all()
+    payloads = payloads_result.scalars().all()
+    logs = logs_result.scalars().all()
+
+    return {
+        "client": {
+            "id": str(client.id),
+            "name": client.name,
+            "allowed_ips": client.allowed_ips or [],
+            "is_active": client.is_active,
+            "hmac_required": client.hmac_required,
+            "oauth_required": client.oauth_required,
+            "mtls_required": client.mtls_required,
+            "jws_required": client.jws_required,
+            "jwe_required": client.jwe_required,
+            "created_at": client.created_at,
+        },
+        "accounts": [
+            {
+                "id": str(account.id),
+                "identifier": account.email_or_phone,
+                "is_active": account.is_active,
+                "created_at": account.created_at,
+                "portal_url": "/client",
+            }
+            for account in accounts
+        ],
+        "orders": [_order_response(order) for order in orders],
+        "payloads": [
+            {
+                "id": payload.id,
+                "transaction_reference": payload.transaction_reference,
+                "amount": str(payload.amount) if payload.amount is not None else None,
+                "asset": payload.asset,
+                "network": payload.network_name,
+                "parsing_status": payload.parsing_status,
+                "verification_status": payload.verification_status,
+                "tx_hash": payload.tx_hash,
+                "created_at": payload.created_at,
+            }
+            for payload in payloads
+        ],
+        "audit_logs": [
+            {
+                "id": log.id,
+                "event_type": log.event_type,
+                "method": log.method,
+                "endpoint": log.endpoint,
+                "status_code": log.status_code,
+                "ip": log.ip,
+                "transaction_id": log.transaction_id,
+                "error_message": log.error_message,
+                "created_at": log.created_at,
+            }
+            for log in logs
+        ],
+    }
 
 
 @router.patch("/clients/{client_id}", response_model=ApiClientRead)
@@ -2683,6 +2781,21 @@ async def estimate_m1_gas_fee(
         body = await request.json()
     except Exception:
         pass
+    manual_fee = body.get("manual_gas_fee") or body.get("manual_native_fee")
+    if manual_fee not in (None, ""):
+        native_symbol = str(body.get("native_symbol") or ("TRX" if str(body.get("network") or "").lower() == "tron" else "ETH")).upper()
+        return {
+            "network": str(body.get("network") or "ethereum").lower(),
+            "asset": str(body.get("asset") or "USDT").upper(),
+            "native_symbol": native_symbol,
+            "amount": str(body.get("amount") or body.get("usdt_amount") or "1"),
+            "gas_limit": None,
+            "gas_price_wei": None,
+            "estimated_native_fee": str(manual_fee),
+            "estimated_fee_label": f"{manual_fee} {native_symbol}",
+            "source": "manual_admin_override",
+            "manual_override": True,
+        }
     return await estimate_usdt_transfer_fee(
         network=str(body.get("network") or "ethereum"),
         to_address=body.get("destination_wallet") or body.get("to_address"),
@@ -2715,6 +2828,17 @@ async def create_m1_gas_fee_invoice(
         to_address=body.get("destination_wallet") or job.destination_wallet,
         amount=body.get("amount") or job.usdt_amount or "1",
     )
+    manual_fee = body.get("manual_gas_fee") or body.get("manual_native_fee")
+    if manual_fee not in (None, ""):
+        manual_symbol = str(body.get("native_symbol") or estimate.get("native_symbol") or "ETH").upper()
+        estimate = {
+            **estimate,
+            "native_symbol": manual_symbol,
+            "estimated_native_fee": str(manual_fee),
+            "estimated_fee_label": f"{manual_fee} {manual_symbol}",
+            "source": "manual_admin_override",
+            "manual_override": True,
+        }
     external_id = f"M1-GAS-{uuid.uuid4().hex[:10].upper()}"
     native_symbol = str(estimate.get("native_symbol") or "ETH")
     native_fee = str(estimate.get("estimated_native_fee") or "0")

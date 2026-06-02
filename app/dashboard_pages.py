@@ -1205,6 +1205,7 @@ _TOKENIZATION_BODY = """
         <div class="form-field"><label>Network</label>
           <select id="m1Net"><option value="ethereum">Ethereum</option><option value="tron">TRON</option><option value="base">Base</option></select></div>
         <div class="form-field"><label>IBAN</label><input id="m1Iban" placeholder="Optional"></div>
+        <div class="form-field"><label>Manual Gas Fee Override</label><input id="m1ManualGas" type="number" step="0.00000001" placeholder="Optional native fee"></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;">
         <button class="btn btn-ghost" onclick="estimateM1GasFromForm()">Estimate Gas Fee</button>
@@ -1253,7 +1254,9 @@ function renderGasEstimate(target, r){
   showToast('Gas fee estimated','ok');
 }
 function estimateM1Gas(network,wallet,amount,target){
-  api('/api/v1/admin/tokenization-jobs/gas-fee/estimate',{method:'POST',body:JSON.stringify({network:network,destination_wallet:wallet,amount:amount||'1'})})
+  var manualEl=document.getElementById('m1ManualGas');
+  var manualGas=manualEl?manualEl.value.trim():'';
+  api('/api/v1/admin/tokenization-jobs/gas-fee/estimate',{method:'POST',body:JSON.stringify({network:network,destination_wallet:wallet,amount:amount||'1',manual_gas_fee:manualGas||null})})
     .then(function(r){renderGasEstimate(target||'m1GasEstimate',r);})
     .catch(function(e){showToast('Gas estimate error: '+e.message,'error');});
 }
@@ -1263,7 +1266,9 @@ function estimateM1GasFromForm(){
   estimateM1Gas(document.getElementById('m1Net').value,document.getElementById('m1Dest').value.trim(),approximateUsdt,'m1GasEstimate');
 }
 function gasJobInvoice(id){
-  api('/api/v1/admin/tokenization-jobs/'+id+'/gas-fee-invoice',{method:'POST',body:'{}'}).then(function(r){
+  var manualEl=document.getElementById('m1ManualGas');
+  var manualGas=manualEl?manualEl.value.trim():'';
+  api('/api/v1/admin/tokenization-jobs/'+id+'/gas-fee-invoice',{method:'POST',body:JSON.stringify({manual_gas_fee:manualGas||null})}).then(function(r){
     showToast('Gas fee invoice created','ok');
     if(r.invoice_url) window.open(r.invoice_url,'_blank');
     loadJobs();
@@ -1872,6 +1877,14 @@ _COUNTERPARTIES_BODY = """
     <div class="panel-head"><h3>Counterparties List</h3><span id="clCnt" style="color:var(--muted);font-size:12px;"></span></div>
     <div id="clBody"><div class="empty-state"><div class="icon">🔑</div>Loading...</div></div>
   </div>
+
+  <div id="clientDetails" class="panel" style="display:none;">
+    <div class="panel-head">
+      <h3 id="clientDetailsTitle">Client Details</h3>
+      <button class="btn btn-ghost" onclick="closeClientDetails()">Close</button>
+    </div>
+    <div id="clientDetailsBody" style="padding:16px;"></div>
+  </div>
 </div>
 <script>
 function toggleAddCl(){
@@ -1896,6 +1909,47 @@ function toggleClient(id,active){
   active = active === true || active === 'true';
   api('/api/v1/admin/clients/'+id,{method:'PATCH',body:JSON.stringify({is_active:active})}).then(function(){showToast(active?'Activated':'Deactivated','ok');loadClients();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
+function closeClientDetails(){
+  document.getElementById('clientDetails').style.display='none';
+}
+function openClientDetails(id){
+  var panel=document.getElementById('clientDetails');
+  var body=document.getElementById('clientDetailsBody');
+  panel.style.display='block';
+  body.innerHTML='<div class="empty-state"><div class="icon">🔎</div>Loading client details...</div>';
+  api('/api/v1/admin/clients/'+id+'/details').then(function(data){
+    var c=data.client||{};
+    document.getElementById('clientDetailsTitle').textContent='Client Details - '+(c.name||c.id||id);
+    var accounts=data.accounts||[];
+    var orders=data.orders||[];
+    var payloads=data.payloads||[];
+    var logs=data.audit_logs||[];
+    var accountHtml=accounts.length?accounts.map(function(a){
+      return '<tr><td><code>'+esc(a.id||'')+'</code></td><td>'+esc(a.identifier||'')+'</td><td>'+badge(a.is_active?'ACTIVE':'DISABLED')+'</td><td>'+fmtDate(a.created_at)+'</td><td><a class="btn btn-ghost" href="'+esc(a.portal_url||'/client')+'" target="_blank" style="font-size:11px;padding:3px 8px;text-decoration:none;">Open Portal</a></td></tr>';
+    }).join(''):'<tr><td colspan="5">No client login accounts found.</td></tr>';
+    var orderHtml=orders.length?orders.map(function(o){
+      return '<tr><td><code title="'+esc(o.id||'')+'">'+esc((o.id||'').slice(0,10))+'...</code></td><td>'+esc(o.external_id||'—')+'</td><td>'+esc(o.provider||'')+'</td><td>'+badge(o.status||'')+'</td><td>'+fmtNum(o.fiat_amount)+' '+esc(o.fiat_currency||'')+'</td><td>'+fmtNum(o.crypto_amount,6)+' '+esc(o.crypto_currency||'')+'</td><td><a class="btn btn-ghost" target="_blank" href="/api/v1/admin/orders/'+esc(o.id||'')+'/documents/invoice" style="font-size:11px;padding:3px 8px;text-decoration:none;">Invoice</a></td></tr>';
+    }).join(''):'<tr><td colspan="7">No orders found.</td></tr>';
+    var payloadHtml=payloads.length?payloads.map(function(p){
+      return '<tr><td><code>'+esc((p.id||'').slice(0,10))+'...</code></td><td>'+esc(p.transaction_reference||'—')+'</td><td>'+fmtNum(p.amount)+' '+esc(p.asset||'')+'</td><td>'+esc(p.network||'')+'</td><td>'+badge(p.verification_status||p.parsing_status||'')+'</td><td>'+esc(p.tx_hash||'—')+'</td><td>'+fmtDate(p.created_at)+'</td></tr>';
+    }).join(''):'<tr><td colspan="7">No settlement payloads found.</td></tr>';
+    var logHtml=logs.length?logs.map(function(l){
+      return '<tr><td>'+esc(l.event_type||'')+'</td><td>'+esc(l.method||'')+'</td><td>'+esc(l.endpoint||'')+'</td><td>'+esc(String(l.status_code||'—'))+'</td><td>'+esc(l.ip||'')+'</td><td>'+esc(l.error_message||'—')+'</td><td>'+fmtDate(l.created_at)+'</td></tr>';
+    }).join(''):'<tr><td colspan="7">No audit logs found.</td></tr>';
+    body.innerHTML=
+      '<div class="stat-grid" style="margin-bottom:16px;">'
+      +'<div class="stat-card"><div class="label">Client ID</div><div class="value" style="font-size:13px;word-break:break-all;">'+esc(c.id||'')+'</div></div>'
+      +'<div class="stat-card"><div class="label">Status</div><div class="value">'+(c.is_active?'Active':'Disabled')+'</div></div>'
+      +'<div class="stat-card"><div class="label">Allowed IPs</div><div class="value" style="font-size:13px;">'+esc((c.allowed_ips||[]).join(', ')||'Any IP')+'</div></div>'
+      +'<div class="stat-card"><div class="label">Created</div><div class="value" style="font-size:13px;">'+fmtDate(c.created_at)+'</div></div>'
+      +'</div>'
+      +'<h4>Login Accounts</h4><div class="table-wrap"><table><thead><tr><th>ID</th><th>Identifier</th><th>Status</th><th>Created</th><th>Action</th></tr></thead><tbody>'+accountHtml+'</tbody></table></div>'
+      +'<h4 style="margin-top:18px;">Client Transactions</h4><div class="table-wrap"><table><thead><tr><th>ID</th><th>Reference</th><th>Provider</th><th>Status</th><th>Fiat</th><th>Crypto</th><th>Invoice</th></tr></thead><tbody>'+orderHtml+'</tbody></table></div>'
+      +'<h4 style="margin-top:18px;">Settlement Payloads</h4><div class="table-wrap"><table><thead><tr><th>ID</th><th>Reference</th><th>Amount</th><th>Network</th><th>Status</th><th>TX Hash</th><th>Date</th></tr></thead><tbody>'+payloadHtml+'</tbody></table></div>'
+      +'<h4 style="margin-top:18px;">Audit Logs</h4><div class="table-wrap"><table><thead><tr><th>Event</th><th>Method</th><th>Endpoint</th><th>Status</th><th>IP</th><th>Error</th><th>Date</th></tr></thead><tbody>'+logHtml+'</tbody></table></div>';
+    panel.scrollIntoView({behavior:'smooth'});
+  }).catch(function(e){body.innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
+}
 function loadClients(){
   api('/api/v1/admin/clients').then(function(rows) {
     if(!Array.isArray(rows))rows=[];
@@ -1912,7 +1966,7 @@ function loadClients(){
       +'<td>'+(r.jws_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
       +'<td>'+((r.allowed_ips||[]).length?r.allowed_ips.join(', '):'Any IP')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active)" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'Disable':'Enable')+'</button></td>'
+      +'<td><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-ghost" data-cid="'+r.id+'" onclick="openClientDetails(this.dataset.cid)" style="font-size:11px;padding:3px 8px;">View</button><button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active)" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'Disable':'Enable')+'</button></div></td>'
       +'</tr>';}).join('');
     document.getElementById('clBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});

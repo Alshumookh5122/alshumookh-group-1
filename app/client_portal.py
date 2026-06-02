@@ -24,6 +24,7 @@ from app.auth import (
 )
 from app.config import get_settings
 from app.database import get_db
+from app.document_service import render_order_document
 from app.models import (
     ApiClient,
     ClientAccount,
@@ -150,8 +151,14 @@ def _order_json(order: PaymentOrder) -> dict:
         "crypto_currency": order.crypto_currency,
         "crypto_amount": str(order.crypto_amount) if order.crypto_amount is not None else None,
         "destination_address": destination_address,
+        "customer_wallet_address": getattr(order, "customer_wallet_address", None),
+        "treasury_wallet_address": getattr(order, "treasury_wallet_address", None),
+        "payment_reference": getattr(order, "payment_reference", None),
+        "provider_order_id": getattr(order, "provider_order_id", None),
         "payment_url": payment_url,
+        "invoice_url": f"/client/orders/{order.id}/invoice",
         "tx_hash": getattr(order, "tx_hash", None),
+        "failure_reason": getattr(order, "failure_reason", None),
         "created_at": order.created_at,
     }
 
@@ -674,39 +681,6 @@ def client_page() -> HTMLResponse:
       </section>
 
       <section class="grid">
-        <!-- ── Circle Payment Panel ──────────────────────────────────────── -->
-        <article class="panel">
-          <div class="panel-head">
-            <div>
-              <h3 id="circleTitle">Circle USDC Payment</h3>
-              <p id="circleSubtitle">رابط دفع عبر Circle — استلام USDC مباشرة إلى محفظة الشركة.</p>
-            </div>
-            <span class="state" style="background:#1652f0;color:#fff;">Circle</span>
-          </div>
-
-          <form id="circleForm" class="form-grid">
-            <label id="lbl_circle_amount">قيمة الدفع (USD)
-              <input name="fiat_amount" type="number" min="1" step="0.01" value="100" required>
-            </label>
-
-            <label id="lbl_circle_network">شبكة USDC
-              <select name="network">
-                <option value="ethereum" selected>Ethereum (ETH)</option>
-                <option value="base">Base</option>
-                <option value="polygon">Polygon</option>
-              </select>
-            </label>
-
-            <label class="wide" id="lbl_circle_ext">رقم مرجعي (اختياري)
-              <input name="external_id" placeholder="INV-1001">
-            </label>
-
-            <button class="primary wide" id="btn_circle_submit" type="submit">إنشاء رابط Circle</button>
-          </form>
-
-          <div id="circleResult" class="result hidden"></div>
-        </article>
-
         <!-- ── MoonPay Panel (Sandbox) ───────────────────────────────────── -->
         <article class="panel">
           <div class="panel-head">
@@ -987,6 +961,9 @@ def client_page() -> HTMLResponse:
                 <th id="th_fiat">Fiat</th>
                 <th id="th_crypto">Crypto</th>
                 <th id="th_link">رابط الدفع</th>
+                <th id="th_invoice">الفاتورة</th>
+                <th id="th_destination">عنوان الاستلام</th>
+                <th id="th_tx">TX Hash</th>
                 <th id="th_date">التاريخ</th>
               </tr>
             </thead>
@@ -1034,7 +1011,8 @@ def client_page() -> HTMLResponse:
         txTitle: 'سجل المعاملات',
         txSubtitle: 'هذه القائمة تعرض معاملات هذا الحساب فقط.',
         th_ref:'المرجع', th_type:'النوع', th_status:'الحالة', th_network:'شبكة التحويل',
-        th_fiat:'Fiat', th_crypto:'Crypto', th_link:'رابط الدفع', th_date:'التاريخ',
+        th_fiat:'Fiat', th_crypto:'Crypto', th_link:'رابط الدفع', th_invoice:'الفاتورة',
+        th_destination:'عنوان الاستلام', th_tx:'TX Hash', th_date:'التاريخ',
         lbl_fiat_amount:'قيمة الدفع', lbl_fiat_currency:'عملة الدفع',
         lbl_crypto_currency_mp:'عملة الشراء', lbl_network_mp:'شبكة التحويل',
         lbl_country:'الدولة', lbl_subdivision:'الولاية/الإمارة', lbl_ext_mp:'رقم مرجعي (اختياري)',
@@ -1076,7 +1054,8 @@ def client_page() -> HTMLResponse:
         txTitle: 'Transaction History',
         txSubtitle: 'This list shows transactions for this account only.',
         th_ref:'Reference', th_type:'Type', th_status:'Status', th_network:'Network',
-        th_fiat:'Fiat', th_crypto:'Crypto', th_link:'Payment Link', th_date:'Date',
+        th_fiat:'Fiat', th_crypto:'Crypto', th_link:'Payment Link', th_invoice:'Invoice',
+        th_destination:'Destination', th_tx:'TX Hash', th_date:'Date',
         lbl_fiat_amount:'Payment Amount', lbl_fiat_currency:'Payment Currency',
         lbl_crypto_currency_mp:'Purchase Currency', lbl_network_mp:'Transfer Network',
         lbl_country:'Country', lbl_subdivision:'State / Emirate', lbl_ext_mp:'Reference Number (optional)',
@@ -1113,7 +1092,7 @@ def client_page() -> HTMLResponse:
         'btnCopyApiKeyLabel','btnCopyClientIdLabel',
         'btnRevealLabel','btnRotateLabel',
         'txTitle','txSubtitle',
-        'th_ref','th_type','th_status','th_network','th_fiat','th_crypto','th_link','th_date',
+        'th_ref','th_type','th_status','th_network','th_fiat','th_crypto','th_link','th_invoice','th_destination','th_tx','th_date',
         'btn_moonpay_submit','btn_direct_submit',
       ];
       ids.forEach(function(id) {
@@ -1211,6 +1190,14 @@ def client_page() -> HTMLResponse:
       return '<a href="' + url + '" target="_blank" rel="noopener">' + s.linkOpen + '</a>';
     }
 
+    function shortText(value, size) {
+      if (!value) return '-';
+      var text = String(value);
+      var limit = size || 14;
+      if (text.length <= limit + 6) return text;
+      return '<span title="' + text.replace(/"/g, '&quot;') + '">' + text.slice(0, limit) + '...' + text.slice(-6) + '</span>';
+    }
+
     function showResult(element, order) {
       const s = CL[clientLang];
       element.innerHTML =
@@ -1227,7 +1214,7 @@ def client_page() -> HTMLResponse:
       var s = CL[clientLang];
       ordersBody.innerHTML = '';
       if (!orders || !orders.length) {
-        ordersBody.innerHTML = '<tr><td colspan="8">' + s.noOrders + '</td></tr>';
+        ordersBody.innerHTML = '<tr><td colspan="11">' + s.noOrders + '</td></tr>';
         return;
       }
       for (var i = 0; i < orders.length; i++) {
@@ -1241,6 +1228,9 @@ def client_page() -> HTMLResponse:
           '<td>' + (order.fiat_amount || '-') + ' ' + (order.fiat_currency || '') + '</td>' +
           '<td>' + (order.crypto_amount || '-') + ' ' + (order.crypto_currency || '') + '</td>' +
           '<td>' + linkHtml(order.payment_url) + '</td>' +
+          '<td>' + linkHtml(order.invoice_url) + '</td>' +
+          '<td>' + shortText(order.destination_address, 12) + '</td>' +
+          '<td>' + shortText(order.tx_hash, 12) + '</td>' +
           '<td>' + formatDate(order.created_at) + '</td>';
         ordersBody.appendChild(row);
       }
@@ -1272,35 +1262,6 @@ def client_page() -> HTMLResponse:
         await refreshOrders();
         setState('stateConnected');
       } catch (error) {
-        setState('stateError');
-      }
-    });
-
-    // ── Circle payment form ──────────────────────────────────────────────────
-    var _circleForm = document.getElementById('circleForm');
-    if (_circleForm) _circleForm.addEventListener('submit', async function (event) {
-      event.preventDefault();
-      var circleResult = document.getElementById('circleResult');
-      var formData = new FormData(event.target);
-      circleResult.classList.add('hidden');
-      try {
-        setState('stateUpdating');
-        var order = await jsonApi('/client/circle-payment', {
-          method: 'POST',
-          body: JSON.stringify({
-            fiat_amount: Number(formData.get('fiat_amount')),
-            fiat_currency: 'USD',
-            crypto_currency: 'USDC',
-            network: formData.get('network'),
-            external_id: formData.get('external_id') || null
-          })
-        });
-        showResult(circleResult, order);
-        await refreshOrders();
-        setState('stateConnected');
-      } catch (error) {
-        circleResult.innerHTML = '<span style="color:var(--bad);">❌ ' + error.message + '</span>';
-        circleResult.classList.remove('hidden');
         setState('stateError');
       }
     });
@@ -1786,6 +1747,25 @@ async def client_orders(request: Request, db: AsyncSession = Depends(get_db)):
     return [_order_json(order) for order in result.scalars().all()]
 
 
+@router.get("/client/orders/{order_id}/invoice", response_class=HTMLResponse)
+async def client_order_invoice(
+    order_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    account = await _current_account(request, db)
+    result = await db.execute(
+        select(PaymentOrder).where(
+            cast(PaymentOrder.id, String) == str(order_id),
+            PaymentOrder.client_id == account.api_client_id,
+        )
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return HTMLResponse(render_order_document(order, "invoice"))
+
+
 @router.post("/client/direct-payment")
 async def client_direct_payment(request: Request, db: AsyncSession = Depends(get_db)):
     account = await _current_account(request, db)
@@ -1838,89 +1818,11 @@ async def client_direct_payment(request: Request, db: AsyncSession = Depends(get
 
 @router.post("/client/circle-payment")
 async def client_circle_payment(request: Request, db: AsyncSession = Depends(get_db)):
-    account = await _current_account(request, db)
-    payload = await request.json()
-
-    network = _network(payload.get("network"))
-    fiat_amount = _amount(payload.get("fiat_amount"))
-    fiat_currency = str(payload.get("fiat_currency") or "USD").upper()
-    crypto_currency = str(payload.get("crypto_currency") or "USDC").upper()
-    external_id = str(payload.get("external_id") or f"CIR-{uuid.uuid4().hex[:10]}")
-    destination_address = _ledger_address(network)
-
-    provider = await get_provider(Provider.CIRCLE)
-
-    provider_payload = {
-        "walletAddress": destination_address,
-        "cryptoCurrency": crypto_currency,
-        "network": network.value,
-        "fiatCurrency": fiat_currency,
-        "fiatAmount": fiat_amount,
-        "redirectURL": f"{_public_base_url()}/pay/success",
-        "partnerUserRef": external_id,
-        "clientIp": _request_ip(request),
-    }
-    provider_payload = {k: v for k, v in provider_payload.items() if v is not None}
-
-    checkout_url, quote = await provider.create_widget_url(provider_payload)
-
-    def _safe_json(obj):
-        if obj is None:
-            return None
-        import json
-        from decimal import Decimal as _Decimal
-        def _default(o):
-            if isinstance(o, _Decimal):
-                return str(o)
-            raise TypeError(f"Not serializable: {type(o)}")
-        return json.loads(json.dumps(obj, default=_default))
-
-    # Use Provider.MOONPAY in DB until 'circle' enum migration runs on PostgreSQL.
-    # Circle orders are identified by external_id prefix "CIR-" and idempotency_key prefix "client-circle-".
-    order = PaymentOrder(
-        client_id=account.api_client_id,
-        idempotency_key=f"client-circle-{uuid.uuid4()}",
-        external_id=external_id,
-        provider=Provider.MOONPAY,
-        side=OrderSide.BUY,
-        status=OrderStatus.CREATED,
-        network=network,
-        fiat_currency=fiat_currency,
-        fiat_amount=fiat_amount,
-        crypto_currency=crypto_currency,
-        crypto_amount=None,
-        user_wallet_address=destination_address,
-        quote_json=_safe_json(quote),
-        checkout_url=checkout_url,
+    await _current_account(request, db)
+    raise HTTPException(
+        status_code=403,
+        detail="Circle payments are available from the admin dashboard only.",
     )
-
-    if hasattr(order, "treasury_wallet_address"):
-        order.treasury_wallet_address = destination_address
-
-    if hasattr(order, "coinbase_session_url"):
-        order.coinbase_session_url = checkout_url
-
-    db.add(order)
-    await db.commit()
-    await db.refresh(order)
-
-    await log_event(
-        db,
-        "CLIENT_CIRCLE_PAYMENT_CREATED",
-        {
-            "order_id": str(order.id),
-            "external_id": external_id,
-            "network": network.value,
-            "fiat_currency": fiat_currency,
-            "fiat_amount": str(fiat_amount),
-            "crypto_currency": crypto_currency,
-            "checkout_url": checkout_url,
-        },
-        order.id,
-        client_id=account.api_client_id,
-    )
-
-    return _order_json(order)
 
 
 @router.post("/client/onramper-payment")

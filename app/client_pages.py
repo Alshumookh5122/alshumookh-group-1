@@ -29,7 +29,6 @@ CLIENT_SIDEBAR = f"""
     <a href="/client/orders">📋 معاملاتي</a>
     <a href="/client/pay/direct">🔑 Crypto Direct</a>
     <a href="/client/pay/moonpay">🌙 MoonPay</a>
-    <a href="/client/pay/circle">⬤ Circle USDC</a>
     <a href="/client/pay/onramper">🏦 Onramper</a>
   </nav>
   <div class="sidebar-foot">
@@ -124,7 +123,6 @@ CLIENT_OVERVIEW_HTML = """
       <div style="padding:16px;display:grid;gap:10px;">
         <a href="/client/pay/direct" class="btn btn-primary" style="text-decoration:none;text-align:center;">🔑 Crypto Direct</a>
         <a href="/client/pay/moonpay" class="btn btn-ghost" style="text-decoration:none;text-align:center;">🌙 MoonPay</a>
-        <a href="/client/pay/circle" class="btn btn-ghost" style="text-decoration:none;text-align:center;">⬤ Circle USDC</a>
         <a href="/client/pay/onramper" class="btn btn-ghost" style="text-decoration:none;text-align:center;">🏦 Onramper</a>
       </div>
     </div>
@@ -408,49 +406,8 @@ function showToast(msg,t){let el=document.getElementById('_t');if(!el){el=docume
 </script>
 """
 
-# ════════════════════════════════════════════════════════════════════
-# PAGE: CIRCLE USDC
-# ════════════════════════════════════════════════════════════════════
-CLIENT_CIRCLE_HTML = """
-<div class="page-body">
-  <div style="max-width:680px;margin:0 auto;">
-    <div class="panel" style="border-top:3px solid #1652f0;">
-      <div class="panel-head"><h3>⬤ Circle USDC Payment</h3><span class="state" style="background:#1652f0;color:#fff;">USDC</span></div>
-      <div style="padding:20px;">
-        <p style="color:var(--muted);font-size:13px;margin:0 0 20px;">إنشاء payment intent عبر Circle — استلام USDC مباشرة لمحفظة الشركة</p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div><label style="font-size:12px;color:var(--muted);">قيمة الدفع (USD)</label>
-            <input id="ccAmt" type="number" placeholder="100" value="100" style="width:100%;background:var(--bg2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;margin-top:4px;"></div>
-          <div><label style="font-size:12px;color:var(--muted);">الشبكة</label>
-            <select id="ccNet" style="width:100%;background:var(--bg2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;margin-top:4px;">
-              <option value="ethereum">Ethereum</option><option value="base">Base</option><option value="polygon">Polygon</option>
-            </select></div>
-          <div style="grid-column:span 2;"><label style="font-size:12px;color:var(--muted);">رقم مرجعي</label>
-            <input id="ccRef" placeholder="INV-2026-001" style="width:100%;background:var(--bg2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;margin-top:4px;"></div>
-          <div style="grid-column:span 2;">
-            <button class="btn btn-primary" style="width:100%;" onclick="createCircle()">⬤ إنشاء Circle Payment</button>
-          </div>
-        </div>
-        <div id="ccResult" style="margin-top:16px;font-size:12px;"></div>
-      </div>
-    </div>
-  </div>
-</div>
-<script>
-const CK = ()=>(sessionStorage.getItem('als_client_key')||localStorage.getItem('als_client_key')||'');
-async function createCircle() {
-  const body = {
-    fiat_amount: document.getElementById('ccAmt').value,
-    network: document.getElementById('ccNet').value,
-    external_id: document.getElementById('ccRef').value||undefined,
-  };
-  try {
-    const d = await fetch('/client/pay/circle',{method:'POST',headers:{'X-Api-Key':CK(),'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
-    document.getElementById('ccResult').innerHTML = `<pre style="color:#10b981;font-size:11px;white-space:pre-wrap;background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:12px;">${JSON.stringify(d,null,2)}</pre>`;
-  } catch(e) { document.getElementById('ccResult').innerHTML=`<span style="color:#ef4444;">${e.message}</span>`; }
-}
-</script>
-"""
+# Circle is intentionally not exposed in the client portal.
+CLIENT_CIRCLE_HTML = ""
 
 # ════════════════════════════════════════════════════════════════════
 # PAGE: ONRAMPER
@@ -531,7 +488,7 @@ async def client_pay_moonpay(request: Request):
 
 @router.get("/client/pay/circle", response_class=HTMLResponse)
 async def client_pay_circle(request: Request):
-    return HTMLResponse(_page("Circle USDC", _topbar("⬤ Circle USDC Payment") + CLIENT_CIRCLE_HTML))
+    return RedirectResponse("/client", status_code=status.HTTP_303_SEE_OTHER)
 
 @router.get("/client/pay/onramper", response_class=HTMLResponse)
 async def client_pay_onramper(request: Request):
