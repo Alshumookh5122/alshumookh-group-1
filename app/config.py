@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     onramper_default_fiat: str = Field(default="USD", alias="ONRAMPER_DEFAULT_FIAT")
 
     circle_api_key: str | None = Field(default=None, alias="CIRCLE_API_KEY")
+    circle_entity_secret: str | None = Field(default=None, alias="CIRCLE_ENTITY_SECRET")
+    circle_wallet_set_id: str | None = Field(default=None, alias="CIRCLE_WALLET_SET_ID")
+    circle_wallet_id: str | None = Field(default=None, alias="CIRCLE_WALLET_ID")
+    circle_wallet_address: str | None = Field(default=None, alias="CIRCLE_WALLET_ADDRESS")
 
     stripe_secret_key: str | None = Field(default=None, alias="STRIPE_SECRET_KEY")
     stripe_publishable_key: str | None = Field(default=None, alias="STRIPE_PUBLISHABLE_KEY")

@@ -2248,6 +2248,30 @@ async def dashboard_api_payloads(request: Request, db: AsyncSession = Depends(ge
     res = await db.execute(select(ExternalPayload).order_by(desc(ExternalPayload.created_at)).limit(100))
     return {"payloads": [_payload_row(p) for p in res.scalars().all()]}
 
+
+@router.post("/dashboard/api/deploy")
+async def dashboard_api_deploy(request: Request):
+    """Pull latest code from GitHub and restart the service."""
+    import subprocess
+    _guard_api(request)
+    try:
+        pull = subprocess.run(
+            ["git", "pull", "--rebase"],
+            capture_output=True, text=True, timeout=60,
+            cwd="/root/alshumookh"
+        )
+        restart = subprocess.run(
+            ["systemctl", "restart", "alshumookh"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {
+            "status": "ok",
+            "pull": pull.stdout.strip() or pull.stderr.strip(),
+            "restart": restart.stdout.strip() or restart.stderr.strip() or "Service restarting...",
+        }
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_home(request: Request):
     g = _guard(request)
