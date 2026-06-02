@@ -204,6 +204,51 @@ async def settlement_alchemy_health():
     }
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Circle Programmable Wallets Webhook
+# POST /api/v1/webhooks/circle
+# ─────────────────────────────────────────────────────────────────────────────
+
+@settlement_webhooks_router.post("/circle", response_model=WebhookAck)
+async def circle_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    POST /api/v1/webhooks/circle
+    Circle Programmable Wallets webhook — receives transaction and wallet events.
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    notification_type = payload.get("notificationType") or payload.get("Type", "")
+    data = payload.get("data") or payload.get("Message") or {}
+
+    await log_event(
+        db,
+        "CIRCLE_WEBHOOK",
+        {
+            "notificationType": notification_type,
+            "data": data,
+        },
+        None,
+    )
+
+    return WebhookAck()
+
+
+@settlement_webhooks_router.get("/circle", include_in_schema=False)
+async def circle_webhook_health():
+    return {
+        "status": "ok",
+        "provider": "circle",
+        "endpoint": "/api/v1/webhooks/circle",
+        "message": "Circle webhook is ready.",
+    }
+
+
 def _webhook_secret() -> str | None:
     secret = getattr(settings, "coinbase_webhook_secret", None)
 
