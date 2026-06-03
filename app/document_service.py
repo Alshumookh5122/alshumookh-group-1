@@ -206,6 +206,9 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
     status = _status_label(order.status)
     issued_at = _now().strftime("%Y-%m-%d %H:%M UTC")
     created_at = order.created_at.strftime("%Y-%m-%d %H:%M UTC") if order.created_at else "-"
+    quote = order.quote_json or {}
+    gas_estimate = quote.get("gas_fee_estimate") if isinstance(quote, dict) else None
+    is_gas_invoice = isinstance(quote, dict) and quote.get("type") == "M1_GAS_FEE_INVOICE"
     prefer_tron_wallet = document_type in {"invoice", "pending"}
     wallet_address = _wallet_address(order, prefer_tron=prefer_tron_wallet)
     document_network = "tron" if prefer_tron_wallet else order.network.value
@@ -279,6 +282,31 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
     if order.failure_reason:
         rows.append(("Failure Reason", order.failure_reason))
 
+    amount_due = _money(order.crypto_amount, order.crypto_currency)
+    gas_panel = ""
+    if is_gas_invoice and isinstance(gas_estimate, dict):
+        gas_rows = [
+            ("Gas Fee Amount", gas_estimate.get("estimated_fee_label") or amount_due),
+            ("Native Symbol", gas_estimate.get("native_symbol") or order.crypto_currency),
+            ("Network", gas_estimate.get("network") or document_network),
+            ("Source", "Manual Admin Override" if gas_estimate.get("manual_override") else gas_estimate.get("source") or "Estimated"),
+            ("Tokenization Job ID", quote.get("tokenization_job_id") or "-"),
+        ]
+        gas_rows_html = "".join(
+            f"<tr><th>{escape(str(label))}</th><td>{escape(str(value or '-'))}</td></tr>"
+            for label, value in gas_rows
+        )
+        gas_panel = f"""
+          <section class="gas-panel">
+            <div>
+              <div class="eyebrow">M1 Tokenization Gas Fee</div>
+              <h2>Gas Fee Authorization</h2>
+              <p>This invoice was generated for the network gas fee required to complete the related fiat-to-crypto tokenization settlement.</p>
+            </div>
+            <table class="gas-table">{gas_rows_html}</table>
+          </section>
+        """
+
     rows_html = "".join(
         f"<tr><th>{escape(label)}</th><td>{escape(str(value))}</td></tr>"
         for label, value in rows
@@ -307,6 +335,7 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
       --gold:#c79a45;
       --soft:#f7f9fc;
       --dark:#111820;
+      --green:#0f8f5f;
     }}
 
     * {{
@@ -334,8 +363,8 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
       display: flex;
       justify-content: space-between;
       gap: 24px;
-      border-bottom: 2px solid var(--line);
-      padding-bottom: 22px;
+      border-bottom: 3px solid var(--dark);
+      padding-bottom: 24px;
     }}
 
     .brand-block {{
@@ -402,10 +431,46 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
 
     .summary {{
       display: grid;
-      grid-template-columns: 1fr 220px;
+      grid-template-columns: minmax(0, 1fr) 220px;
       gap: 24px;
       align-items: start;
       margin-top: 22px;
+    }}
+
+    .amount-due {{
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 240px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fbfcff;
+    }}
+
+    .amount-due .left {{
+      padding: 18px 20px;
+    }}
+
+    .amount-due .right {{
+      padding: 18px 20px;
+      background: var(--dark);
+      color: #fff;
+      text-align: right;
+    }}
+
+    .amount-due .label {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }}
+
+    .amount-due .total {{
+      margin-top: 8px;
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--gold);
     }}
 
     .qr-box {{
@@ -464,6 +529,34 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
       color: #fff;
       font-weight: 800;
       text-decoration: none;
+    }}
+
+    .gas-panel {{
+      margin-top: 24px;
+      padding: 20px;
+      border: 1px solid #d9c38a;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #fffaf0, #ffffff);
+    }}
+
+    .eyebrow {{
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }}
+
+    .gas-panel h2 {{
+      margin-top: 6px;
+    }}
+
+    .gas-table {{
+      margin-top: 12px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
     }}
 
     table {{
@@ -531,6 +624,7 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
 
       .head,
       .summary,
+      .amount-due,
       .methods {{
         display: grid;
         grid-template-columns: 1fr;
@@ -600,6 +694,20 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
         <strong>{escape(qr_label)}</strong>
       </div>
     </div>
+
+    <section class="amount-due">
+      <div class="left">
+        <div class="label">Document Purpose</div>
+        <strong>{escape(title)}</strong>
+        <p>{escape(note)}</p>
+      </div>
+      <div class="right">
+        <div class="label">Amount Due</div>
+        <div class="total">{escape(amount_due)}</div>
+      </div>
+    </section>
+
+    {gas_panel}
 
     <h2>Transaction Details</h2>
     <table>{rows_html}</table>

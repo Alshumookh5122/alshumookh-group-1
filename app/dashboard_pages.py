@@ -1328,15 +1328,18 @@ function renderGasEstimate(target, r){
   if(el) el.innerHTML=html;
   showToast('Gas fee estimated','ok');
 }
-function manualGasPrompt(currentValue){
-  var value=prompt('Manual gas fee override (optional). Leave empty for automatic estimate:', currentValue||'');
-  if(value===null) return null;
-  return String(value).trim();
+function readM1GasOverride(inputId){
+  var rowEl=inputId?document.getElementById(inputId):null;
+  var formEl=document.getElementById('m1ManualGas');
+  var value=rowEl?rowEl.value.trim():(formEl?formEl.value.trim():'');
+  if(value && !/^[0-9]+(\\.[0-9]+)?$/.test(value.replace(/,/g,''))){
+    showToast('Gas fee must be a valid number','error');
+    return null;
+  }
+  return value.replace(/,/g,'');
 }
-function estimateM1Gas(network,wallet,amount,target){
-  var manualEl=document.getElementById('m1ManualGas');
-  var manualGas=manualEl?manualEl.value.trim():'';
-  manualGas=manualGas||manualGasPrompt('');
+function estimateM1Gas(network,wallet,amount,target,inputId){
+  var manualGas=readM1GasOverride(inputId);
   if(manualGas===null) return;
   api('/api/v1/admin/tokenization-jobs/gas-fee/estimate',{method:'POST',body:JSON.stringify({network:network,destination_wallet:wallet,amount:amount||'1',manual_gas_fee:manualGas||null})})
     .then(function(r){renderGasEstimate(target||'m1GasEstimate',r);})
@@ -1348,9 +1351,7 @@ function estimateM1GasFromForm(){
   estimateM1Gas(document.getElementById('m1Net').value,document.getElementById('m1Dest').value.trim(),approximateUsdt,'m1GasEstimate');
 }
 function gasJobInvoice(id){
-  var manualEl=document.getElementById('m1ManualGas');
-  var manualGas=manualEl?manualEl.value.trim():'';
-  manualGas=manualGas||manualGasPrompt('');
+  var manualGas=readM1GasOverride('m1Gas_'+id);
   if(manualGas===null) return;
   api('/api/v1/admin/tokenization-jobs/'+id+'/gas-fee-invoice',{method:'POST',body:JSON.stringify({manual_gas_fee:manualGas||null})}).then(function(r){
     showToast('Gas fee invoice created','ok');
@@ -1369,14 +1370,15 @@ function loadJobs(){
     if(!Array.isArray(rows))rows=[];
     document.getElementById('m1Count').textContent=rows.length+' jobs';
     if(!rows.length){document.getElementById('m1Body').innerHTML='<div class="empty-state"><div class="icon">🔄</div>No M1 jobs found</div>';return;}
-    var th='<th>ID</th><th>Ref</th><th>Sender</th><th>EUR</th><th>FX Rate</th><th>USDT</th><th>Network</th><th>Status</th><th>Error</th><th>Transfer</th><th>Date</th><th>Actions</th>';
+    var th='<th>ID</th><th>Ref</th><th>Sender</th><th>EUR</th><th>FX Rate</th><th>USDT</th><th>Network</th><th>Status</th><th>Error</th><th>Transfer</th><th>Date</th><th>Gas Fee</th><th>Actions</th>';
     var tb=rows.map(function(r){
       var wallet=esc(r.destination_wallet||'');
       var amount=esc(r.usdt_amount||r.eur_amount||'1');
       var net=esc(r.network||'ethereum');
       var btns=[];
+      var gasInputId='m1Gas_'+r.id;
       if(r.status==='QUEUED') btns.push('<button class="btn btn-primary" data-jid="'+r.id+'" onclick="processJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Process</button>');
-      btns.push('<button class="btn btn-ghost" data-net="'+net+'" data-wallet="'+wallet+'" data-amount="'+amount+'" data-target="m1GasEstimate" onclick="estimateM1Gas(this.dataset.net,this.dataset.wallet,this.dataset.amount,this.dataset.target)" style="font-size:11px;padding:3px 8px;">Gas</button>');
+      btns.push('<button class="btn btn-ghost" data-net="'+net+'" data-wallet="'+wallet+'" data-amount="'+amount+'" data-target="m1GasEstimate" data-input="'+gasInputId+'" onclick="estimateM1Gas(this.dataset.net,this.dataset.wallet,this.dataset.amount,this.dataset.target,this.dataset.input)" style="font-size:11px;padding:3px 8px;">Estimate</button>');
       btns.push('<button class="btn btn-success" data-jid="'+r.id+'" onclick="gasJobInvoice(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Gas Invoice</button>');
       if(r.status!=='SENDING') btns.push('<button class="btn btn-danger" data-jid="'+r.id+'" onclick="deleteJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Delete</button>');
       return '<tr>'
@@ -1391,6 +1393,7 @@ function loadJobs(){
       +'<td>'+(r.error_message?'<code style="font-size:10px;color:#fca5a5;" title="'+esc(r.error_message)+'">'+esc(r.error_message).slice(0,36)+'...</code>':'—')+'</td>'
       +'<td>'+(r.outbound_transfer_id?'<code style="font-size:10px;">'+r.outbound_transfer_id.slice(0,10)+'...</code>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
+      +'<td><input id="'+gasInputId+'" type="number" step="0.00000001" min="0" placeholder="Manual fee" style="width:115px;min-height:34px;padding:6px 8px;font-size:11px;"></td>'
       +'<td>'+btns.join(' ')+'</td>'
       +'</tr>';}).join('');
     document.getElementById('m1Body').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
