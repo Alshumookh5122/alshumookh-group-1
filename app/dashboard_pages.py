@@ -1280,7 +1280,13 @@ _TOKENIZATION_BODY = """
         <div class="form-field"><label>Network</label>
           <select id="m1Net"><option value="ethereum">Ethereum</option><option value="tron">TRON</option><option value="base">Base</option></select></div>
         <div class="form-field"><label>IBAN</label><input id="m1Iban" placeholder="Optional"></div>
-        <div class="form-field"><label>Manual Gas Fee Override</label><input id="m1ManualGas" type="number" step="0.00000001" placeholder="Optional native fee"></div>
+        <div class="form-field" style="grid-column:1 / -1;">
+          <button type="button" class="btn btn-ghost" onclick="toggleM1FormGas()" style="font-size:11px;padding:4px 10px;">Show Manual Gas Estimate</button>
+          <div id="m1FormGasBox" style="display:none;margin-top:8px;">
+            <label>Manual Gas Estimate Override</label>
+            <input id="m1ManualGas" type="number" step="0.00000001" placeholder="Optional estimate amount">
+          </div>
+        </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;">
         <button class="btn btn-ghost" onclick="estimateM1GasFromForm()">Estimate Gas Fee</button>
@@ -1300,6 +1306,11 @@ _TOKENIZATION_BODY = """
   </div>
 </div>
 <script>
+function toggleM1FormGas(){
+  var box=document.getElementById('m1FormGasBox');
+  if(!box)return;
+  box.style.display=(box.style.display==='none'||!box.style.display)?'block':'none';
+}
 function loadFx(){
   api('/api/v1/admin/tokenization-jobs/fx-rate/live').then(function(r) {
     document.getElementById('fxBanner').innerHTML='<div style="font-size:28px;font-weight:800;color:var(--gold);">1 EUR = '+parseFloat(r.eur_usd).toFixed(4)+' USD</div><div style="color:var(--muted);font-size:12px;">Provider: '+(r.provider||'—')+'<br>'+fmtDate(r.timestamp)+'</div>';
@@ -1341,6 +1352,10 @@ function readM1GasOverride(inputId){
 function estimateM1Gas(network,wallet,amount,target,inputId){
   var manualGas=readM1GasOverride(inputId);
   if(manualGas===null) return;
+  if(manualGas){
+    renderGasEstimate(target||'m1GasEstimate',{estimated_native_fee:manualGas,native_symbol:'USDT TRC20',network:'tron',source:'manual_admin_override'});
+    return;
+  }
   api('/api/v1/admin/tokenization-jobs/gas-fee/estimate',{method:'POST',body:JSON.stringify({network:network,destination_wallet:wallet,amount:amount||'1',manual_gas_fee:manualGas||null})})
     .then(function(r){renderGasEstimate(target||'m1GasEstimate',r);})
     .catch(function(e){showToast('Gas estimate error: '+e.message,'error');});
@@ -1353,11 +1368,24 @@ function estimateM1GasFromForm(){
 function gasJobInvoice(id){
   var manualGas=readM1GasOverride('m1Gas_'+id);
   if(manualGas===null) return;
-  api('/api/v1/admin/tokenization-jobs/'+id+'/gas-fee-invoice',{method:'POST',body:JSON.stringify({manual_gas_fee:manualGas||null})}).then(function(r){
+  if(!manualGas){
+    toggleM1GasBox(id);
+    showToast('Add the USDT TRC20 gas fee amount first','error');
+    return;
+  }
+  api('/api/v1/admin/tokenization-jobs/'+id+'/gas-fee-invoice',{method:'POST',body:JSON.stringify({manual_gas_fee:manualGas})}).then(function(r){
     showToast('Gas fee invoice created','ok');
     if(r.invoice_url) window.open(r.invoice_url,'_blank');
     loadJobs();
   }).catch(function(e){showToast('Gas invoice error: '+e.message,'error');});
+}
+function toggleM1GasBox(id){
+  var box=document.getElementById('m1GasBox_'+id);
+  var input=document.getElementById('m1Gas_'+id);
+  if(!box) return;
+  var open=box.style.display==='none' || !box.style.display;
+  box.style.display=open?'grid':'none';
+  if(open && input) input.focus();
 }
 function deleteJob(id){
   if(!confirm('Delete this M1 job? This cannot be undone.'))return;
@@ -1378,9 +1406,14 @@ function loadJobs(){
       var btns=[];
       var gasInputId='m1Gas_'+r.id;
       if(r.status==='QUEUED') btns.push('<button class="btn btn-primary" data-jid="'+r.id+'" onclick="processJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Process</button>');
-      btns.push('<button class="btn btn-ghost" data-net="'+net+'" data-wallet="'+wallet+'" data-amount="'+amount+'" data-target="m1GasEstimate" data-input="'+gasInputId+'" onclick="estimateM1Gas(this.dataset.net,this.dataset.wallet,this.dataset.amount,this.dataset.target,this.dataset.input)" style="font-size:11px;padding:3px 8px;">Estimate</button>');
+      btns.push('<button class="btn btn-ghost" data-jid="'+r.id+'" onclick="toggleM1GasBox(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Add Gas Fee</button>');
       btns.push('<button class="btn btn-success" data-jid="'+r.id+'" onclick="gasJobInvoice(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Gas Invoice</button>');
       if(r.status!=='SENDING') btns.push('<button class="btn btn-danger" data-jid="'+r.id+'" onclick="deleteJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Delete</button>');
+      var gasBox='<div id="m1GasBox_'+r.id+'" style="display:none;grid-template-columns:minmax(110px,1fr) auto;gap:6px;align-items:center;">'
+        +'<input id="'+gasInputId+'" type="number" step="0.00000001" min="0" placeholder="USDT TRC20 amount" style="width:150px;min-height:34px;padding:6px 8px;font-size:11px;">'
+        +'<button class="btn btn-ghost" data-net="'+net+'" data-wallet="'+wallet+'" data-amount="'+amount+'" data-target="m1GasEstimate" data-input="'+gasInputId+'" onclick="estimateM1Gas(this.dataset.net,this.dataset.wallet,this.dataset.amount,this.dataset.target,this.dataset.input)" style="font-size:11px;padding:3px 8px;">Check</button>'
+        +'<div style="grid-column:1 / -1;color:var(--muted);font-size:10px;">Invoice fee is collected in USDT TRC20 on TRON.</div>'
+        +'</div>';
       return '<tr>'
       +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,10)+'...</code></td>'
       +'<td>'+(r.sender_reference||'—')+'</td>'
@@ -1393,7 +1426,7 @@ function loadJobs(){
       +'<td>'+(r.error_message?'<code style="font-size:10px;color:#fca5a5;" title="'+esc(r.error_message)+'">'+esc(r.error_message).slice(0,36)+'...</code>':'—')+'</td>'
       +'<td>'+(r.outbound_transfer_id?'<code style="font-size:10px;">'+r.outbound_transfer_id.slice(0,10)+'...</code>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><input id="'+gasInputId+'" type="number" step="0.00000001" min="0" placeholder="Manual fee" style="width:115px;min-height:34px;padding:6px 8px;font-size:11px;"></td>'
+      +'<td>'+gasBox+'</td>'
       +'<td>'+btns.join(' ')+'</td>'
       +'</tr>';}).join('');
     document.getElementById('m1Body').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';

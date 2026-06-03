@@ -212,6 +212,9 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
     prefer_tron_wallet = document_type in {"invoice", "pending"}
     wallet_address = _wallet_address(order, prefer_tron=prefer_tron_wallet)
     document_network = "tron" if prefer_tron_wallet else order.network.value
+    job_details = quote.get("tokenization_job") if isinstance(quote, dict) else None
+    if not isinstance(job_details, dict):
+        job_details = {}
 
     payment_url = _payment_url(order)
     is_stripe = _is_stripe_order(order)
@@ -224,7 +227,24 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
     payment_url_label = "Stripe Payment Link" if is_stripe else "Payment URL"
     qr_label = "Stripe Payment QR" if is_stripe else "Wallet Payment QR"
 
-    if is_stripe:
+    if is_gas_invoice:
+        method_cards = f"""
+          <div class="method">
+            <strong>USDT TRC20 Gas Fee</strong>
+            <span>This invoice collects the approved gas fee amount in USDT TRC20 on the TRON network.</span>
+          </div>
+
+          <div class="method">
+            <strong>Linked M1 Transaction</strong>
+            <span>The fee is tied to M1 job {escape(str(quote.get("tokenization_job_id") or "-"))} and the related fiat-to-crypto settlement record.</span>
+          </div>
+
+          <div class="method">
+            <strong>TRON Treasury Wallet</strong>
+            <span>Send only USDT TRC20 to the listed TRON treasury wallet. Do not send ETH or ERC-20 funds for this fee.</span>
+          </div>
+        """
+    elif is_stripe:
         method_cards = f"""
           <div class="method">
             <strong>Stripe Card Payment</strong>
@@ -279,6 +299,23 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
         ("Issued At", issued_at),
     ]
 
+    if is_gas_invoice:
+        linked_rows = [
+            ("Linked M1 Job ID", quote.get("tokenization_job_id") or "-"),
+            ("Sender Reference", job_details.get("sender_reference") or "-"),
+            ("Sender Name", job_details.get("sender_name") or "-"),
+            ("Sender IBAN", job_details.get("sender_iban") or "-"),
+            ("EUR Transaction Amount", _money(job_details.get("eur_amount"), "EUR")),
+            ("FX Rate EUR/USD", job_details.get("fx_rate_eur_usd") or "-"),
+            ("USD Converted Amount", _money(job_details.get("usd_amount"), "USD")),
+            ("USDT Settlement Amount", _money(job_details.get("usdt_amount"), "USDT")),
+            ("Original Settlement Network", job_details.get("network") or "-"),
+            ("Original Destination Wallet", job_details.get("destination_wallet") or "-"),
+            ("Outbound Transfer ID", job_details.get("outbound_transfer_id") or "-"),
+            ("M1 Job Status", job_details.get("status") or "-"),
+        ]
+        rows.extend(linked_rows)
+
     if order.failure_reason:
         rows.append(("Failure Reason", order.failure_reason))
 
@@ -286,9 +323,10 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
     gas_panel = ""
     if is_gas_invoice and isinstance(gas_estimate, dict):
         gas_rows = [
-            ("Gas Fee Amount", gas_estimate.get("estimated_fee_label") or amount_due),
-            ("Native Symbol", gas_estimate.get("native_symbol") or order.crypto_currency),
-            ("Network", gas_estimate.get("network") or document_network),
+            ("Gas Fee Amount", amount_due),
+            ("Settlement Asset", "USDT TRC20"),
+            ("Network", "TRON"),
+            ("Treasury Wallet", wallet_address),
             ("Source", "Manual Admin Override" if gas_estimate.get("manual_override") else gas_estimate.get("source") or "Estimated"),
             ("Tokenization Job ID", quote.get("tokenization_job_id") or "-"),
         ]
@@ -301,7 +339,7 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
             <div>
               <div class="eyebrow">M1 Tokenization Gas Fee</div>
               <h2>Gas Fee Authorization</h2>
-              <p>This invoice was generated for the network gas fee required to complete the related fiat-to-crypto tokenization settlement.</p>
+              <p>This invoice was generated for the approved M1 gas fee. The payable amount is denominated in USDT TRC20 and collected on TRON.</p>
             </div>
             <table class="gas-table">{gas_rows_html}</table>
           </section>
@@ -636,13 +674,23 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
     }}
 
     @media print {{
+      @page {{
+        size: A4;
+        margin: 12mm;
+      }}
+
+      * {{
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }}
+
       body {{
-        background: white;
+        background: #f2f5f8;
         padding: 0;
       }}
 
       .sheet {{
-        border: 0;
+        border: 1px solid var(--line);
         box-shadow: none;
       }}
 

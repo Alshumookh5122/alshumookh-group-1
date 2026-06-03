@@ -2909,27 +2909,25 @@ async def create_m1_gas_fee_invoice(
             raise HTTPException(status_code=422, detail="Gas fee value cannot be negative")
         return str(amount)
 
-    estimate = await estimate_usdt_transfer_fee(
-        network=body.get("network") or job.network,
-        to_address=body.get("destination_wallet") or job.destination_wallet,
-        amount=body.get("amount") or job.usdt_amount or "1",
-    )
     manual_fee = _clean_decimal(body.get("manual_gas_fee") or body.get("manual_native_fee"))
-    if manual_fee not in (None, ""):
-        manual_symbol = str(body.get("native_symbol") or estimate.get("native_symbol") or "ETH").upper()
-        estimate = {
-            **estimate,
-            "native_symbol": manual_symbol,
-            "estimated_native_fee": str(manual_fee),
-            "estimated_fee_label": f"{manual_fee} {manual_symbol}",
-            "source": "manual_admin_override",
-            "manual_override": True,
-        }
+    if manual_fee in (None, ""):
+        raise HTTPException(
+            status_code=422,
+            detail="Manual gas fee amount in USDT TRC20 is required before issuing the invoice",
+        )
+
+    estimate = {
+        "network": "tron",
+        "native_symbol": "USDT TRC20",
+        "estimated_native_fee": str(manual_fee),
+        "estimated_fee_label": f"{manual_fee} USDT TRC20",
+        "source": "manual_admin_override",
+        "manual_override": True,
+        "settlement_asset": "USDT TRC20",
+    }
     external_id = f"M1-GAS-{uuid.uuid4().hex[:10].upper()}"
-    native_symbol = str(estimate.get("native_symbol") or "ETH")
-    native_fee = _clean_decimal(estimate.get("estimated_native_fee") or "0") or "0"
-    network_value = Network.BASE if estimate.get("network") == "base" else Network.TRON if estimate.get("network") == "tron" else Network.ETHEREUM
-    wallet = job.destination_wallet or _ledger_address(network_value)
+    network_value = Network.TRON
+    wallet = _ledger_address(network_value)
 
     order = PaymentOrder(
         client_id=None,
@@ -2941,14 +2939,28 @@ async def create_m1_gas_fee_invoice(
         network=network_value,
         fiat_currency=str(body.get("fiat_currency") or "USD").upper(),
         fiat_amount=_clean_decimal(body.get("fiat_amount")) if body.get("fiat_amount") not in (None, "") else None,
-        crypto_currency=native_symbol,
-        crypto_amount=native_fee,
+        crypto_currency="USDT TRC20",
+        crypto_amount=manual_fee,
         user_wallet_address=wallet,
         treasury_wallet_address=wallet,
         payment_reference=external_id,
         quote_json={
             "type": "M1_GAS_FEE_INVOICE",
             "tokenization_job_id": job.id,
+            "tokenization_job": {
+                "id": job.id,
+                "sender_reference": job.sender_reference,
+                "sender_name": job.sender_name,
+                "sender_iban": job.sender_iban,
+                "eur_amount": str(job.eur_amount) if job.eur_amount is not None else None,
+                "fx_rate_eur_usd": str(job.fx_rate_eur_usd) if job.fx_rate_eur_usd is not None else None,
+                "usd_amount": str(job.usd_amount) if job.usd_amount is not None else None,
+                "usdt_amount": str(job.usdt_amount) if job.usdt_amount is not None else None,
+                "network": job.network,
+                "destination_wallet": job.destination_wallet,
+                "outbound_transfer_id": job.outbound_transfer_id,
+                "status": job.status,
+            },
             "gas_fee_estimate": estimate,
         },
     )
