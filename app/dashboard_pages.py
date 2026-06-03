@@ -65,6 +65,7 @@ _SIDEBAR_LINKS = [
     ("/dashboard/counterparties","🔑", "Counterparties"),
     ("/dashboard/security",      "🛡", "Security"),
     ("/dashboard/documents",     "📄", "Documents"),
+    ("/dashboard/reports",       "📊", "Reports"),
     ("/dashboard/logs",          "📝", "Audit Logs"),
     ("/swift",                   "⬡", "SWIFT Terminal"),
 ]
@@ -359,7 +360,7 @@ function badge(s){
 
 function fmtDate(d){
   if(!d) return '—';
-  return new Date(d).toLocaleString('ar-SA',{dateStyle:'short',timeStyle:'short'});
+  return new Date(d).toLocaleString('en-US',{dateStyle:'short',timeStyle:'short'});
 }
 
 function fmtNum(n,dec){
@@ -877,8 +878,55 @@ _ORDERS_BODY = """
     </div>
     <div id="ordersBody"><div class="empty-state"><div class="icon">📋</div>Loading...</div></div>
   </div>
+  <div id="orderDetailPanel" class="panel" style="display:none;">
+    <div class="panel-head">
+      <h3 id="orderDetailTitle">Transaction Details</h3>
+      <button class="btn btn-ghost" onclick="closeOrderDetails()">Close</button>
+    </div>
+    <div id="orderDetailBody" style="padding:16px;"></div>
+  </div>
 </div>
 <script>
+function closeOrderDetails(){document.getElementById('orderDetailPanel').style.display='none';}
+function openOrderDetails(id){
+  var panel=document.getElementById('orderDetailPanel');
+  var body=document.getElementById('orderDetailBody');
+  panel.style.display='block';
+  body.innerHTML='<div class="empty-state"><div class="icon">🔎</div>Loading transaction details...</div>';
+  api('/api/v1/admin/orders/'+id+'/details').then(function(data){
+    var o=data.order||{};
+    var docs=data.documents||{};
+    var logs=data.audit_logs||[];
+    document.getElementById('orderDetailTitle').textContent='Transaction Details - '+(o.external_id||o.id||id);
+    var rows=[
+      ['Transaction ID',o.id],['External ID',o.external_id],['Provider',o.provider],['Status',o.status],
+      ['Network',o.network],['Fiat Amount',(o.fiat_amount||'—')+' '+(o.fiat_currency||'')],
+      ['Crypto Amount',(o.crypto_amount||'—')+' '+(o.crypto_currency||'')],
+      ['Payment Reference',o.payment_reference],['Provider Order ID',o.provider_order_id],
+      ['TX Hash',o.tx_hash],['Payer Email',o.payer_email],['Destination',o.destination_address],
+      ['Treasury Wallet',o.treasury_wallet_address],['Customer Wallet',o.customer_wallet_address],
+      ['Checkout URL',o.checkout_url||o.payment_url],['Idempotency Key',o.idempotency_key],
+      ['Failure Reason',o.failure_reason],['Created At',fmtDate(o.created_at)],['Updated At',fmtDate(o.updated_at)]
+    ];
+    var detailRows=rows.map(function(r){
+      var val=r[1]||'—';
+      var isUrl=String(val).indexOf('http')===0;
+      return '<tr><th style="width:220px;">'+esc(r[0])+'</th><td style="word-break:break-all;">'+(isUrl?'<a href="'+esc(val)+'" target="_blank">'+esc(val)+'</a>':esc(val))+'</td></tr>';
+    }).join('');
+    var logRows=logs.length?logs.map(function(l){
+      return '<tr><td>'+esc(l.event_type||'')+'</td><td>'+esc(l.method||'')+'</td><td>'+esc(l.endpoint||'')+'</td><td>'+esc(String(l.status_code||'—'))+'</td><td>'+fmtDate(l.created_at)+'</td></tr>';
+    }).join(''):'<tr><td colspan="5">No audit logs found.</td></tr>';
+    body.innerHTML=
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">'
+      +'<button class="btn btn-primary" onclick="window.open(\\'/api/v1/admin/orders/'+esc(o.id||id)+'/documents/statement\\',\\'_blank\\')">Print Statement</button>'
+      +'<button class="btn btn-ghost" onclick="window.open(\\''+esc(docs.invoice_url||('/api/v1/admin/orders/'+(o.id||id)+'/documents/invoice'))+'\\',\\'_blank\\')">Invoice</button>'
+      +'<button class="btn btn-ghost" onclick="window.open(\\'/api/v1/admin/reports/transactions?order_id='+esc(o.id||id)+'\\',\\'_blank\\')">Single Report</button>'
+      +'</div>'
+      +'<div class="table-wrap"><table><tbody>'+detailRows+'</tbody></table></div>'
+      +'<h4 style="margin:18px 0 8px;">Audit Trail</h4><div class="table-wrap"><table><thead><tr><th>Event</th><th>Method</th><th>Endpoint</th><th>Status</th><th>Date</th></tr></thead><tbody>'+logRows+'</tbody></table></div>';
+    panel.scrollIntoView({behavior:'smooth'});
+  }).catch(function(e){body.innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
+}
 function loadOrders() {
   var st = document.getElementById('ordStatus').value;
   var url = '/api/v1/admin/orders' + (st ? '?status='+st : '');
@@ -901,7 +949,7 @@ function loadOrders() {
       +'<td>'+(o.payment_reference?'<code style="font-size:10px;">'+o.payment_reference+'</code>':'—')+'</td>'
       +'<td>'+(o.tx_hash?'<code style="font-size:10px;" title="'+o.tx_hash+'">'+o.tx_hash.slice(0,14)+'...</code>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(o.created_at)+'</td>'
-      +'<td><button class="btn btn-danger" data-oid="'+o.id+'" onclick="deleteOrderPage(this.dataset.oid)" style="font-size:11px;padding:3px 8px;">Delete</button></td>'
+      +'<td><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-ghost" data-oid="'+o.id+'" onclick="openOrderDetails(this.dataset.oid)" style="font-size:11px;padding:3px 8px;">View</button><button class="btn btn-primary" data-oid="'+o.id+'" onclick="window.open(\\'/api/v1/admin/orders/'+o.id+'/documents/statement\\',\\'_blank\\')" style="font-size:11px;padding:3px 8px;">Statement</button><button class="btn btn-danger" data-oid="'+o.id+'" onclick="deleteOrderPage(this.dataset.oid)" style="font-size:11px;padding:3px 8px;">Delete</button></div></td>'
       +'</tr>';}).join('');
     document.getElementById('ordersBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e) {
@@ -1083,8 +1131,16 @@ _TRANSFERS_BODY = """
     </div>
     <div id="xtBody"><div class="empty-state"><div class="icon">🚀</div>Loading...</div></div>
   </div>
+  <div id="xferDetailPanel" class="panel" style="display:none;">
+    <div class="panel-head">
+      <h3 id="xferDetailTitle">Transfer Details</h3>
+      <button class="btn btn-ghost" onclick="closeXferDetails()">Close</button>
+    </div>
+    <div id="xferDetailBody" style="padding:16px;"></div>
+  </div>
 </div>
 <script>
+var _xferRows={};
 function toggleCF(){
   var el=document.getElementById('createXferForm');
   el.style.display=el.style.display==='none'?'block':'none';
@@ -1128,6 +1184,23 @@ function deleteXfer(id){
   if(!confirm('Delete this transfer? This cannot be undone.'))return;
   api('/api/v1/admin/outbound-transfers/'+id,{method:'DELETE'}).then(function(){showToast('Transfer deleted','ok');loadTransfers();}).catch(function(e){showToast('Delete error: '+e.message,'error');});
 }
+function closeXferDetails(){document.getElementById('xferDetailPanel').style.display='none';}
+function viewXfer(id){
+  var r=_xferRows[id];
+  if(!r){showToast('Transfer details not found. Refresh and try again.','error');return;}
+  document.getElementById('xferDetailTitle').textContent='Transfer Details - '+id;
+  var rows=[
+    ['ID',r.id],['Network',r.network],['Amount',fmtNum(r.amount)+' USDT'],['Status',r.status],
+    ['To Address',r.to_address],['TX Hash',r.tx_hash],['Approved By',r.approved_by],
+    ['Broadcast Error',r.error_message],['Callback URL',r.callback_url],['Notes',r.notes],
+    ['Created At',fmtDate(r.created_at)],['Updated At',fmtDate(r.updated_at)]
+  ];
+  document.getElementById('xferDetailBody').innerHTML='<div class="table-wrap"><table><tbody>'+rows.map(function(x){
+    return '<tr><th style="width:220px;">'+esc(x[0])+'</th><td style="word-break:break-all;">'+esc(x[1]||'—')+'</td></tr>';
+  }).join('')+'</tbody></table></div>';
+  document.getElementById('xferDetailPanel').style.display='block';
+  document.getElementById('xferDetailPanel').scrollIntoView({behavior:'smooth'});
+}
 
 function loadTransfers(){
   var st=document.getElementById('xtStatus').value;
@@ -1136,6 +1209,7 @@ function loadTransfers(){
   if(st)url+='&status='+st;if(nt)url+='&network='+nt;
   api(url).then(function(rows) {
     if(!Array.isArray(rows))rows=[];
+    _xferRows={}; rows.forEach(function(x){_xferRows[x.id]=x;});
     document.getElementById('xtCount').textContent=rows.length+' transfers';
     if(!rows.length){document.getElementById('xtBody').innerHTML='<div class="empty-state"><div class="icon">🚀</div>No transfers found</div>';return;}
     var th='<th>ID</th><th>Network</th><th>Amount</th><th>To Address</th><th>TX Hash</th><th>Status</th><th>Error</th><th>Approved By</th><th>Date</th><th>Actions</th>';
@@ -1151,6 +1225,7 @@ function loadTransfers(){
         btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="cancelXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Cancel</button>');
       if(r.status!=='BROADCASTING')
         btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="deleteXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Delete</button>');
+      btns.unshift('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="viewXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">View</button>');
       return '<tr>'
         +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,10)+'...</code></td>'
         +'<td><strong>'+(r.network||'').toUpperCase()+'</strong></td>'
@@ -1253,9 +1328,16 @@ function renderGasEstimate(target, r){
   if(el) el.innerHTML=html;
   showToast('Gas fee estimated','ok');
 }
+function manualGasPrompt(currentValue){
+  var value=prompt('Manual gas fee override (optional). Leave empty for automatic estimate:', currentValue||'');
+  if(value===null) return null;
+  return String(value).trim();
+}
 function estimateM1Gas(network,wallet,amount,target){
   var manualEl=document.getElementById('m1ManualGas');
   var manualGas=manualEl?manualEl.value.trim():'';
+  manualGas=manualGas||manualGasPrompt('');
+  if(manualGas===null) return;
   api('/api/v1/admin/tokenization-jobs/gas-fee/estimate',{method:'POST',body:JSON.stringify({network:network,destination_wallet:wallet,amount:amount||'1',manual_gas_fee:manualGas||null})})
     .then(function(r){renderGasEstimate(target||'m1GasEstimate',r);})
     .catch(function(e){showToast('Gas estimate error: '+e.message,'error');});
@@ -1268,6 +1350,8 @@ function estimateM1GasFromForm(){
 function gasJobInvoice(id){
   var manualEl=document.getElementById('m1ManualGas');
   var manualGas=manualEl?manualEl.value.trim():'';
+  manualGas=manualGas||manualGasPrompt('');
+  if(manualGas===null) return;
   api('/api/v1/admin/tokenization-jobs/'+id+'/gas-fee-invoice',{method:'POST',body:JSON.stringify({manual_gas_fee:manualGas||null})}).then(function(r){
     showToast('Gas fee invoice created','ok');
     if(r.invoice_url) window.open(r.invoice_url,'_blank');
@@ -2072,6 +2156,7 @@ function loadDocs(){
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
       +'<td><div style="display:flex;gap:4px;">'
         +'<a href="/api/v1/admin/orders/'+r.id+'/documents/invoice" target="_blank" style="padding:2px 8px;border-radius:5px;background:rgba(79,142,247,.15);color:var(--brand);font-size:11px;text-decoration:none;border:1px solid rgba(79,142,247,.3);">Invoice</a>'
+        +'<a href="/api/v1/admin/orders/'+r.id+'/documents/statement" target="_blank" style="padding:2px 8px;border-radius:5px;background:rgba(199,154,69,.15);color:var(--gold);font-size:11px;text-decoration:none;border:1px solid rgba(199,154,69,.3);">Statement</a>'
         +'<a href="/api/v1/admin/orders/'+r.id+'/documents/receive-receipt" target="_blank" style="padding:2px 8px;border-radius:5px;background:rgba(16,185,129,.1);color:#10b981;font-size:11px;text-decoration:none;border:1px solid rgba(16,185,129,.2);">Receipt</a>'
         +'</div></td>'
       +'</tr>';}).join('');
@@ -2079,6 +2164,75 @@ function loadDocs(){
   }).catch(function(e){document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
 loadDocs();
+</script>
+"""
+
+# ─── REPORTS ─────────────────────────────────────────────────────────────────
+
+_REPORTS_BODY = """
+<div class="page-body">
+  <div class="panel">
+    <div class="panel-head"><h3>Professional Reports & Statements</h3></div>
+    <div style="padding:16px;">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="label">All Transactions</div>
+          <div class="value" style="font-size:16px;">Complete Report</div>
+          <div class="sub">Status, amount, reference, provider, wallet and TX hash.</div>
+          <button class="btn btn-primary" style="margin-top:12px;" onclick="window.open('/api/v1/admin/reports/transactions','_blank')">Print Full Report</button>
+        </div>
+        <div class="stat-card">
+          <div class="label">Single Transaction</div>
+          <div class="value" style="font-size:16px;">Bank Statement</div>
+          <div class="sub">Enter a transaction ID from Orders, Stripe, MoonPay, Direct Crypto, or M1 Gas invoice.</div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+            <input id="reportOrderId" placeholder="Transaction ID" style="min-width:260px;">
+            <button class="btn btn-ghost" onclick="openSingleStatement()">Print Statement</button>
+            <button class="btn btn-ghost" onclick="openSingleReport()">Single Report</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Recent Transactions</h3>
+      <button class="btn btn-ghost" onclick="loadReportOrders()">Refresh</button>
+    </div>
+    <div id="reportOrders"><div class="empty-state"><div class="icon">📊</div>Loading...</div></div>
+  </div>
+</div>
+<script>
+function openSingleStatement(){
+  var id=(document.getElementById('reportOrderId').value||'').trim();
+  if(!id){showToast('Enter a transaction ID first','error');return;}
+  window.open('/api/v1/admin/orders/'+encodeURIComponent(id)+'/documents/statement','_blank');
+}
+function openSingleReport(){
+  var id=(document.getElementById('reportOrderId').value||'').trim();
+  if(!id){showToast('Enter a transaction ID first','error');return;}
+  window.open('/api/v1/admin/reports/transactions?order_id='+encodeURIComponent(id),'_blank');
+}
+function loadReportOrders(){
+  api('/api/v1/admin/orders').then(function(rows){
+    if(!Array.isArray(rows)) rows=rows.orders||[];
+    if(!rows.length){document.getElementById('reportOrders').innerHTML='<div class="empty-state"><div class="icon">📊</div>No transactions found</div>';return;}
+    rows=rows.slice(0,50);
+    var th='<th>ID</th><th>Reference</th><th>Provider</th><th>Status</th><th>Fiat</th><th>Crypto</th><th>Date</th><th>Actions</th>';
+    var tb=rows.map(function(o){return '<tr>'
+      +'<td><code title="'+esc(o.id||'')+'">'+esc((o.id||'').slice(0,12))+'...</code></td>'
+      +'<td>'+esc(o.external_id||o.payment_reference||'—')+'</td>'
+      +'<td>'+esc(o.provider||'')+'</td>'
+      +'<td>'+badge(o.status||'')+'</td>'
+      +'<td>'+fmtNum(o.fiat_amount)+' '+esc(o.fiat_currency||'')+'</td>'
+      +'<td>'+fmtNum(o.crypto_amount,6)+' '+esc(o.crypto_currency||'')+'</td>'
+      +'<td>'+fmtDate(o.created_at)+'</td>'
+      +'<td><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-primary" data-id="'+esc(o.id||'')+'" onclick="window.open(\\'/api/v1/admin/orders/\\'+encodeURIComponent(this.dataset.id)+\\'/documents/statement\\',\\'_blank\\')" style="font-size:11px;padding:3px 8px;">Statement</button><button class="btn btn-ghost" data-id="'+esc(o.id||'')+'" onclick="window.open(\\'/api/v1/admin/reports/transactions?order_id=\\'+encodeURIComponent(this.dataset.id),\\'_blank\\')" style="font-size:11px;padding:3px 8px;">Report</button></div></td>'
+      +'</tr>';}).join('');
+    document.getElementById('reportOrders').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
+  }).catch(function(e){document.getElementById('reportOrders').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
+}
+loadReportOrders();
 </script>
 """
 
@@ -2425,6 +2579,14 @@ async def dashboard_documents(request: Request):
     if g:
         return g
     return HTMLResponse(_page("Documents", "/dashboard/documents", _DOCUMENTS_BODY))
+
+
+@router.get("/dashboard/reports", response_class=HTMLResponse)
+async def dashboard_reports(request: Request):
+    g = _guard(request)
+    if g:
+        return g
+    return HTMLResponse(_page("Reports", "/dashboard/reports", _REPORTS_BODY))
 
 
 @router.get("/dashboard/logs", response_class=HTMLResponse)

@@ -11,6 +11,7 @@ from app.models import OrderStatus, PaymentOrder
 settings = get_settings()
 
 ETHEREUM_LEDGER_WALLET = "0xBD682cfD8382a90adfDd6745780D3D7959c4d939"
+TRON_LEDGER_WALLET = "TLARV2U9NzuK9QfzV3PQjwabQTGiEEqjTn"
 
 
 def _now() -> datetime:
@@ -66,7 +67,20 @@ def _logo_url() -> str:
     return f"{_public_base_url()}/static/company-logo.png"
 
 
-def _wallet_address(order: PaymentOrder) -> str:
+def _configured_tron_wallet() -> str:
+    return (
+        getattr(settings, "master_wallet_tron", None)
+        or getattr(settings, "ledger_tron_address", None)
+        or getattr(settings, "tron_treasury_address", None)
+        or getattr(settings, "circle_wallet_address", None)
+        or TRON_LEDGER_WALLET
+    )
+
+
+def _wallet_address(order: PaymentOrder, *, prefer_tron: bool = False) -> str:
+    if prefer_tron:
+        return _configured_tron_wallet()
+
     return (
         getattr(order, "treasury_wallet_address", None)
         or getattr(order, "user_wallet_address", None)
@@ -95,14 +109,21 @@ def _qr_url(data: str, size: int = 180) -> str:
     )
 
 
-def _wallet_qr_url(order: PaymentOrder, size: int = 180) -> str:
-    wallet = _wallet_address(order)
+def _wallet_qr_url(
+    order: PaymentOrder,
+    size: int = 180,
+    *,
+    wallet: str | None = None,
+    network_label: str | None = None,
+) -> str:
+    wallet = wallet or _wallet_address(order)
+    network = network_label or order.network.value
 
     data = "\n".join(
         [
             "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT",
             f"Wallet: {wallet}",
-            f"Network: {order.network.value.upper()}",
+            f"Network: {network.upper()}",
             f"Currency: {order.crypto_currency}",
             f"Amount: {_money(order.crypto_amount, order.crypto_currency)}",
             f"Reference: {getattr(order, 'payment_reference', None) or order.external_id or order.id}",
@@ -173,16 +194,29 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
         subtitle = "Receipt for crypto delivery to the configured Ledger wallet"
         note = "MoonPay Commerce or direct crypto payment delivers crypto to the Ledger destination address."
 
+    elif document_type == "statement":
+        title = "Bank Transaction Statement"
+        number = _doc_number("STM", order)
+        subtitle = "Official transaction statement issued by ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT"
+        note = "This statement summarizes the selected transaction, status, references, wallet movement, provider data, and audit-ready settlement details."
+
     else:
         raise ValueError("Unsupported document type")
 
     status = _status_label(order.status)
     issued_at = _now().strftime("%Y-%m-%d %H:%M UTC")
     created_at = order.created_at.strftime("%Y-%m-%d %H:%M UTC") if order.created_at else "-"
+    prefer_tron_wallet = document_type in {"invoice", "pending"}
+    wallet_address = _wallet_address(order, prefer_tron=prefer_tron_wallet)
+    document_network = "tron" if prefer_tron_wallet else order.network.value
 
     payment_url = _payment_url(order)
     is_stripe = _is_stripe_order(order)
-    qr_url = _payment_qr_url(order) if is_stripe and getattr(order, "checkout_url", None) else _wallet_qr_url(order)
+    qr_url = (
+        _payment_qr_url(order)
+        if is_stripe and getattr(order, "checkout_url", None)
+        else _wallet_qr_url(order, wallet=wallet_address, network_label=document_network)
+    )
     logo_url = _logo_url()
     payment_url_label = "Stripe Payment Link" if is_stripe else "Payment URL"
     qr_label = "Stripe Payment QR" if is_stripe else "Wallet Payment QR"
@@ -218,7 +252,7 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
 
           <div class="method">
             <strong>Direct Crypto</strong>
-            <span>Scan the QR code or send only {escape(order.crypto_currency)} on {escape(order.network.value)} to the Ledger destination wallet.</span>
+            <span>Scan the QR code or send only {escape(order.crypto_currency)} on {escape(document_network)} to the Ledger destination wallet.</span>
           </div>
         """
 
@@ -230,11 +264,14 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
         ("Status", status),
         ("Fiat Amount", _money(order.fiat_amount, order.fiat_currency)),
         ("Crypto Amount", _money(order.crypto_amount, order.crypto_currency)),
-        ("Network", order.network.value),
-        ("Ledger Destination Wallet", _wallet_address(order)),
+        ("Network", document_network),
+        ("Ledger Destination Wallet", wallet_address),
         (payment_url_label, payment_url),
         ("Provider Order ID", getattr(order, "provider_order_id", None) or "-"),
         ("Transaction Hash", getattr(order, "tx_hash", None) or "-"),
+        ("Idempotency Key", getattr(order, "idempotency_key", None) or "-"),
+        ("Payer Email", getattr(order, "payer_email", None) or "-"),
+        ("Customer Wallet", getattr(order, "customer_wallet_address", None) or "-"),
         ("Created At", created_at),
         ("Issued At", issued_at),
     ]

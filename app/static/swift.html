@@ -899,7 +899,8 @@ function renderCard(r, idx) {
     var yymmdd = fmtDateShort(r.created_at).replace(/-/g,'').slice(2);
     var fmtAmt = r.fiat_amount ? yymmdd+' '+(r.fiat_currency||'')+'  '+r.fiat_amount : null;
     var orderCust = [r.sender_email, r.sender_wallet].filter(Boolean).join('\n');
-    mtHtml += mtBlock(':20:', 'TRANSACTION REFERENCE NUMBER', r.reference || r.id);
+    mtHtml += mtBlock(':20:', 'TRANSACTION REFERENCE NUMBER', r.trn || r.reference || r.id);
+    mtHtml += mtBlock(':21:', 'UETR / UNIQUE END-TO-END REFERENCE', r.uetr || r.utr || r.id);
     mtHtml += mtBlock(':23B:', 'BANK OPERATION CODE', 'CRED');
     mtHtml += mtBlock(':32A:', 'VALUE DATE / CURRENCY CODE / AMOUNT', fmtAmt);
     mtHtml += mtBlock(':50K:', 'ORDERING CUSTOMER', orderCust || null);
@@ -913,8 +914,8 @@ function renderCard(r, idx) {
   } else {
     var yymmdd2 = fmtDateShort(r.created_at).replace(/-/g,'').slice(2);
     var fmtAmt2 = r.amount ? yymmdd2+' '+(r.asset||'')+'  '+r.amount : null;
-    mtHtml += mtBlock(':20:', 'TRANSACTION REFERENCE', r.reference || r.id);
-    mtHtml += mtBlock(':21:', 'RELATED REFERENCE / UUID', r.id);
+    mtHtml += mtBlock(':20:', 'TRANSACTION REFERENCE', r.trn || r.reference || r.id);
+    mtHtml += mtBlock(':21:', 'UETR / RELATED REFERENCE', r.uetr || r.utr || r.id);
     mtHtml += mtBlock(':32A:', 'VALUE DATE / ASSET / AMOUNT', fmtAmt2);
     mtHtml += mtBlock(':52A:', 'ORDERING INSTITUTION / SECURITY LEVEL', r.security_level);
     mtHtml += mtBlock(':57A:', 'ACCOUNT WITH INSTITUTION / SETTLEMENT TYPE', r.settlement_type);
@@ -945,6 +946,8 @@ function renderCard(r, idx) {
   if (isOrder) {
     detailHtml += dRow('TRANSACTION UUID',     r.id,               'hi',         uid+'_uuid');
     detailHtml += dRow('PAYMENT REFERENCE',    r.reference,        'hi',         uid+'_ref');
+    detailHtml += dRow('TRN CODE',             r.trn,              'hi',         uid+'_trn');
+    detailHtml += dRow('UETR CODE',            r.uetr || r.utr,    'hi',         uid+'_uetr');
     detailHtml += dRow('STATUS',               r.status,           '',           null);
     detailHtml += dRow('PROVIDER',             r.provider,         '',           null);
     detailHtml += dRow('NETWORK',              r.network,          '',           null);
@@ -964,6 +967,8 @@ function renderCard(r, idx) {
   } else {
     detailHtml += dRow('PAYLOAD UUID',           r.id,               'hi',         uid+'_uuid');
     detailHtml += dRow('TRANSACTION REFERENCE',  r.reference,        'hi',         uid+'_ref');
+    detailHtml += dRow('TRN CODE',               r.trn,              'hi',         uid+'_trn');
+    detailHtml += dRow('UETR CODE',              r.uetr || r.utr,    'hi',         uid+'_uetr');
     detailHtml += dRow('VERIFICATION STATUS',    r.status,           '',           null);
     detailHtml += dRow('PARSING STATUS',         r.parsing_status,   '',           null);
     detailHtml += dRow('SECURITY LEVEL',         r.security_level,   '',           null);
@@ -1744,6 +1749,8 @@ function renderTransmitResponse(httpStatus, data) {
     _lastTransmit = {
       transmission_id: data.transmission_id || '—',
       msg_ref:         data.msg_ref || '—',
+      trn:             data.trn || data.msg_ref || '—',
+      uetr:            data.uetr || data.transmission_id || '—',
       status_code:     code,
       duration_ms:     data.duration_ms || 0,
       from_endpoint:   document.getElementById('txFromEndpoint').value || '',
@@ -1764,7 +1771,7 @@ function renderTransmitResponse(httpStatus, data) {
       interm_bic:      document.getElementById('txIntermBIC').value     || '',
       charges:         document.getElementById('txCharges').value       || 'SHA',
       tx_hash:         document.getElementById('txHash').value          || '',
-      uetr:            document.getElementById('txUETR').value          || '',
+      uetr:            data.uetr || document.getElementById('txUETR').value || '',
       timestamp:       new Date().toISOString(),
       response_body:   data.response_body || ''
     };
@@ -1796,7 +1803,7 @@ function printSwiftReceipt() {
   var msgNum   = t.msg_type.replace('MT','');
   var fromBIC  = t.from_bic  || 'ALSHUAEXAXXX';
   var toBIC    = t.to_bic    || 'XXXXXXXXXXXXXX';
-  var trn      = t.msg_ref   || ('ALSH-' + dateStr);
+  var trn      = t.trn || t.msg_ref || ('ALSH-' + dateStr);
   var uetr     = t.uetr      || t.transmission_id || '—';
   var amtFmt   = t.amount
     ? parseFloat(t.amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:8})
@@ -1926,7 +1933,7 @@ function printSwiftReceipt() {
     '<div class="block-title">User Header Block {3}</div>' +
     '<div class="mt-block">' +
       mtLine('{108:}',  'Message User Reference', trn) +
-      mtLine('{121:}',  'UETR (Unique End-to-End TRN)', uetr) +
+      mtLine('{121:}',  'UETR (Unique End-to-End Transaction Reference)', uetr) +
     '</div>' +
 
     '<hr class="divider">' +

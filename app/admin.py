@@ -947,7 +947,7 @@ async def client_details(
     payloads_result = await db.execute(
         select(ExternalPayload)
         .where(cast(ExternalPayload.api_client_id, String) == str(client_id))
-        .order_by(ExternalPayload.received_at.desc())
+        .order_by(ExternalPayload.created_at.desc())
         .limit(30)
     )
     logs_result = await db.execute(
@@ -1014,6 +1014,46 @@ async def client_details(
             }
             for log in logs
         ],
+    }
+
+
+@router.get("/orders/{order_id}/details")
+async def order_details(
+    order_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(PaymentOrder).where(cast(PaymentOrder.id, String) == str(order_id))
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    logs_result = await db.execute(
+        select(AuditLog)
+        .where(cast(AuditLog.order_id, String) == str(order_id))
+        .order_by(AuditLog.created_at.desc())
+        .limit(50)
+    )
+    order_data = _order_response(order)
+    order_data.update(
+        {
+            "payer_email": getattr(order, "payer_email", None),
+            "payment_reference": getattr(order, "payment_reference", None),
+            "tx_hash": getattr(order, "tx_hash", None),
+            "failure_reason": getattr(order, "failure_reason", None),
+            "treasury_wallet_address": getattr(order, "treasury_wallet_address", None),
+            "customer_wallet_address": getattr(order, "customer_wallet_address", None),
+            "user_wallet_address": getattr(order, "user_wallet_address", None),
+            "idempotency_key": getattr(order, "idempotency_key", None),
+            "updated_at": getattr(order, "updated_at", None),
+        }
+    )
+    return {
+        "order": order_data,
+        "documents": document_summary(order),
+        "audit_logs": [serialize_log(log) for log in logs_result.scalars().all()],
     }
 
 
@@ -1244,7 +1284,7 @@ async def order_document(
     _: AdminKey,
     db: AsyncSession = Depends(get_db),
 ):
-    allowed_types = {"invoice", "pending", "receive-receipt", "send-receipt"}
+    allowed_types = {"invoice", "pending", "receive-receipt", "send-receipt", "statement"}
 
     if document_type not in allowed_types:
         raise HTTPException(status_code=404, detail="Document type not found")
@@ -1261,9 +1301,18 @@ async def order_document(
 
 
 @router.get("/reports/transactions", response_class=HTMLResponse)
-async def transactions_report(_: AdminKey, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(PaymentOrder).order_by(PaymentOrder.created_at.desc()))
+async def transactions_report(
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    order_id: str | None = None,
+):
+    stmt = select(PaymentOrder).order_by(PaymentOrder.created_at.desc())
+    if order_id:
+        stmt = select(PaymentOrder).where(cast(PaymentOrder.id, String) == str(order_id))
+    res = await db.execute(stmt)
     orders = list(res.scalars().all())
+    if order_id and not orders:
+        raise HTTPException(status_code=404, detail="Order not found")
 
     completed = [order for order in orders if order.status == OrderStatus.COMPLETED]
     pending = [
@@ -1502,12 +1551,25 @@ async def run_reconcile(_: AdminKey, db: AsyncSession = Depends(get_db)):
 #  SWIFT TERMINAL — Transaction Lookup & File Management
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _swift_trn(value: str | None) -> str:
+    raw = str(value or uuid.uuid4().hex).replace("-", "").upper()
+    return f"TRN{raw[:16]}"
+
+
+def _swift_uetr(value: str | None) -> str:
+    raw = str(value or uuid.uuid4())
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, raw))
+
+
 def _order_swift(order: PaymentOrder) -> dict:
     """Serialize a PaymentOrder as SWIFT-style record."""
+    reference = order.payment_reference or order.external_id or str(order.id)
     return {
         "record_type": "PAYMENT_ORDER",
         "id": str(order.id),
-        "reference": order.payment_reference or order.external_id or str(order.id),
+        "reference": reference,
+        "trn": _swift_trn(reference),
+        "uetr": _swift_uetr(order.tx_hash or reference),
         "status": order.status.value,
         "provider": order.provider.value,
         "network": order.network.value,
@@ -1532,10 +1594,13 @@ def _order_swift(order: PaymentOrder) -> dict:
 
 def _payload_swift(ep: ExternalPayload) -> dict:
     """Serialize an ExternalPayload as SWIFT-style record."""
+    reference = ep.transaction_reference or ep.request_id or str(ep.id)
     return {
         "record_type": "SETTLEMENT_PAYLOAD",
         "id": str(ep.id),
-        "reference": ep.transaction_reference or ep.request_id or str(ep.id),
+        "reference": reference,
+        "trn": _swift_trn(reference),
+        "uetr": _swift_uetr(ep.tx_hash or reference),
         "status": ep.verification_status,
         "parsing_status": ep.parsing_status,
         "security_level": ep.security_level,
@@ -2078,6 +2143,8 @@ async def swift_transmit(
     stamp    = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
     msg_ref  = f"ALSH-{stamp}-{uuid.uuid4().hex[:6].upper()}"
     tx_id    = str(uuid.uuid4())
+    trn_code = _swift_trn(record_id or msg_ref)
+    uetr_code = _swift_uetr(record_id or tx_id)
 
     # ── Build envelope ────────────────────────────────────────────
     envelope = {
@@ -2098,6 +2165,8 @@ async def swift_transmit(
             },
             "message_header": {
                 "msg_ref": msg_ref,
+                "trn": trn_code,
+                "uetr": uetr_code,
                 "msg_type": message_type,
                 "transfer_type": transfer_type,
                 "priority": "NORMAL",
@@ -2107,6 +2176,8 @@ async def swift_transmit(
     }
     if record_id:
         envelope["record_id"] = record_id
+    envelope["trn"] = trn_code
+    envelope["uetr"] = uetr_code
 
     # ── Build headers ─────────────────────────────────────────────
     req_headers: dict = {"Content-Type": "application/json"}
@@ -2167,6 +2238,8 @@ async def swift_transmit(
         return {
             "transmission_id": tx_id,
             "msg_ref":         msg_ref,
+            "trn":             trn_code,
+            "uetr":            uetr_code,
             "status_code":     status_code,
             "duration_ms":     duration_ms,
             "response_body":   resp_body,
