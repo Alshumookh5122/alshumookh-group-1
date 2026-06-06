@@ -1445,6 +1445,9 @@ _M1_RESERVE_BODY = """
   <div class="filter-bar" style="justify-content:space-between;">
     <div style="display:flex;gap:8px;align-items:center;">
       <button class="btn btn-ghost" onclick="m1rLoad()">Refresh</button>
+      <button class="btn btn-success" onclick="m1rSetStatus('active')">Activate</button>
+      <button class="btn btn-warning" onclick="m1rSetStatus('paused')">Pause</button>
+      <a class="btn btn-ghost" href="/api/v1/m1-funds/audit.csv" target="_blank" style="text-decoration:none;">Export Audit CSV</a>
       <span id="m1rStatusText" style="color:var(--muted);font-size:12px;">Loading...</span>
     </div>
     <span style="color:var(--muted);font-size:12px;">Admin-only reserve control module</span>
@@ -1457,6 +1460,11 @@ _M1_RESERVE_BODY = """
     <div class="stat-card"><span>Available to Mint</span><strong id="m1rAvailable">—</strong><small>M1F</small></div>
     <div class="stat-card"><span>Backing Ratio</span><strong id="m1rBacking">—</strong><small>Reserve / issued</small></div>
     <div class="stat-card"><span>Status</span><strong id="m1rStatus">—</strong><small>Reserve state</small></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>Readiness Checks</h3><span id="m1rReadyOverall" style="color:var(--muted);font-size:12px;"></span></div>
+    <div id="m1rReadyBody"><div class="empty-state"><div class="icon">R</div>Loading...</div></div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
@@ -1520,6 +1528,11 @@ _M1_RESERVE_BODY = """
     <div id="m1rAuditBody"><div class="empty-state"><div class="icon">🏦</div>Loading...</div></div>
   </div>
 
+  <div class="panel" id="m1rDetailPanel" style="display:none;">
+    <div class="panel-head"><h3>Selected Operation Detail</h3><button class="btn btn-ghost" onclick="document.getElementById('m1rDetailPanel').style.display='none'">Close</button></div>
+    <pre id="m1rDetailBody" style="white-space:pre-wrap;overflow:auto;background:#0f172a;border:1px solid var(--line);border-radius:8px;padding:12px;font-size:11px;color:#dbeafe;margin:14px;"></pre>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
     <div class="panel">
       <div class="panel-head"><h3>Mint Requests</h3><span id="m1rMintCount" style="color:var(--muted);font-size:12px;"></span></div>
@@ -1540,6 +1553,22 @@ _M1_RESERVE_BODY = """
       <div class="panel-head"><h3>Webhook Events</h3><span id="m1rWebhookCount" style="color:var(--muted);font-size:12px;"></span></div>
       <div id="m1rWebhookBody"><div class="empty-state"><div class="icon">W</div>Loading...</div></div>
     </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <div class="panel">
+      <div class="panel-head"><h3>Reserve Snapshots</h3><span id="m1rSnapshotCount" style="color:var(--muted);font-size:12px;"></span></div>
+      <div id="m1rSnapshotBody"><div class="empty-state"><div class="icon">S</div>Loading...</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>API Signatures</h3><span id="m1rSignatureCount" style="color:var(--muted);font-size:12px;"></span></div>
+      <div id="m1rSignatureBody"><div class="empty-state"><div class="icon">A</div>Loading...</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>Blockchain Confirmations</h3><span id="m1rConfirmationCount" style="color:var(--muted);font-size:12px;"></span></div>
+    <div id="m1rConfirmationBody"><div class="empty-state"><div class="icon">C</div>Loading...</div></div>
   </div>
 </div>
 <script>
@@ -1564,6 +1593,13 @@ function m1rLoad(){
     document.getElementById('m1rStatusText').textContent='Error: '+e.message;
     showToast('M1 reserve error: '+e.message,'error');
   });
+  api('/api/v1/m1-funds/readiness').then(function(r){
+    document.getElementById('m1rReadyOverall').textContent=r.overall||'—';
+    var rows=(r.checks||[]);
+    if(!rows.length){document.getElementById('m1rReadyBody').innerHTML='<div class="empty-state"><div class="icon">R</div>No readiness checks</div>';return;}
+    var tb=rows.map(function(x){return '<tr><td>'+esc(x.name||'')+'</td><td>'+badge(String(x.status||'').toUpperCase())+'</td><td>'+esc(x.detail||'')+'</td></tr>';}).join('');
+    document.getElementById('m1rReadyBody').innerHTML='<div class="table-wrap"><table><thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
+  }).catch(function(e){document.getElementById('m1rReadyBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
   api('/api/v1/m1-funds/audit?limit=100').then(function(r){
     var rows=(r.events||[]);
     document.getElementById('m1rAuditCount').textContent=rows.length+' events';
@@ -1593,7 +1629,8 @@ function m1rLoadLists(){
       {label:'Amount',value:function(x){return '<strong>'+fmtNum(x.amount)+'</strong>';}},
       {label:'Status',value:function(x){return badge(String(x.status||'').toUpperCase());}},
       {label:'TX',value:function(x){return x.tx_hash?'<code style="font-size:10px;">'+esc(x.tx_hash).slice(0,14)+'...</code>':'—';}},
-      {label:'Date',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.created_at)+'</span>';}}
+      {label:'Date',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.created_at)+'</span>';}},
+      {label:'Actions',value:function(x){return m1rReqActions('mint',x.mint_id,x.status);}}
     ],'M','No mint requests yet');
   }).catch(function(e){document.getElementById('m1rMintBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
   api('/api/v1/m1-funds/redeem-requests?limit=50').then(function(r){
@@ -1602,7 +1639,8 @@ function m1rLoadLists(){
       {label:'Amount',value:function(x){return '<strong>'+fmtNum(x.amount)+'</strong>';}},
       {label:'Status',value:function(x){return badge(String(x.status||'').toUpperCase());}},
       {label:'TX',value:function(x){return x.tx_hash?'<code style="font-size:10px;">'+esc(x.tx_hash).slice(0,14)+'...</code>':'—';}},
-      {label:'Date',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.created_at)+'</span>';}}
+      {label:'Date',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.created_at)+'</span>';}},
+      {label:'Actions',value:function(x){return m1rReqActions('redeem',x.redeem_id,x.status);}}
     ],'R','No redeem requests yet');
   }).catch(function(e){document.getElementById('m1rRedeemBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
   api('/api/v1/m1-funds/oracle-reads?limit=50').then(function(r){
@@ -1621,6 +1659,57 @@ function m1rLoadLists(){
       {label:'Time',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.created_at)+'</span>';}}
     ],'W','No webhook events yet');
   }).catch(function(e){document.getElementById('m1rWebhookBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+  api('/api/v1/m1-funds/snapshots?limit=50').then(function(r){
+    m1rTinyTable('m1rSnapshotBody','m1rSnapshotCount',r.items||[],[
+      {label:'Reserve',value:function(x){return fmtNum(x.total_reserve_value)+' USD';}},
+      {label:'Tokenized',value:function(x){return fmtNum(x.tokenized_value)+' USD';}},
+      {label:'Proof',value:function(x){return x.proof_document_hash?'<code style="font-size:10px;">'+esc(x.proof_document_hash).slice(0,16)+'...</code>':'—';}},
+      {label:'Approved By',value:function(x){return esc(x.approved_by||'—');}},
+      {label:'Time',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.created_at)+'</span>';}}
+    ],'S','No reserve snapshots yet');
+  }).catch(function(e){document.getElementById('m1rSnapshotBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+  api('/api/v1/m1-funds/signatures?limit=50').then(function(r){
+    m1rTinyTable('m1rSignatureBody','m1rSignatureCount',r.items||[],[
+      {label:'Scope',value:function(x){return esc(x.scope||'');}},
+      {label:'Hash',value:function(x){return '<code style="font-size:10px;">'+esc(x.response_hash||'').slice(0,16)+'...</code>';}},
+      {label:'Signature',value:function(x){return '<code style="font-size:10px;">'+esc(x.signature||'').slice(0,16)+'...</code>';}},
+      {label:'Time',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.timestamp)+'</span>';}}
+    ],'A','No API signatures yet');
+  }).catch(function(e){document.getElementById('m1rSignatureBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+  api('/api/v1/m1-funds/confirmations?limit=50').then(function(r){
+    m1rTinyTable('m1rConfirmationBody','m1rConfirmationCount',r.items||[],[
+      {label:'Type',value:function(x){return esc(x.request_type||'');}},
+      {label:'Request',value:function(x){return '<code style="font-size:10px;">'+esc(x.request_id||'')+'</code>';}},
+      {label:'Amount',value:function(x){return fmtNum(x.amount)+' M1F';}},
+      {label:'TX',value:function(x){return '<code style="font-size:10px;">'+esc(x.tx_hash||'').slice(0,18)+'...</code>';}},
+      {label:'Verification',value:function(x){return badge(String(x.verification_status||'').toUpperCase());}},
+      {label:'Time',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.created_at)+'</span>';}}
+    ],'C','No blockchain confirmations yet');
+  }).catch(function(e){document.getElementById('m1rConfirmationBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+}
+function m1rReqActions(type,id,status){
+  var safeId=esc(id||'');
+  var safeType=esc(type||'');
+  var canClose=!['CONFIRMED','COMPLETED','REJECTED','EXPIRED'].includes(String(status||'').toUpperCase());
+  return '<div style="display:flex;gap:5px;flex-wrap:wrap;"><button class="btn btn-ghost" style="font-size:10px;padding:4px 7px;" data-type="'+safeType+'" data-id="'+safeId+'" onclick="m1rViewReq(this.dataset.type,this.dataset.id)">View</button>'
+    +(canClose?'<button class="btn btn-warning" style="font-size:10px;padding:4px 7px;" data-type="'+safeType+'" data-id="'+safeId+'" data-action="expire" onclick="m1rDecision(this.dataset.type,this.dataset.id,this.dataset.action)">Expire</button><button class="btn btn-danger" style="font-size:10px;padding:4px 7px;" data-type="'+safeType+'" data-id="'+safeId+'" data-action="reject" onclick="m1rDecision(this.dataset.type,this.dataset.id,this.dataset.action)">Reject</button>':'')+'</div>';
+}
+function m1rViewReq(type,id){
+  var url=type==='mint'?'/api/v1/m1-funds/mint-requests/'+encodeURIComponent(id):'/api/v1/m1-funds/redeem-requests/'+encodeURIComponent(id);
+  api(url).then(function(r){
+    document.getElementById('m1rDetailPanel').style.display='block';
+    document.getElementById('m1rDetailBody').textContent=JSON.stringify(r,null,2);
+    document.getElementById('m1rDetailPanel').scrollIntoView({behavior:'smooth',block:'center'});
+  }).catch(function(e){showToast('Detail error: '+e.message,'error');});
+}
+function m1rDecision(type,id,action){
+  var reason=prompt('Reason for '+action+' (optional):')||'';
+  var url=type==='mint'?'/api/v1/m1-funds/mint-requests/'+encodeURIComponent(id)+'/'+action:'/api/v1/m1-funds/redeem-requests/'+encodeURIComponent(id)+'/'+action;
+  api(url,{method:'POST',body:JSON.stringify({reason:reason,actor:'admin'})}).then(function(){showToast(action+' saved','ok');m1rLoad();}).catch(function(e){showToast(action+' error: '+e.message,'error');});
+}
+function m1rSetStatus(status){
+  var reason=prompt('Reason for setting reserve status to '+status+':')||'';
+  api('/api/v1/m1-funds/status',{method:'PATCH',body:JSON.stringify({status:status,reason:reason,actor:'admin'})}).then(function(){showToast('Reserve status updated','ok');m1rLoad();}).catch(function(e){showToast('Status update error: '+e.message,'error');});
 }
 function m1rUpdateReserve(){
   var body={total_reserve_value:m1rVal('m1rTotalIn'),tokenized_value:m1rVal('m1rTokenizedIn'),valuation_date:m1rISOFromLocal('m1rValuation'),proof_document_hash:m1rVal('m1rProof'),approved_by:m1rVal('m1rApprovedBy')||'admin'};

@@ -11,7 +11,7 @@ from typing import Any
 
 from eth_account import Account
 from eth_account.messages import encode_defunct
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,6 +91,17 @@ class WalletVerifyIn(BaseModel):
     wallet: str
     message: str
     signature: str
+
+
+class StatusUpdateIn(BaseModel):
+    status: str
+    reason: str | None = None
+    actor: str | None = "admin"
+
+
+class RequestDecisionIn(BaseModel):
+    reason: str | None = None
+    actor: str | None = "admin"
 
 
 def _now() -> datetime:
@@ -281,11 +292,73 @@ def _validate_tx(tx_hash: str) -> str:
     return tx_hash
 
 
+def _mint_row(r: M1MintRequest) -> dict[str, Any]:
+    return {
+        "mint_id": r.mint_id,
+        "fund_id": r.fund_id,
+        "wallet": r.wallet,
+        "amount": _money(r.amount),
+        "network": r.network,
+        "status": r.status,
+        "nonce": r.nonce,
+        "signature": r.signature,
+        "reason": r.reason,
+        "expires_at": r.expires_at.isoformat() if r.expires_at else None,
+        "tx_hash": r.tx_hash,
+        "contract_address": r.contract_address,
+        "block_number": r.block_number,
+        "metadata": r.metadata_json or {},
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
+    }
+
+
+def _redeem_row(r: M1RedeemRequest) -> dict[str, Any]:
+    return {
+        "redeem_id": r.redeem_id,
+        "fund_id": r.fund_id,
+        "wallet": r.wallet,
+        "amount": _money(r.amount),
+        "network": r.network,
+        "status": r.status,
+        "nonce": r.nonce,
+        "signature": r.signature,
+        "reason": r.reason,
+        "expires_at": r.expires_at.isoformat() if r.expires_at else None,
+        "tx_hash": r.tx_hash,
+        "contract_address": r.contract_address,
+        "block_number": r.block_number,
+        "metadata": r.metadata_json or {},
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
+    }
+
+
 @router.get("/m1-funds/reserve")
 async def get_private_reserve(db: DbSession, _: AdminKey):
     body = _private(await _fund(db))
     await _record_signature(db, "m1.reserve.private", body)
     return body
+
+
+@router.get("/m1-funds/readiness")
+async def readiness(db: DbSession, _: AdminKey):
+    fund = await _fund(db)
+    mint_count = (await db.execute(select(M1MintRequest))).scalars().all()
+    redeem_count = (await db.execute(select(M1RedeemRequest))).scalars().all()
+    confirmation_count = (await db.execute(select(M1BlockchainConfirmation))).scalars().all()
+    webhook_count = (await db.execute(select(WebhookEvent).where(WebhookEvent.event.like("m1.%")))).scalars().all()
+    checks = [
+        {"name": "Admin authentication", "status": "ready", "detail": "All private M1 dashboard endpoints require admin authentication."},
+        {"name": "Reserve ledger", "status": "ready" if fund else "warning", "detail": fund.fund_id if fund else "Reserve will be created on first access."},
+        {"name": "Proof document hash", "status": "ready" if fund.proof_document_hash else "warning", "detail": fund.proof_document_hash or "No proof hash has been recorded yet."},
+        {"name": "Mint controls", "status": "ready", "detail": f"{len(mint_count)} mint request(s) recorded."},
+        {"name": "Redeem controls", "status": "ready", "detail": f"{len(redeem_count)} redeem request(s) recorded."},
+        {"name": "Blockchain confirmations", "status": "manual", "detail": f"{len(confirmation_count)} confirmation(s) recorded. Live chain verification waits for official contract/RPC setup."},
+        {"name": "Signed webhook ledger", "status": "recording", "detail": f"{len(webhook_count)} M1 webhook event(s) recorded. External delivery waits for callback URLs/secrets."},
+        {"name": "Private key safety", "status": "ready", "detail": "Private keys are not requested, transmitted, logged, or stored by this module."},
+    ]
+    return {"fund_id": fund.fund_id, "overall": "admin_ready_external_pending", "checks": checks}
 
 
 @router.get("/public/m1-funds/reserve")
@@ -362,6 +435,23 @@ async def reserve_update(payload: ReserveUpdateIn, request: Request, db: DbSessi
     await _audit(db, request, "reserve_updated", fund.fund_id, old_value=json.dumps(old), new_value=json.dumps(body), actor=payload.approved_by, proof_document_hash=payload.proof_document_hash)
     await _record_signature(db, "m1.reserve.updated", body)
     await _record_webhook_event(db, "m1.reserve.updated", fund.fund_id, body)
+    return body
+
+
+@router.patch("/m1-funds/status")
+async def update_fund_status(payload: StatusUpdateIn, request: Request, db: DbSession, _: AdminKey):
+    status = payload.status.strip().lower()
+    if status not in {"active", "paused", "inactive"}:
+        raise HTTPException(400, {"code": "invalid_status", "message": "Status must be active, paused, or inactive."})
+    fund = await _fund(db)
+    old = fund.status
+    fund.status = status
+    fund.last_updated = _now()
+    await db.commit()
+    await _audit(db, request, "status_changed", fund.fund_id, old_value=old, new_value=status, actor=payload.actor, metadata={"reason": payload.reason})
+    body = _private(fund)
+    await _record_signature(db, "m1.status.changed", body)
+    await _record_webhook_event(db, "m1.status.changed", fund.fund_id, {"event": "m1.status.changed", "fund_id": fund.fund_id, "old_status": old, "new_status": status, "reason": payload.reason, "timestamp": _now().isoformat()})
     return body
 
 
@@ -498,50 +588,167 @@ async def audit_logs(db: DbSession, _: AdminKey, limit: int = 100):
     ]}
 
 
-@router.get("/m1-funds/mint-requests")
-async def mint_requests(db: DbSession, _: AdminKey, limit: int = 100):
-    rows = (await db.execute(select(M1MintRequest).order_by(desc(M1MintRequest.created_at)).limit(min(limit, 500)))).scalars().all()
+@router.get("/m1-funds/audit.csv")
+async def audit_logs_csv(db: DbSession, _: AdminKey, limit: int = 500):
+    rows = (await db.execute(select(M1AuditLog).order_by(desc(M1AuditLog.timestamp)).limit(min(limit, 2000)))).scalars().all()
+    lines = ["event_id,fund_id,event_type,actor,tx_hash,proof_document_hash,timestamp"]
+    for r in rows:
+        values = [
+            r.event_id or "",
+            r.fund_id or "",
+            r.event_type or "",
+            r.actor or "",
+            r.tx_hash or "",
+            r.proof_document_hash or "",
+            r.timestamp.isoformat() if r.timestamp else "",
+        ]
+        lines.append(",".join('"' + str(v).replace('"', '""') + '"' for v in values))
+    return Response("\n".join(lines) + "\n", media_type="text/csv", headers={"Content-Disposition": "attachment; filename=m1_funds_audit.csv"})
+
+
+@router.get("/m1-funds/snapshots")
+async def reserve_snapshots(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1ReserveSnapshot).order_by(desc(M1ReserveSnapshot.created_at)).limit(min(limit, 500)))).scalars().all()
     return {"items": [
         {
-            "mint_id": r.mint_id,
             "fund_id": r.fund_id,
-            "wallet": r.wallet,
-            "amount": _money(r.amount),
-            "network": r.network,
-            "status": r.status,
-            "nonce": r.nonce,
-            "expires_at": r.expires_at.isoformat() if r.expires_at else None,
-            "tx_hash": r.tx_hash,
-            "contract_address": r.contract_address,
-            "block_number": r.block_number,
+            "total_reserve_value": _money(r.total_reserve_value),
+            "tokenized_value": _money(r.tokenized_value),
+            "issued_tokens": _money(r.issued_tokens),
+            "available_to_mint": _money(r.available_to_mint),
+            "backing_ratio": r.backing_ratio,
+            "proof_document_hash": r.proof_document_hash,
+            "valuation_date": r.valuation_date.isoformat() if r.valuation_date else None,
+            "approved_by": r.approved_by,
             "created_at": r.created_at.isoformat() if r.created_at else None,
-            "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
         }
         for r in rows
     ]}
+
+
+@router.get("/m1-funds/signatures")
+async def api_signatures(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(ApiSignature).where(ApiSignature.scope.like("m1.%")).order_by(desc(ApiSignature.timestamp)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "scope": r.scope,
+            "client_id": r.client_id,
+            "signature": r.signature,
+            "response_hash": r.response_hash,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            "metadata": r.metadata_json or {},
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/confirmations")
+async def confirmations(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1BlockchainConfirmation).order_by(desc(M1BlockchainConfirmation.created_at)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "fund_id": r.fund_id,
+            "request_type": r.request_type,
+            "request_id": r.request_id,
+            "tx_hash": r.tx_hash,
+            "contract_address": r.contract_address,
+            "wallet": r.wallet,
+            "amount": _money(r.amount),
+            "network": r.network,
+            "block_number": r.block_number,
+            "verification_status": r.verification_status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/mint-requests")
+async def mint_requests(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1MintRequest).order_by(desc(M1MintRequest.created_at)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [_mint_row(r) for r in rows]}
+
+
+@router.get("/m1-funds/mint-requests/{mint_id}")
+async def mint_request_detail(mint_id: str, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1MintRequest).where(M1MintRequest.mint_id == mint_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_mint_id", "message": "Mint request not found."})
+    return _mint_row(row)
+
+
+@router.post("/m1-funds/mint-requests/{mint_id}/reject")
+async def reject_mint_request(mint_id: str, payload: RequestDecisionIn, request: Request, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1MintRequest).where(M1MintRequest.mint_id == mint_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_mint_id", "message": "Mint request not found."})
+    if row.status == "confirmed":
+        raise HTTPException(400, {"code": "request_already_confirmed", "message": "Confirmed mint requests cannot be rejected."})
+    old = row.status
+    row.status = "rejected"
+    row.metadata_json = {**(row.metadata_json or {}), "reject_reason": payload.reason}
+    await db.commit()
+    await _audit(db, request, "mint_rejected", row.fund_id, old_value=old, new_value=row.status, actor=payload.actor, metadata={"mint_id": mint_id, "reason": payload.reason})
+    return _mint_row(row)
+
+
+@router.post("/m1-funds/mint-requests/{mint_id}/expire")
+async def expire_mint_request(mint_id: str, payload: RequestDecisionIn, request: Request, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1MintRequest).where(M1MintRequest.mint_id == mint_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_mint_id", "message": "Mint request not found."})
+    if row.status == "confirmed":
+        raise HTTPException(400, {"code": "request_already_confirmed", "message": "Confirmed mint requests cannot be expired."})
+    old = row.status
+    row.status = "expired"
+    row.metadata_json = {**(row.metadata_json or {}), "expire_reason": payload.reason}
+    await db.commit()
+    await _audit(db, request, "mint_expired", row.fund_id, old_value=old, new_value=row.status, actor=payload.actor, metadata={"mint_id": mint_id, "reason": payload.reason})
+    return _mint_row(row)
 
 
 @router.get("/m1-funds/redeem-requests")
 async def redeem_requests(db: DbSession, _: AdminKey, limit: int = 100):
     rows = (await db.execute(select(M1RedeemRequest).order_by(desc(M1RedeemRequest.created_at)).limit(min(limit, 500)))).scalars().all()
-    return {"items": [
-        {
-            "redeem_id": r.redeem_id,
-            "fund_id": r.fund_id,
-            "wallet": r.wallet,
-            "amount": _money(r.amount),
-            "network": r.network,
-            "status": r.status,
-            "nonce": r.nonce,
-            "expires_at": r.expires_at.isoformat() if r.expires_at else None,
-            "tx_hash": r.tx_hash,
-            "contract_address": r.contract_address,
-            "block_number": r.block_number,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-            "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
-        }
-        for r in rows
-    ]}
+    return {"items": [_redeem_row(r) for r in rows]}
+
+
+@router.get("/m1-funds/redeem-requests/{redeem_id}")
+async def redeem_request_detail(redeem_id: str, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1RedeemRequest).where(M1RedeemRequest.redeem_id == redeem_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_redeem_id", "message": "Redeem request not found."})
+    return _redeem_row(row)
+
+
+@router.post("/m1-funds/redeem-requests/{redeem_id}/reject")
+async def reject_redeem_request(redeem_id: str, payload: RequestDecisionIn, request: Request, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1RedeemRequest).where(M1RedeemRequest.redeem_id == redeem_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_redeem_id", "message": "Redeem request not found."})
+    if row.status == "completed":
+        raise HTTPException(400, {"code": "request_already_completed", "message": "Completed redeem requests cannot be rejected."})
+    old = row.status
+    row.status = "rejected"
+    row.metadata_json = {**(row.metadata_json or {}), "reject_reason": payload.reason}
+    await db.commit()
+    await _audit(db, request, "redeem_rejected", row.fund_id, old_value=old, new_value=row.status, actor=payload.actor, metadata={"redeem_id": redeem_id, "reason": payload.reason})
+    return _redeem_row(row)
+
+
+@router.post("/m1-funds/redeem-requests/{redeem_id}/expire")
+async def expire_redeem_request(redeem_id: str, payload: RequestDecisionIn, request: Request, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1RedeemRequest).where(M1RedeemRequest.redeem_id == redeem_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_redeem_id", "message": "Redeem request not found."})
+    if row.status == "completed":
+        raise HTTPException(400, {"code": "request_already_completed", "message": "Completed redeem requests cannot be expired."})
+    old = row.status
+    row.status = "expired"
+    row.metadata_json = {**(row.metadata_json or {}), "expire_reason": payload.reason}
+    await db.commit()
+    await _audit(db, request, "redeem_expired", row.fund_id, old_value=old, new_value=row.status, actor=payload.actor, metadata={"redeem_id": redeem_id, "reason": payload.reason})
+    return _redeem_row(row)
 
 
 @router.get("/m1-funds/oracle-reads")
