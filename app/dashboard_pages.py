@@ -55,6 +55,7 @@ _SIDEBAR_LINKS = [
     ("/dashboard/payloads",      "📥", "Settlement Payloads"),
     ("/dashboard/transfers",     "🚀", "Outbound Transfers"),
     ("/dashboard/tokenization",  "🔄", "M1 Tokenization"),
+    ("/dashboard/m1-reserve",    "🏦", "M1 Reserve"),
     ("/dashboard/monitoring",    "📊", "Live Monitoring"),
     ("/dashboard/payments",      "💳", "Payments"),
     ("/dashboard/payments#moonpay", "🌙", "MoonPay"),
@@ -1437,6 +1438,154 @@ setInterval(loadJobs,30000);
 </script>
 """
 
+# ─── M1 FUNDS RESERVE ────────────────────────────────────────────────────────
+
+_M1_RESERVE_BODY = """
+<div class="page-body">
+  <div class="filter-bar" style="justify-content:space-between;">
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-ghost" onclick="m1rLoad()">Refresh</button>
+      <span id="m1rStatusText" style="color:var(--muted);font-size:12px;">Loading...</span>
+    </div>
+    <span style="color:var(--muted);font-size:12px;">Admin-only reserve control module</span>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card"><span>Total Reserve</span><strong id="m1rTotal">—</strong><small>USD</small></div>
+    <div class="stat-card"><span>Tokenized Value</span><strong id="m1rTokenized">—</strong><small>USD</small></div>
+    <div class="stat-card"><span>Issued Tokens</span><strong id="m1rIssued">—</strong><small>M1F</small></div>
+    <div class="stat-card"><span>Available to Mint</span><strong id="m1rAvailable">—</strong><small>M1F</small></div>
+    <div class="stat-card"><span>Backing Ratio</span><strong id="m1rBacking">—</strong><small>Reserve / issued</small></div>
+    <div class="stat-card"><span>Status</span><strong id="m1rStatus">—</strong><small>Reserve state</small></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <div class="panel">
+      <div class="panel-head"><h3>Reserve Update</h3></div>
+      <div class="form-grid" style="padding:14px;">
+        <div class="form-field"><label>Total Reserve Value (USD)</label><input id="m1rTotalIn" type="number" step="0.01" placeholder="10000000.00"></div>
+        <div class="form-field"><label>Tokenized Value (USD)</label><input id="m1rTokenizedIn" type="number" step="0.01" placeholder="1000000.00"></div>
+        <div class="form-field"><label>Valuation Date</label><input id="m1rValuation" type="datetime-local"></div>
+        <div class="form-field"><label>Proof Document Hash</label><input id="m1rProof" placeholder="0x..."></div>
+        <div class="form-field"><label>Approved By</label><input id="m1rApprovedBy" placeholder="admin" value="admin"></div>
+      </div>
+      <div style="padding:0 14px 14px;"><button class="btn btn-primary" onclick="m1rUpdateReserve()">Update Reserve</button></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Mint / Redeem Requests</h3></div>
+      <div class="form-grid" style="padding:14px;">
+        <div class="form-field"><label>Wallet</label><input id="m1rWallet" placeholder="0x..."></div>
+        <div class="form-field"><label>Amount</label><input id="m1rAmount" type="number" step="0.01" placeholder="100000.00"></div>
+        <div class="form-field"><label>Reason</label><input id="m1rReason" placeholder="Initial M1F tokenization"></div>
+        <div class="form-field"><label>Network</label><input id="m1rNetwork" value="ERC20"></div>
+      </div>
+      <div style="padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-success" onclick="m1rMintRequest()">Create Mint Approval</button>
+        <button class="btn btn-warning" onclick="m1rRedeemRequest()">Create Redeem Approval</button>
+      </div>
+      <div id="m1rLastApproval" style="padding:0 14px 14px;color:var(--muted);font-size:12px;"></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <div class="panel">
+      <div class="panel-head"><h3>Mint Confirmation</h3></div>
+      <div class="form-grid" style="padding:14px;">
+        <div class="form-field"><label>Mint ID</label><input id="m1rMintId" placeholder="MINT-..."></div>
+        <div class="form-field"><label>TX Hash</label><input id="m1rMintTx" placeholder="0x..."></div>
+        <div class="form-field"><label>Contract Address</label><input id="m1rMintContract" placeholder="0x..."></div>
+        <div class="form-field"><label>Wallet</label><input id="m1rMintWallet" placeholder="0x..."></div>
+        <div class="form-field"><label>Amount</label><input id="m1rMintAmount" type="number" step="0.01"></div>
+        <div class="form-field"><label>Block Number</label><input id="m1rMintBlock" placeholder="Optional"></div>
+      </div>
+      <div style="padding:0 14px 14px;"><button class="btn btn-success" onclick="m1rConfirmMint()">Confirm Mint</button></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Burn Confirmation</h3></div>
+      <div class="form-grid" style="padding:14px;">
+        <div class="form-field"><label>Redeem ID</label><input id="m1rRedeemId" placeholder="RED-..."></div>
+        <div class="form-field"><label>TX Hash</label><input id="m1rBurnTx" placeholder="0x..."></div>
+        <div class="form-field"><label>Contract Address</label><input id="m1rBurnContract" placeholder="0x..."></div>
+        <div class="form-field"><label>Wallet</label><input id="m1rBurnWallet" placeholder="0x..."></div>
+        <div class="form-field"><label>Amount</label><input id="m1rBurnAmount" type="number" step="0.01"></div>
+        <div class="form-field"><label>Block Number</label><input id="m1rBurnBlock" placeholder="Optional"></div>
+      </div>
+      <div style="padding:0 14px 14px;"><button class="btn btn-danger" onclick="m1rConfirmBurn()">Confirm Burn</button></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>M1 Audit Logs</h3><span id="m1rAuditCount" style="color:var(--muted);font-size:12px;"></span></div>
+    <div id="m1rAuditBody"><div class="empty-state"><div class="icon">🏦</div>Loading...</div></div>
+  </div>
+</div>
+<script>
+function m1rVal(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+function m1rIdem(prefix){return prefix+'-'+Date.now()+'-'+Math.random().toString(16).slice(2);}
+function m1rISOFromLocal(id){
+  var v=m1rVal(id);
+  if(!v)return '';
+  try{return new Date(v).toISOString();}catch(e){return v;}
+}
+function m1rLoad(){
+  document.getElementById('m1rStatusText').textContent='Loading...';
+  api('/api/v1/m1-funds/reserve').then(function(r){
+    document.getElementById('m1rTotal').textContent=fmtNum(r.total_reserve_value);
+    document.getElementById('m1rTokenized').textContent=fmtNum(r.tokenized_value);
+    document.getElementById('m1rIssued').textContent=fmtNum(r.issued_tokens);
+    document.getElementById('m1rAvailable').textContent=fmtNum(r.available_to_mint);
+    document.getElementById('m1rBacking').textContent=r.backing_ratio||'N/A';
+    document.getElementById('m1rStatus').innerHTML=badge((r.status||'active').toUpperCase());
+    document.getElementById('m1rStatusText').textContent='Last updated: '+fmtDate(r.last_updated);
+  }).catch(function(e){
+    document.getElementById('m1rStatusText').textContent='Error: '+e.message;
+    showToast('M1 reserve error: '+e.message,'error');
+  });
+  api('/api/v1/m1-funds/audit?limit=100').then(function(r){
+    var rows=(r.events||[]);
+    document.getElementById('m1rAuditCount').textContent=rows.length+' events';
+    if(!rows.length){document.getElementById('m1rAuditBody').innerHTML='<div class="empty-state"><div class="icon">🏦</div>No M1 audit events yet</div>';return;}
+    var th='<th>Event</th><th>Fund</th><th>Actor</th><th>TX</th><th>Proof</th><th>Time</th>';
+    var tb=rows.map(function(x){return '<tr><td>'+esc(x.type||'')+'</td><td><code style="font-size:10px;">'+esc(x.fund_id||'—')+'</code></td><td>'+esc(x.approved_by||'—')+'</td><td>'+(x.tx_hash?'<code style="font-size:10px;">'+esc(x.tx_hash).slice(0,18)+'...</code>':'—')+'</td><td>'+(x.proof_document_hash?'<code style="font-size:10px;">'+esc(x.proof_document_hash).slice(0,18)+'...</code>':'—')+'</td><td style="font-size:11px;">'+fmtDate(x.timestamp)+'</td></tr>';}).join('');
+    document.getElementById('m1rAuditBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
+  }).catch(function(e){document.getElementById('m1rAuditBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+}
+function m1rUpdateReserve(){
+  var body={total_reserve_value:m1rVal('m1rTotalIn'),tokenized_value:m1rVal('m1rTokenizedIn'),valuation_date:m1rISOFromLocal('m1rValuation'),proof_document_hash:m1rVal('m1rProof'),approved_by:m1rVal('m1rApprovedBy')||'admin'};
+  api('/api/v1/m1-funds/reserve-update',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('Reserve updated','ok');m1rLoad();}).catch(function(e){showToast('Reserve update error: '+e.message,'error');});
+}
+function m1rApprovalBody(){return {wallet:m1rVal('m1rWallet'),amount:m1rVal('m1rAmount'),reason:m1rVal('m1rReason')||null,network:m1rVal('m1rNetwork')||'ERC20'};}
+function m1rMintRequest(){
+  api('/api/v1/m1-funds/mint-request',{method:'POST',headers:{'X-Idempotency-Key':m1rIdem('mint')},body:JSON.stringify(m1rApprovalBody())}).then(function(r){
+    document.getElementById('m1rLastApproval').innerHTML='<strong>Mint approval:</strong> '+esc(r.mint_id)+' · '+esc(r.amount)+' · expires '+fmtDate(r.expires_at);
+    document.getElementById('m1rMintId').value=r.mint_id||'';
+    document.getElementById('m1rMintWallet').value=r.wallet||'';
+    document.getElementById('m1rMintAmount').value=r.amount||'';
+    showToast('Mint approval created','ok');m1rLoad();
+  }).catch(function(e){showToast('Mint request error: '+e.message,'error');});
+}
+function m1rRedeemRequest(){
+  api('/api/v1/m1-funds/redeem-request',{method:'POST',headers:{'X-Idempotency-Key':m1rIdem('redeem')},body:JSON.stringify(m1rApprovalBody())}).then(function(r){
+    document.getElementById('m1rLastApproval').innerHTML='<strong>Redeem approval:</strong> '+esc(r.redeem_id)+' · '+esc(r.amount)+' · expires '+fmtDate(r.expires_at);
+    document.getElementById('m1rRedeemId').value=r.redeem_id||'';
+    document.getElementById('m1rBurnWallet').value=r.wallet||'';
+    document.getElementById('m1rBurnAmount').value=r.amount||'';
+    showToast('Redeem approval created','ok');m1rLoad();
+  }).catch(function(e){showToast('Redeem request error: '+e.message,'error');});
+}
+function m1rConfirmMint(){
+  var body={mint_id:m1rVal('m1rMintId'),tx_hash:m1rVal('m1rMintTx'),contract_address:m1rVal('m1rMintContract'),wallet:m1rVal('m1rMintWallet'),amount:m1rVal('m1rMintAmount'),network:'ERC20',block_number:m1rVal('m1rMintBlock')||null};
+  api('/api/v1/m1-funds/mint-confirmation',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('Mint confirmed','ok');m1rLoad();}).catch(function(e){showToast('Mint confirmation error: '+e.message,'error');});
+}
+function m1rConfirmBurn(){
+  var body={redeem_id:m1rVal('m1rRedeemId'),tx_hash:m1rVal('m1rBurnTx'),contract_address:m1rVal('m1rBurnContract'),wallet:m1rVal('m1rBurnWallet'),amount:m1rVal('m1rBurnAmount'),network:'ERC20',block_number:m1rVal('m1rBurnBlock')||null};
+  api('/api/v1/m1-funds/burn-confirmation',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('Burn confirmed','ok');m1rLoad();}).catch(function(e){showToast('Burn confirmation error: '+e.message,'error');});
+}
+m1rLoad();
+</script>
+"""
+
 # ─── MONITORING ───────────────────────────────────────────────────────────────
 
 _MONITORING_BODY = """
@@ -2559,6 +2708,14 @@ async def dashboard_tokenization(request: Request):
     if g:
         return g
     return HTMLResponse(_page("M1 Tokenization", "/dashboard/tokenization", _TOKENIZATION_BODY))
+
+
+@router.get("/dashboard/m1-reserve", response_class=HTMLResponse)
+async def dashboard_m1_reserve(request: Request):
+    g = _guard(request)
+    if g:
+        return g
+    return HTMLResponse(_page("M1 Reserve", "/dashboard/m1-reserve", _M1_RESERVE_BODY))
 
 
 @router.get("/dashboard/monitoring", response_class=HTMLResponse)

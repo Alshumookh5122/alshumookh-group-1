@@ -32,6 +32,7 @@ from app.audit_service import safe_details
 from app.database import get_db, init_db
 from app.fiat import router as fiat_router
 from app.fnfcu import router as fnfcu_router
+from app.m1_funds import router as m1_funds_router
 from app.payloads import admin_payloads_router, ingest_router
 from app.payments import router as payments_router
 from app.oauth import router as oauth_router
@@ -519,6 +520,7 @@ app.include_router(crypto_router, prefix=settings.api_prefix)
 app.include_router(treasury_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)
 app.include_router(stripe_router, prefix=settings.api_prefix)
+app.include_router(m1_funds_router, prefix=settings.api_prefix)
 
 # ── Settlement pipeline (new) ────────────────────────────────────────────────
 app.include_router(fnfcu_router, prefix=settings.api_prefix)

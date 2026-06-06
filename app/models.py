@@ -827,3 +827,190 @@ class M1TokenizationJob(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False,
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# ─── M1 Funds Reserve Tokenization Module ────────────────────────────────────
+
+class M1FundReserve(Base):
+    """
+    Isolated reserve ledger for the M1 Funds tokenization module.
+    This does not alter the existing USDT settlement or M1 tokenization job flow.
+    """
+
+    __tablename__ = "m1_funds"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    fund_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    asset_name: Mapped[str] = mapped_column(String(128), default="M1 Fund", nullable=False)
+    symbol: Mapped[str] = mapped_column(String(16), default="M1F", nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), default="USD", nullable=False)
+
+    total_reserve_value: Mapped[Decimal] = mapped_column(Numeric(30, 8), default=Decimal("0"), nullable=False)
+    tokenized_value: Mapped[Decimal] = mapped_column(Numeric(30, 8), default=Decimal("0"), nullable=False)
+    issued_tokens: Mapped[Decimal] = mapped_column(Numeric(30, 8), default=Decimal("0"), nullable=False)
+    available_to_mint: Mapped[Decimal] = mapped_column(Numeric(30, 8), default=Decimal("0"), nullable=False)
+    backing_ratio: Mapped[str] = mapped_column(String(64), default="N/A", nullable=False)
+
+    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False, index=True)
+    proof_document_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    valuation_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class M1ReserveSnapshot(Base):
+    __tablename__ = "m1_reserve_snapshots"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    fund_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    total_reserve_value: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    tokenized_value: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    issued_tokens: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    available_to_mint: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    backing_ratio: Mapped[str] = mapped_column(String(64), nullable=False)
+    proof_document_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    valuation_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class M1MintRequest(Base):
+    __tablename__ = "m1_mint_requests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    mint_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    fund_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    wallet: Mapped[str] = mapped_column(String(128), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    network: Mapped[str] = mapped_column(String(32), default="ERC20", nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="approved", nullable=False, index=True)
+    nonce: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    signature: Mapped[str] = mapped_column(Text, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    contract_address: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    block_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class M1RedeemRequest(Base):
+    __tablename__ = "m1_redeem_requests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    redeem_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    fund_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    wallet: Mapped[str] = mapped_column(String(128), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    network: Mapped[str] = mapped_column(String(32), default="ERC20", nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="approved", nullable=False, index=True)
+    nonce: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    signature: Mapped[str] = mapped_column(Text, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    contract_address: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    block_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class M1BlockchainConfirmation(Base):
+    __tablename__ = "m1_blockchain_confirmations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    fund_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    request_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    request_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    tx_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    contract_address: Mapped[str] = mapped_column(String(128), nullable=False)
+    wallet: Mapped[str] = mapped_column(String(128), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    network: Mapped[str] = mapped_column(String(32), nullable=False)
+    block_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    verification_status: Mapped[str] = mapped_column(String(64), default="recorded_not_chain_verified", nullable=False)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class M1AuditLog(Base):
+    __tablename__ = "m1_audit_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    fund_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actor: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    proof_document_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class M1OracleRead(Base):
+    __tablename__ = "m1_oracle_reads"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    fund_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    client_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    response_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="ok", nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class WalletVerification(Base):
+    __tablename__ = "wallet_verifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    wallet: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    signature: Mapped[str] = mapped_column(Text, nullable=False)
+    nonce: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class ApiSignature(Base):
+    __tablename__ = "api_signatures"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    scope: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    client_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    signature: Mapped[str] = mapped_column(Text, nullable=False)
+    response_hash: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class WebhookEvent(Base):
+    __tablename__ = "webhook_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    event: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    fund_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    target_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    signature: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False, index=True)
+    status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    request_body: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    response_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
