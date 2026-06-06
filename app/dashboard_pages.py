@@ -1519,6 +1519,28 @@ _M1_RESERVE_BODY = """
     <div class="panel-head"><h3>M1 Audit Logs</h3><span id="m1rAuditCount" style="color:var(--muted);font-size:12px;"></span></div>
     <div id="m1rAuditBody"><div class="empty-state"><div class="icon">🏦</div>Loading...</div></div>
   </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <div class="panel">
+      <div class="panel-head"><h3>Mint Requests</h3><span id="m1rMintCount" style="color:var(--muted);font-size:12px;"></span></div>
+      <div id="m1rMintBody"><div class="empty-state"><div class="icon">M</div>Loading...</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Redeem Requests</h3><span id="m1rRedeemCount" style="color:var(--muted);font-size:12px;"></span></div>
+      <div id="m1rRedeemBody"><div class="empty-state"><div class="icon">R</div>Loading...</div></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <div class="panel">
+      <div class="panel-head"><h3>Oracle Reads</h3><span id="m1rOracleCount" style="color:var(--muted);font-size:12px;"></span></div>
+      <div id="m1rOracleBody"><div class="empty-state"><div class="icon">O</div>Loading...</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Webhook Events</h3><span id="m1rWebhookCount" style="color:var(--muted);font-size:12px;"></span></div>
+      <div id="m1rWebhookBody"><div class="empty-state"><div class="icon">W</div>Loading...</div></div>
+    </div>
+  </div>
 </div>
 <script>
 function m1rVal(id){var el=document.getElementById(id);return el?el.value.trim():'';}
@@ -1550,6 +1572,55 @@ function m1rLoad(){
     var tb=rows.map(function(x){return '<tr><td>'+esc(x.type||'')+'</td><td><code style="font-size:10px;">'+esc(x.fund_id||'—')+'</code></td><td>'+esc(x.approved_by||'—')+'</td><td>'+(x.tx_hash?'<code style="font-size:10px;">'+esc(x.tx_hash).slice(0,18)+'...</code>':'—')+'</td><td>'+(x.proof_document_hash?'<code style="font-size:10px;">'+esc(x.proof_document_hash).slice(0,18)+'...</code>':'—')+'</td><td style="font-size:11px;">'+fmtDate(x.timestamp)+'</td></tr>';}).join('');
     document.getElementById('m1rAuditBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('m1rAuditBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+  m1rLoadLists();
+}
+function m1rTinyTable(target,countId,rows,columns,emptyIcon,emptyText){
+  document.getElementById(countId).textContent=rows.length+' items';
+  if(!rows.length){document.getElementById(target).innerHTML='<div class="empty-state"><div class="icon">'+emptyIcon+'</div>'+emptyText+'</div>';return;}
+  var th=columns.map(function(c){return '<th>'+esc(c.label)+'</th>';}).join('');
+  var tb=rows.map(function(r){
+    return '<tr>'+columns.map(function(c){
+      var v=(typeof c.value==='function')?c.value(r):r[c.value];
+      return '<td>'+v+'</td>';
+    }).join('')+'</tr>';
+  }).join('');
+  document.getElementById(target).innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
+}
+function m1rLoadLists(){
+  api('/api/v1/m1-funds/mint-requests?limit=50').then(function(r){
+    m1rTinyTable('m1rMintBody','m1rMintCount',r.items||[],[
+      {label:'Mint ID',value:function(x){return '<code style="font-size:10px;">'+esc(x.mint_id||'')+'</code>';}},
+      {label:'Amount',value:function(x){return '<strong>'+fmtNum(x.amount)+'</strong>';}},
+      {label:'Status',value:function(x){return badge(String(x.status||'').toUpperCase());}},
+      {label:'TX',value:function(x){return x.tx_hash?'<code style="font-size:10px;">'+esc(x.tx_hash).slice(0,14)+'...</code>':'—';}},
+      {label:'Date',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.created_at)+'</span>';}}
+    ],'M','No mint requests yet');
+  }).catch(function(e){document.getElementById('m1rMintBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+  api('/api/v1/m1-funds/redeem-requests?limit=50').then(function(r){
+    m1rTinyTable('m1rRedeemBody','m1rRedeemCount',r.items||[],[
+      {label:'Redeem ID',value:function(x){return '<code style="font-size:10px;">'+esc(x.redeem_id||'')+'</code>';}},
+      {label:'Amount',value:function(x){return '<strong>'+fmtNum(x.amount)+'</strong>';}},
+      {label:'Status',value:function(x){return badge(String(x.status||'').toUpperCase());}},
+      {label:'TX',value:function(x){return x.tx_hash?'<code style="font-size:10px;">'+esc(x.tx_hash).slice(0,14)+'...</code>':'—';}},
+      {label:'Date',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.created_at)+'</span>';}}
+    ],'R','No redeem requests yet');
+  }).catch(function(e){document.getElementById('m1rRedeemBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+  api('/api/v1/m1-funds/oracle-reads?limit=50').then(function(r){
+    m1rTinyTable('m1rOracleBody','m1rOracleCount',r.items||[],[
+      {label:'Client',value:function(x){return esc(x.client_id||'public');}},
+      {label:'IP',value:function(x){return esc(x.ip_address||'—');}},
+      {label:'Hash',value:function(x){return '<code style="font-size:10px;">'+esc(x.response_hash||'').slice(0,14)+'...</code>';}},
+      {label:'Time',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.timestamp)+'</span>';}}
+    ],'O','No oracle reads yet');
+  }).catch(function(e){document.getElementById('m1rOracleBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+  api('/api/v1/m1-funds/webhook-events?limit=50').then(function(r){
+    m1rTinyTable('m1rWebhookBody','m1rWebhookCount',r.items||[],[
+      {label:'Event',value:function(x){return esc(x.event||'');}},
+      {label:'Status',value:function(x){return badge(String(x.status||'').toUpperCase());}},
+      {label:'Code',value:function(x){return esc(String(x.status_code||'—'));}},
+      {label:'Time',value:function(x){return '<span style="font-size:11px;">'+fmtDate(x.created_at)+'</span>';}}
+    ],'W','No webhook events yet');
+  }).catch(function(e){document.getElementById('m1rWebhookBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
 }
 function m1rUpdateReserve(){
   var body={total_reserve_value:m1rVal('m1rTotalIn'),tokenized_value:m1rVal('m1rTokenizedIn'),valuation_date:m1rISOFromLocal('m1rValuation'),proof_document_hash:m1rVal('m1rProof'),approved_by:m1rVal('m1rApprovedBy')||'admin'};

@@ -21,6 +21,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import AdminKey, DbSession
 from app.models import (
+    ApiSignature,
     M1AuditLog,
     M1BlockchainConfirmation,
     M1FundReserve,
@@ -29,6 +30,7 @@ from app.models import (
     M1RedeemRequest,
     M1ReserveSnapshot,
     WalletVerification,
+    WebhookEvent,
 )
 from app.request_utils import get_client_ip
 
@@ -133,6 +135,42 @@ def _sign(body: dict[str, Any]) -> str:
 def _hash(body: dict[str, Any]) -> str:
     raw = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+async def _record_signature(
+    db: AsyncSession,
+    scope: str,
+    body: dict[str, Any],
+    *,
+    client_id: str | None = None,
+) -> None:
+    signature = str(body.get("api_signature") or body.get("signature") or _sign(body))
+    db.add(ApiSignature(
+        scope=scope,
+        client_id=client_id,
+        signature=signature,
+        response_hash=_hash(body),
+        metadata_json={"keys": sorted(body.keys())},
+    ))
+    await db.commit()
+
+
+async def _record_webhook_event(
+    db: AsyncSession,
+    event: str,
+    fund_id: str | None,
+    body: dict[str, Any],
+    *,
+    status: str = "recorded",
+) -> None:
+    db.add(WebhookEvent(
+        event=event,
+        fund_id=fund_id,
+        signature=_sign(body),
+        status=status,
+        request_body=body,
+    ))
+    await db.commit()
 
 
 def _event_id() -> str:
@@ -245,7 +283,9 @@ def _validate_tx(tx_hash: str) -> str:
 
 @router.get("/m1-funds/reserve")
 async def get_private_reserve(db: DbSession, _: AdminKey):
-    return _private(await _fund(db))
+    body = _private(await _fund(db))
+    await _record_signature(db, "m1.reserve.private", body)
+    return body
 
 
 @router.get("/public/m1-funds/reserve")
@@ -267,6 +307,7 @@ async def get_oracle_reserve(request: Request, db: DbSession, x_client_id: str |
         "proof_document_hash": fund.proof_document_hash,
     }
     body["signature"] = _sign(body)
+    await _record_signature(db, "m1.reserve.oracle", body, client_id=x_client_id)
     db.add(M1OracleRead(
         fund_id=fund.fund_id,
         client_id=x_client_id,
@@ -317,8 +358,11 @@ async def reserve_update(payload: ReserveUpdateIn, request: Request, db: DbSessi
     ))
     await db.commit()
     await db.refresh(fund)
-    await _audit(db, request, "reserve_updated", fund.fund_id, old_value=json.dumps(old), new_value=json.dumps(_private(fund)), actor=payload.approved_by, proof_document_hash=payload.proof_document_hash)
-    return _private(fund)
+    body = _private(fund)
+    await _audit(db, request, "reserve_updated", fund.fund_id, old_value=json.dumps(old), new_value=json.dumps(body), actor=payload.approved_by, proof_document_hash=payload.proof_document_hash)
+    await _record_signature(db, "m1.reserve.updated", body)
+    await _record_webhook_event(db, "m1.reserve.updated", fund.fund_id, body)
+    return body
 
 
 @router.post("/m1-funds/mint-request")
@@ -345,7 +389,10 @@ async def mint_request(payload: MintRequestIn, request: Request, db: DbSession, 
     db.add(row)
     await db.commit()
     await _audit(db, request, "mint_requested", fund.fund_id, actor="admin", metadata=body)
-    return {"approved": True, **body, "signature": sig}
+    response = {"approved": True, **body, "signature": sig}
+    await _record_signature(db, "m1.mint.requested", response)
+    await _record_webhook_event(db, "m1.mint.requested", fund.fund_id, response)
+    return response
 
 
 @router.post("/m1-funds/mint-confirmation")
@@ -370,7 +417,10 @@ async def mint_confirmation(payload: MintConfirmationIn, request: Request, db: D
     db.add(M1BlockchainConfirmation(fund_id=fund.fund_id, request_type="mint", request_id=req.mint_id, tx_hash=payload.tx_hash, contract_address=payload.contract_address, wallet=wallet, amount=amount, network=payload.network, block_number=payload.block_number))
     await db.commit()
     await _audit(db, request, "mint_confirmed", fund.fund_id, actor="admin", tx_hash=payload.tx_hash, metadata={"mint_id": req.mint_id, "verification_level": "recorded_not_chain_verified"})
-    return {"status": "confirmed", "mint_id": req.mint_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": "recorded_not_chain_verified"}
+    response = {"status": "confirmed", "mint_id": req.mint_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": "recorded_not_chain_verified"}
+    await _record_signature(db, "m1.mint.confirmed", response)
+    await _record_webhook_event(db, "m1.mint.confirmed", fund.fund_id, {"event": "m1.mint.confirmed", "fund_id": fund.fund_id, "mint_id": req.mint_id, "amount": _money(amount), "tx_hash": payload.tx_hash, "status": "confirmed", "timestamp": _now().isoformat()})
+    return response
 
 
 @router.post("/m1-funds/redeem-request")
@@ -394,7 +444,10 @@ async def redeem_request(payload: RedeemRequestIn, request: Request, db: DbSessi
     db.add(M1RedeemRequest(redeem_id=redeem_id, fund_id=fund.fund_id, wallet=wallet, amount=amount, network=payload.network, nonce=nonce, signature=sig, idempotency_key=idem, reason=payload.reason, expires_at=expires))
     await db.commit()
     await _audit(db, request, "redeem_requested", fund.fund_id, actor="admin", metadata=body)
-    return {"approved": True, **body, "signature": sig}
+    response = {"approved": True, **body, "signature": sig}
+    await _record_signature(db, "m1.redeem.requested", response)
+    await _record_webhook_event(db, "m1.redeem.requested", fund.fund_id, response)
+    return response
 
 
 @router.post("/m1-funds/burn-confirmation")
@@ -419,7 +472,10 @@ async def burn_confirmation(payload: BurnConfirmationIn, request: Request, db: D
     db.add(M1BlockchainConfirmation(fund_id=fund.fund_id, request_type="burn", request_id=req.redeem_id, tx_hash=payload.tx_hash, contract_address=payload.contract_address, wallet=wallet, amount=amount, network=payload.network, block_number=payload.block_number))
     await db.commit()
     await _audit(db, request, "burn_confirmed", fund.fund_id, actor="admin", tx_hash=payload.tx_hash, metadata={"redeem_id": req.redeem_id, "verification_level": "recorded_not_chain_verified"})
-    return {"status": "completed", "redeem_id": req.redeem_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": "recorded_not_chain_verified"}
+    response = {"status": "completed", "redeem_id": req.redeem_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": "recorded_not_chain_verified"}
+    await _record_signature(db, "m1.burn.confirmed", response)
+    await _record_webhook_event(db, "m1.burn.confirmed", fund.fund_id, {"event": "m1.burn.confirmed", "fund_id": fund.fund_id, "redeem_id": req.redeem_id, "amount": _money(amount), "tx_hash": payload.tx_hash, "status": "completed", "timestamp": _now().isoformat()})
+    return response
 
 
 @router.get("/m1-funds/audit")
@@ -437,6 +493,87 @@ async def audit_logs(db: DbSession, _: AdminKey, limit: int = 100):
             "tx_hash": r.tx_hash,
             "timestamp": r.timestamp.isoformat() if r.timestamp else None,
             "metadata": r.metadata_json or {},
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/mint-requests")
+async def mint_requests(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1MintRequest).order_by(desc(M1MintRequest.created_at)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "mint_id": r.mint_id,
+            "fund_id": r.fund_id,
+            "wallet": r.wallet,
+            "amount": _money(r.amount),
+            "network": r.network,
+            "status": r.status,
+            "nonce": r.nonce,
+            "expires_at": r.expires_at.isoformat() if r.expires_at else None,
+            "tx_hash": r.tx_hash,
+            "contract_address": r.contract_address,
+            "block_number": r.block_number,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/redeem-requests")
+async def redeem_requests(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1RedeemRequest).order_by(desc(M1RedeemRequest.created_at)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "redeem_id": r.redeem_id,
+            "fund_id": r.fund_id,
+            "wallet": r.wallet,
+            "amount": _money(r.amount),
+            "network": r.network,
+            "status": r.status,
+            "nonce": r.nonce,
+            "expires_at": r.expires_at.isoformat() if r.expires_at else None,
+            "tx_hash": r.tx_hash,
+            "contract_address": r.contract_address,
+            "block_number": r.block_number,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/oracle-reads")
+async def oracle_reads(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1OracleRead).order_by(desc(M1OracleRead.timestamp)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "fund_id": r.fund_id,
+            "client_id": r.client_id,
+            "ip_address": r.ip_address,
+            "user_agent": r.user_agent,
+            "response_hash": r.response_hash,
+            "status": r.status,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/webhook-events")
+async def webhook_events(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(WebhookEvent).where(WebhookEvent.event.like("m1.%")).order_by(desc(WebhookEvent.created_at)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "event": r.event,
+            "fund_id": r.fund_id,
+            "status": r.status,
+            "status_code": r.status_code,
+            "target_url": r.target_url,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "sent_at": r.sent_at.isoformat() if r.sent_at else None,
+            "error_message": r.error_message,
         }
         for r in rows
     ]}
