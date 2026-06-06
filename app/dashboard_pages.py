@@ -1467,6 +1467,17 @@ _M1_RESERVE_BODY = """
     <div id="m1rReadyBody"><div class="empty-state"><div class="icon">R</div>Loading...</div></div>
   </div>
 
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Token Contracts</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="m1rContractsStatus" style="color:var(--muted);font-size:12px;">Loading...</span>
+        <button class="btn btn-ghost" onclick="m1rSyncContracts()">Sync Blockchain</button>
+      </div>
+    </div>
+    <div id="m1rContractsBody"><div class="empty-state"><div class="icon">T</div>Loading contract data...</div></div>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
     <div class="panel">
       <div class="panel-head"><h3>Reserve Update</h3></div>
@@ -1600,6 +1611,7 @@ function m1rLoad(){
     var tb=rows.map(function(x){return '<tr><td>'+esc(x.name||'')+'</td><td>'+badge(String(x.status||'').toUpperCase())+'</td><td>'+esc(x.detail||'')+'</td></tr>';}).join('');
     document.getElementById('m1rReadyBody').innerHTML='<div class="table-wrap"><table><thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('m1rReadyBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+  m1rLoadContracts(false);
   api('/api/v1/m1-funds/audit?limit=100').then(function(r){
     var rows=(r.events||[]);
     document.getElementById('m1rAuditCount').textContent=rows.length+' events';
@@ -1609,6 +1621,59 @@ function m1rLoad(){
     document.getElementById('m1rAuditBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('m1rAuditBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
   m1rLoadLists();
+}
+function m1rContractCard(title, token, extra){
+  token=token||{};
+  var status=token.reachable?'READY':'NOT_READY';
+  var err=token.error?'<div style="color:#f87171;font-size:11px;margin-top:6px;">'+esc(token.error)+'</div>':'';
+  var max=token.max_supply?'<div class="stat-card"><span>Max Supply</span><strong>'+fmtNum(token.max_supply)+'</strong><small>'+esc(token.official_symbol||token.symbol||'')+'</small></div>':'';
+  return '<div class="panel" style="margin:0;">'
+    +'<div class="panel-head"><h3>'+esc(title)+'</h3>'+badge(status)+'</div>'
+    +'<div style="padding:14px;display:grid;gap:10px;">'
+    +'<div><span style="color:var(--muted);font-size:12px;">Official Name</span><br><strong>'+esc(token.official_name||token.name||'—')+'</strong></div>'
+    +(token.arabic_display_name?'<div><span style="color:var(--muted);font-size:12px;">Arabic Display</span><br><strong>'+esc(token.arabic_display_name)+'</strong></div>':'')
+    +'<div><span style="color:var(--muted);font-size:12px;">Contract Address</span><br><code style="font-size:11px;word-break:break-all;">'+esc(token.address||'—')+'</code></div>'
+    +'<div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">'
+    +'<div class="stat-card"><span>Contract Name</span><strong>'+esc(token.name||'—')+'</strong><small>On-chain</small></div>'
+    +'<div class="stat-card"><span>Symbol</span><strong>'+esc(token.symbol||token.official_symbol||'—')+'</strong><small>decimals '+esc(String(token.decimals||'—'))+'</small></div>'
+    +'<div class="stat-card"><span>Total Supply</span><strong>'+fmtNum(token.total_supply||0)+'</strong><small>'+esc(token.official_symbol||token.symbol||'')+'</small></div>'
+    +'<div class="stat-card"><span>Treasury Balance</span><strong>'+fmtNum(token.treasury_balance||0)+'</strong><small>'+esc(token.official_symbol||token.symbol||'')+'</small></div>'
+    +max
+    +'</div>'+err+(extra||'')+'</div></div>';
+}
+function m1rLoadContracts(showToastOnSuccess){
+  document.getElementById('m1rContractsStatus').textContent='Loading...';
+  api('/api/v1/m1-funds/token-contracts').then(function(r){
+    var chain=r.chain||{};
+    var warnings=(r.warnings||[]).map(function(w){return '<div style="border:1px solid rgba(245,158,11,.35);background:rgba(245,158,11,.08);color:#facc15;border-radius:8px;padding:9px;margin-top:8px;">'+esc(w)+'</div>';}).join('');
+    var top='<div style="padding:14px;display:grid;gap:12px;">'
+      +'<div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">'
+      +'<div class="stat-card"><span>Network</span><strong>'+esc(r.network||'—')+'</strong><small>Configured token network</small></div>'
+      +'<div class="stat-card"><span>Chain ID</span><strong>'+esc(String(chain.chain_id_actual||'—'))+'</strong><small>Expected '+esc(String(chain.chain_id_expected||''))+'</small></div>'
+      +'<div class="stat-card"><span>RPC Status</span><strong>'+esc(String(r.rpc_status||'—'))+'</strong><small>'+esc(chain.error||'Sepolia RPC')+'</small></div>'
+      +'<div class="stat-card"><span>Readiness</span><strong>'+esc(String(r.readiness_status||'—'))+'</strong><small>Contracts + RPC</small></div>'
+      +'</div>'
+      +'<div><span style="color:var(--muted);font-size:12px;">Treasury Wallet</span><br><code style="font-size:11px;word-break:break-all;">'+esc(r.treasury_wallet||'—')+'</code></div>'
+      +warnings
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">'
+      +m1rContractCard('M1 Contract',r.m1||{})
+      +m1rContractCard('SIG Contract',r.sig||{})
+      +'</div></div>';
+    document.getElementById('m1rContractsBody').innerHTML=top;
+    document.getElementById('m1rContractsStatus').textContent='Last sync: '+fmtDate(r.last_sync_at);
+    if(showToastOnSuccess) showToast('Blockchain sync completed','ok');
+  }).catch(function(e){
+    document.getElementById('m1rContractsStatus').textContent='Error';
+    document.getElementById('m1rContractsBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';
+  });
+}
+function m1rSyncContracts(){
+  document.getElementById('m1rContractsStatus').textContent='Syncing...';
+  api('/api/v1/m1-funds/blockchain-sync',{method:'POST',body:JSON.stringify({})}).then(function(r){
+    document.getElementById('m1rContractsStatus').textContent='Last sync: '+fmtDate(r.last_sync_at);
+    m1rLoadContracts(true);
+    m1rLoadLists();
+  }).catch(function(e){showToast('Blockchain sync error: '+e.message,'error');m1rLoadContracts(false);});
 }
 function m1rTinyTable(target,countId,rows,columns,emptyIcon,emptyText){
   document.getElementById(countId).textContent=rows.length+' items';

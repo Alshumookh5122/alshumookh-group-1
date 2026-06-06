@@ -17,6 +17,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit_service import log_event
+from app.blockchain import async_sync_token_contracts, verify_m1_burn_event, verify_m1_mint_event
 from app.config import settings
 from app.database import get_db
 from app.deps import AdminKey, DbSession
@@ -223,6 +224,39 @@ def _private(fund: M1FundReserve) -> dict[str, Any]:
     return body
 
 
+def _token_config() -> dict[str, Any]:
+    return {
+        "network": settings.token_network,
+        "chain_id": settings.chain_id,
+        "m1_contract": settings.m1_token_contract_address,
+        "m1_token_name": settings.m1_token_name,
+        "m1_token_symbol": settings.m1_token_symbol,
+        "m1_token_decimals": settings.m1_token_decimals,
+        "sig_contract": settings.sig_token_contract_address,
+        "sig_token_name": settings.sig_token_name,
+        "sig_token_symbol": settings.sig_token_symbol,
+        "sig_token_arabic_name": settings.sig_token_arabic_name,
+        "treasury_wallet": settings.treasury_wallet,
+    }
+
+
+def _token_contract_warnings(fund: M1FundReserve, contracts: dict[str, Any]) -> list[str]:
+    warnings: list[str] = []
+    try:
+        max_supply = contracts.get("m1", {}).get("max_supply")
+        if max_supply is not None and Decimal(str(fund.tokenized_value or 0)) > Decimal(str(max_supply)):
+            warnings.append("Tokenized value exceeds on-chain M1 maxSupply. Increase maxSupply on-chain before minting more M1.")
+    except Exception:
+        pass
+    try:
+        total_supply = contracts.get("m1", {}).get("total_supply")
+        if total_supply is not None and Decimal(str(fund.issued_tokens or 0)).quantize(Decimal("0.01")) != Decimal(str(total_supply)).quantize(Decimal("0.01")):
+            warnings.append("Database issued_tokens does not match on-chain M1 totalSupply.")
+    except Exception:
+        pass
+    return warnings
+
+
 async def _fund(db: AsyncSession, fund_id: str = DEFAULT_FUND_ID) -> M1FundReserve:
     result = await db.execute(select(M1FundReserve).where(M1FundReserve.fund_id == fund_id))
     fund = result.scalar_one_or_none()
@@ -292,6 +326,12 @@ def _validate_tx(tx_hash: str) -> str:
     return tx_hash
 
 
+def _require_m1_contract(contract_address: str) -> str:
+    if (contract_address or "").lower() != settings.m1_token_contract_address.lower():
+        raise HTTPException(400, {"code": "invalid_contract_address", "message": "Confirmation must reference the official M1 token contract."})
+    return contract_address
+
+
 def _mint_row(r: M1MintRequest) -> dict[str, Any]:
     return {
         "mint_id": r.mint_id,
@@ -344,21 +384,96 @@ async def get_private_reserve(db: DbSession, _: AdminKey):
 @router.get("/m1-funds/readiness")
 async def readiness(db: DbSession, _: AdminKey):
     fund = await _fund(db)
+    contracts = await async_sync_token_contracts()
     mint_count = (await db.execute(select(M1MintRequest))).scalars().all()
     redeem_count = (await db.execute(select(M1RedeemRequest))).scalars().all()
     confirmation_count = (await db.execute(select(M1BlockchainConfirmation))).scalars().all()
     webhook_count = (await db.execute(select(WebhookEvent).where(WebhookEvent.event.like("m1.%")))).scalars().all()
+    chain = contracts.get("chain", {})
+    m1 = contracts.get("m1", {})
+    sig = contracts.get("sig", {})
+    warnings = _token_contract_warnings(fund, contracts)
+    issued_matches_chain = True
+    if m1.get("total_supply") is not None:
+        try:
+            issued_matches_chain = Decimal(str(fund.issued_tokens or 0)).quantize(Decimal("0.01")) == Decimal(str(m1["total_supply"])).quantize(Decimal("0.01"))
+        except Exception:
+            issued_matches_chain = False
+    overall_status = "ready" if (
+        chain.get("rpc_connected")
+        and chain.get("chain_id_is_expected")
+        and m1.get("reachable")
+        and sig.get("reachable")
+        and bool(settings.treasury_wallet)
+        and issued_matches_chain
+    ) else "not_ready"
     checks = [
         {"name": "Admin authentication", "status": "ready", "detail": "All private M1 dashboard endpoints require admin authentication."},
         {"name": "Reserve ledger", "status": "ready" if fund else "warning", "detail": fund.fund_id if fund else "Reserve will be created on first access."},
         {"name": "Proof document hash", "status": "ready" if fund.proof_document_hash else "warning", "detail": fund.proof_document_hash or "No proof hash has been recorded yet."},
+        {"name": "RPC connected", "status": "ready" if chain.get("rpc_connected") else "not_ready", "detail": chain.get("error") or "Sepolia RPC is reachable."},
+        {"name": "Chain ID is Sepolia", "status": "ready" if chain.get("chain_id_is_expected") else "not_ready", "detail": f"Expected {settings.chain_id}, got {chain.get('chain_id_actual') or 'unavailable'}."},
+        {"name": "M1 contract configured", "status": "ready" if m1.get("configured") else "not_ready", "detail": settings.m1_token_contract_address},
+        {"name": "SIG contract configured", "status": "ready" if sig.get("configured") else "not_ready", "detail": settings.sig_token_contract_address},
+        {"name": "M1 contract reachable", "status": "ready" if m1.get("reachable") else "not_ready", "detail": m1.get("error") or f"totalSupply={m1.get('total_supply')}"},
+        {"name": "SIG contract reachable", "status": "ready" if sig.get("reachable") else "not_ready", "detail": sig.get("error") or f"totalSupply={sig.get('total_supply')}"},
+        {"name": "Treasury wallet configured", "status": "ready" if settings.treasury_wallet else "not_ready", "detail": settings.treasury_wallet or "TREASURY_WALLET is missing."},
+        {"name": "M1 total supply readable", "status": "ready" if m1.get("total_supply") is not None else "not_ready", "detail": str(m1.get("total_supply") or m1.get("error") or "Unavailable")},
+        {"name": "SIG total supply readable", "status": "ready" if sig.get("total_supply") is not None else "not_ready", "detail": str(sig.get("total_supply") or sig.get("error") or "Unavailable")},
+        {"name": "DB issued tokens match chain", "status": "ready" if issued_matches_chain else "warning", "detail": f"DB={_money(fund.issued_tokens)} / Chain={m1.get('total_supply') or 'unavailable'}"},
         {"name": "Mint controls", "status": "ready", "detail": f"{len(mint_count)} mint request(s) recorded."},
         {"name": "Redeem controls", "status": "ready", "detail": f"{len(redeem_count)} redeem request(s) recorded."},
-        {"name": "Blockchain confirmations", "status": "manual", "detail": f"{len(confirmation_count)} confirmation(s) recorded. Live chain verification waits for official contract/RPC setup."},
-        {"name": "Signed webhook ledger", "status": "recording", "detail": f"{len(webhook_count)} M1 webhook event(s) recorded. External delivery waits for callback URLs/secrets."},
+        {"name": "Blockchain confirmations", "status": "recording", "detail": f"{len(confirmation_count)} confirmation(s) recorded. Live verification requires SEPOLIA_RPC_URL."},
+        {"name": "Signed webhook ledger", "status": "ready" if settings.webhook_enabled and settings.webhook_callback_url and settings.webhook_secret else "recording", "detail": f"{len(webhook_count)} M1 webhook event(s) recorded. External delivery enabled={settings.webhook_enabled}."},
         {"name": "Private key safety", "status": "ready", "detail": "Private keys are not requested, transmitted, logged, or stored by this module."},
     ]
-    return {"fund_id": fund.fund_id, "overall": "admin_ready_external_pending", "checks": checks}
+    for item in warnings:
+        checks.append({"name": "Contract warning", "status": "warning", "detail": item})
+    return {
+        "fund_id": fund.fund_id,
+        "overall": overall_status,
+        "rpc_connected": bool(chain.get("rpc_connected")),
+        "chain_id_is_sepolia": bool(chain.get("chain_id_is_expected")),
+        "m1_contract_configured": bool(m1.get("configured")),
+        "sig_contract_configured": bool(sig.get("configured")),
+        "m1_contract_reachable": bool(m1.get("reachable")),
+        "sig_contract_reachable": bool(sig.get("reachable")),
+        "treasury_wallet_configured": bool(settings.treasury_wallet),
+        "m1_total_supply_readable": m1.get("total_supply") is not None,
+        "sig_total_supply_readable": sig.get("total_supply") is not None,
+        "m1_db_issued_tokens_matches_chain": issued_matches_chain,
+        "last_sync_at": _now().isoformat(),
+        "overall_status": overall_status,
+        "warnings": warnings,
+        "checks": checks,
+    }
+
+
+@router.get("/m1-funds/token-contracts")
+async def token_contracts(db: DbSession, _: AdminKey):
+    fund = await _fund(db)
+    contracts = await async_sync_token_contracts()
+    contracts["warnings"] = _token_contract_warnings(fund, contracts)
+    contracts["last_sync_at"] = _now().isoformat()
+    return contracts
+
+
+@router.post("/m1-funds/blockchain-sync")
+async def blockchain_sync(request: Request, db: DbSession, _: AdminKey):
+    fund = await _fund(db)
+    contracts = await async_sync_token_contracts()
+    contracts["warnings"] = _token_contract_warnings(fund, contracts)
+    contracts["last_sync_at"] = _now().isoformat()
+    await _audit(
+        db,
+        request,
+        "blockchain_sync_completed" if contracts.get("readiness_status") == "ready" else "blockchain_sync_warning",
+        fund.fund_id,
+        actor="admin",
+        metadata={"readiness_status": contracts.get("readiness_status"), "warnings": contracts.get("warnings", [])},
+    )
+    await _record_webhook_event(db, "m1.blockchain.sync.completed", fund.fund_id, contracts)
+    return contracts
 
 
 @router.get("/public/m1-funds/reserve")
@@ -376,6 +491,12 @@ async def get_oracle_reserve(request: Request, db: DbSession, x_client_id: str |
         "tokenized_value": _money(fund.tokenized_value),
         "backing_ratio": fund.backing_ratio,
         "status": fund.status,
+        "network": settings.token_network,
+        "m1_contract": settings.m1_token_contract_address,
+        "sig_contract": settings.sig_token_contract_address,
+        "sig_token_name": settings.sig_token_name,
+        "sig_token_symbol": settings.sig_token_symbol,
+        "sig_token_arabic_name": settings.sig_token_arabic_name,
         "last_updated": fund.last_updated.isoformat() if fund.last_updated else None,
         "proof_document_hash": fund.proof_document_hash,
     }
@@ -490,26 +611,50 @@ async def mint_confirmation(payload: MintConfirmationIn, request: Request, db: D
     req = (await db.execute(select(M1MintRequest).where(M1MintRequest.mint_id == payload.mint_id))).scalar_one_or_none()
     if not req:
         raise HTTPException(404, {"code": "invalid_mint_id", "message": "Mint request not found."})
-    _validate_tx(payload.tx_hash)
+    tx_hash = _validate_tx(payload.tx_hash)
+    _require_m1_contract(payload.contract_address)
+    existing_tx = (await db.execute(select(M1BlockchainConfirmation).where(M1BlockchainConfirmation.tx_hash == tx_hash))).scalar_one_or_none()
+    if existing_tx:
+        raise HTTPException(400, {"code": "duplicate_tx_hash", "message": "This tx_hash has already been used in an M1 blockchain confirmation."})
     wallet = _validate_wallet(payload.wallet)
     amount = _dec(payload.amount)
     if wallet.lower() != req.wallet.lower() or amount != Decimal(req.amount):
         raise HTTPException(400, {"code": "mint_confirmation_mismatch", "message": "Confirmation does not match the mint request."})
+    try:
+        verification = verify_m1_mint_event(tx_hash, wallet, _money(amount))
+    except Exception as exc:
+        await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "mint", "request_id": req.mint_id, "tx_hash": tx_hash, "error": str(exc)}, status="verification_failed")
+        raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": str(exc)}) from exc
+    if not verification.ok:
+        await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "mint", "request_id": req.mint_id, "tx_hash": tx_hash, "status": verification.status, "detail": verification.detail}, status="verification_failed")
+        raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": verification.detail, "status": verification.status})
     fund = await _fund(db, req.fund_id)
     fund.issued_tokens = Decimal(fund.issued_tokens or 0) + amount
     fund.available_to_mint, fund.backing_ratio = _calculate(Decimal(fund.total_reserve_value or 0), Decimal(fund.tokenized_value or 0), Decimal(fund.issued_tokens or 0))
     fund.last_updated = _now()
     req.status = "confirmed"
-    req.tx_hash = payload.tx_hash
-    req.contract_address = payload.contract_address
-    req.block_number = payload.block_number
+    req.tx_hash = tx_hash
+    req.contract_address = settings.m1_token_contract_address
+    req.block_number = str(verification.block_number or payload.block_number or "")
     req.confirmed_at = _now()
-    db.add(M1BlockchainConfirmation(fund_id=fund.fund_id, request_type="mint", request_id=req.mint_id, tx_hash=payload.tx_hash, contract_address=payload.contract_address, wallet=wallet, amount=amount, network=payload.network, block_number=payload.block_number))
+    db.add(M1BlockchainConfirmation(
+        fund_id=fund.fund_id,
+        request_type="mint",
+        request_id=req.mint_id,
+        tx_hash=tx_hash,
+        contract_address=settings.m1_token_contract_address,
+        wallet=wallet,
+        amount=amount,
+        network=payload.network,
+        block_number=str(verification.block_number or payload.block_number or ""),
+        verification_status="chain_verified",
+        metadata_json={"verification_status": verification.status, "verification_detail": verification.detail},
+    ))
     await db.commit()
-    await _audit(db, request, "mint_confirmed", fund.fund_id, actor="admin", tx_hash=payload.tx_hash, metadata={"mint_id": req.mint_id, "verification_level": "recorded_not_chain_verified"})
-    response = {"status": "confirmed", "mint_id": req.mint_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": "recorded_not_chain_verified"}
+    await _audit(db, request, "mint_confirmed", fund.fund_id, actor="admin", tx_hash=tx_hash, metadata={"mint_id": req.mint_id, "verification_level": "chain_verified", "block_number": req.block_number})
+    response = {"status": "confirmed", "mint_id": req.mint_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": "chain_verified", "block_number": req.block_number}
     await _record_signature(db, "m1.mint.confirmed", response)
-    await _record_webhook_event(db, "m1.mint.confirmed", fund.fund_id, {"event": "m1.mint.confirmed", "fund_id": fund.fund_id, "mint_id": req.mint_id, "amount": _money(amount), "tx_hash": payload.tx_hash, "status": "confirmed", "timestamp": _now().isoformat()})
+    await _record_webhook_event(db, "m1.mint.confirmed", fund.fund_id, {"event": "m1.mint.confirmed", "fund_id": fund.fund_id, "mint_id": req.mint_id, "amount": _money(amount), "tx_hash": tx_hash, "status": "confirmed", "timestamp": _now().isoformat()})
     return response
 
 
@@ -545,26 +690,50 @@ async def burn_confirmation(payload: BurnConfirmationIn, request: Request, db: D
     req = (await db.execute(select(M1RedeemRequest).where(M1RedeemRequest.redeem_id == payload.redeem_id))).scalar_one_or_none()
     if not req:
         raise HTTPException(404, {"code": "invalid_redeem_id", "message": "Redeem request not found."})
-    _validate_tx(payload.tx_hash)
+    tx_hash = _validate_tx(payload.tx_hash)
+    _require_m1_contract(payload.contract_address)
+    existing_tx = (await db.execute(select(M1BlockchainConfirmation).where(M1BlockchainConfirmation.tx_hash == tx_hash))).scalar_one_or_none()
+    if existing_tx:
+        raise HTTPException(400, {"code": "duplicate_tx_hash", "message": "This tx_hash has already been used in an M1 blockchain confirmation."})
     wallet = _validate_wallet(payload.wallet)
     amount = _dec(payload.amount)
     if wallet.lower() != req.wallet.lower() or amount != Decimal(req.amount):
         raise HTTPException(400, {"code": "burn_confirmation_mismatch", "message": "Confirmation does not match the redeem request."})
+    try:
+        verification = verify_m1_burn_event(tx_hash, wallet, _money(amount))
+    except Exception as exc:
+        await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "burn", "request_id": req.redeem_id, "tx_hash": tx_hash, "error": str(exc)}, status="verification_failed")
+        raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": str(exc)}) from exc
+    if not verification.ok:
+        await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "burn", "request_id": req.redeem_id, "tx_hash": tx_hash, "status": verification.status, "detail": verification.detail}, status="verification_failed")
+        raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": verification.detail, "status": verification.status})
     fund = await _fund(db, req.fund_id)
     fund.issued_tokens = max(Decimal("0"), Decimal(fund.issued_tokens or 0) - amount)
     fund.available_to_mint, fund.backing_ratio = _calculate(Decimal(fund.total_reserve_value or 0), Decimal(fund.tokenized_value or 0), Decimal(fund.issued_tokens or 0))
     fund.last_updated = _now()
     req.status = "completed"
-    req.tx_hash = payload.tx_hash
-    req.contract_address = payload.contract_address
-    req.block_number = payload.block_number
+    req.tx_hash = tx_hash
+    req.contract_address = settings.m1_token_contract_address
+    req.block_number = str(verification.block_number or payload.block_number or "")
     req.confirmed_at = _now()
-    db.add(M1BlockchainConfirmation(fund_id=fund.fund_id, request_type="burn", request_id=req.redeem_id, tx_hash=payload.tx_hash, contract_address=payload.contract_address, wallet=wallet, amount=amount, network=payload.network, block_number=payload.block_number))
+    db.add(M1BlockchainConfirmation(
+        fund_id=fund.fund_id,
+        request_type="burn",
+        request_id=req.redeem_id,
+        tx_hash=tx_hash,
+        contract_address=settings.m1_token_contract_address,
+        wallet=wallet,
+        amount=amount,
+        network=payload.network,
+        block_number=str(verification.block_number or payload.block_number or ""),
+        verification_status="chain_verified",
+        metadata_json={"verification_status": verification.status, "verification_detail": verification.detail},
+    ))
     await db.commit()
-    await _audit(db, request, "burn_confirmed", fund.fund_id, actor="admin", tx_hash=payload.tx_hash, metadata={"redeem_id": req.redeem_id, "verification_level": "recorded_not_chain_verified"})
-    response = {"status": "completed", "redeem_id": req.redeem_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": "recorded_not_chain_verified"}
+    await _audit(db, request, "burn_confirmed", fund.fund_id, actor="admin", tx_hash=tx_hash, metadata={"redeem_id": req.redeem_id, "verification_level": "chain_verified", "block_number": req.block_number})
+    response = {"status": "completed", "redeem_id": req.redeem_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": "chain_verified", "block_number": req.block_number}
     await _record_signature(db, "m1.burn.confirmed", response)
-    await _record_webhook_event(db, "m1.burn.confirmed", fund.fund_id, {"event": "m1.burn.confirmed", "fund_id": fund.fund_id, "redeem_id": req.redeem_id, "amount": _money(amount), "tx_hash": payload.tx_hash, "status": "completed", "timestamp": _now().isoformat()})
+    await _record_webhook_event(db, "m1.burn.confirmed", fund.fund_id, {"event": "m1.burn.confirmed", "fund_id": fund.fund_id, "redeem_id": req.redeem_id, "amount": _money(amount), "tx_hash": tx_hash, "status": "completed", "timestamp": _now().isoformat()})
     return response
 
 

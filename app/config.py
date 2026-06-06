@@ -148,6 +148,38 @@ class Settings(BaseSettings):
     default_token_symbol: str = Field(default="USDC", alias="DEFAULT_TOKEN_SYMBOL")
     auto_payout_enabled: bool = Field(default=False, alias="AUTO_PAYOUT_ENABLED")
 
+    sepolia_rpc_url: str | None = Field(default=None, alias="SEPOLIA_RPC_URL")
+    token_network: str = Field(default="sepolia", alias="TOKEN_NETWORK")
+    chain_id: int = Field(default=11155111, alias="CHAIN_ID")
+    m1_token_contract_address: str = Field(
+        default="0xD999DB972BBDc2C13a9595A1474A04F5e59169a5",
+        alias="M1_TOKEN_CONTRACT_ADDRESS",
+    )
+    sig_token_contract_address: str = Field(
+        default="0x14E068D3C99cbC8BAe723D83D1761EF4C124A0ab",
+        alias="SIG_TOKEN_CONTRACT_ADDRESS",
+    )
+    m1_token_decimals: int = Field(default=18, alias="M1_TOKEN_DECIMALS")
+    sig_token_decimals: int = Field(default=18, alias="SIG_TOKEN_DECIMALS")
+    m1_token_name: str = Field(default="Al Shumookh M1 Fund Token", alias="M1_TOKEN_NAME")
+    m1_token_symbol: str = Field(default="M1", alias="M1_TOKEN_SYMBOL")
+    sig_token_name: str = Field(
+        default="Al Shumookh International Group Token",
+        alias="SIG_TOKEN_NAME",
+    )
+    sig_token_symbol: str = Field(default="SIG", alias="SIG_TOKEN_SYMBOL")
+    sig_token_arabic_name: str = Field(
+        default="توكن الشموخ إنترناشونال جروب",
+        alias="SIG_TOKEN_ARABIC_NAME",
+    )
+    treasury_wallet: str = Field(
+        default="0x2FDA743d06aFA6CA8BFD8265daeA17267B496234",
+        alias="TREASURY_WALLET",
+    )
+    webhook_enabled: bool = Field(default=False, alias="WEBHOOK_ENABLED")
+    webhook_callback_url: str | None = Field(default=None, alias="WEBHOOK_CALLBACK_URL")
+    webhook_secret: str | None = Field(default=None, alias="WEBHOOK_SECRET")
+
     notify_from_email: str = Field(default="no-reply@alshumookhgroup.com", alias="NOTIFY_FROM_EMAIL")
     notify_to_email: str = Field(default="info@alshumookhgroup.com", alias="NOTIFY_TO_EMAIL")
 
