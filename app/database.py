@@ -122,6 +122,12 @@ async def init_db():
             await conn.exec_driver_sql(
                 "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS error_message TEXT"
             )
+            await conn.exec_driver_sql(
+                "ALTER TABLE m1_audit_logs ADD COLUMN IF NOT EXISTS batch_id VARCHAR(96)"
+            )
+            await conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_m1_audit_logs_batch_id ON m1_audit_logs (batch_id)"
+            )
 
             await conn.exec_driver_sql(
                 "CREATE TABLE IF NOT EXISTS client_accounts ("
@@ -358,3 +364,16 @@ async def init_db():
                 "CREATE INDEX IF NOT EXISTS ix_external_payloads_review_decision "
                 "ON external_payloads (review_decision)"
             )
+
+        if conn.dialect.name == "sqlite":
+            try:
+                result = await conn.exec_driver_sql("PRAGMA table_info(m1_audit_logs)")
+                columns = {row[1] for row in result.fetchall()}
+                if "batch_id" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE m1_audit_logs ADD COLUMN batch_id VARCHAR(96)")
+                await conn.exec_driver_sql(
+                    "CREATE INDEX IF NOT EXISTS ix_m1_audit_logs_batch_id ON m1_audit_logs (batch_id)"
+                )
+            except Exception:
+                # SQLite local development databases may lag behind production schema.
+                pass

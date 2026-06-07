@@ -1478,6 +1478,41 @@ _M1_RESERVE_BODY = """
     <div id="m1rContractsBody"><div class="empty-state"><div class="icon">T</div>Loading contract data...</div></div>
   </div>
 
+  <div class="panel">
+    <div class="panel-head">
+      <h3>M1 Tokenization Batches</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="m1rBatchCount" style="color:var(--muted);font-size:12px;">Loading...</span>
+        <button class="btn btn-primary" onclick="m1rShowBatchForm()">+ Create Batch</button>
+      </div>
+    </div>
+    <div id="m1rBatchCards" class="stats-grid" style="padding:14px;"></div>
+    <div id="m1rBatchForm" style="display:none;padding:14px;border-top:1px solid var(--line);">
+      <div class="form-grid">
+        <div class="form-field"><label>Batch ID (optional)</label><input id="m1bId" placeholder="M1-ALSHUMOOKH-2026-USD-001"></div>
+        <div class="form-field"><label>Sender Reference</label><input id="m1bSenderRef" placeholder="TEST-M1-USD-001"></div>
+        <div class="form-field"><label>Sender Name</label><input id="m1bSenderName" placeholder="Sender Name"></div>
+        <div class="form-field"><label>Sender Wallet</label><input id="m1bSenderWallet" placeholder="0x... optional"></div>
+        <div class="form-field"><label>Source Asset Type</label><input id="m1bAssetType" value="M1 Funds"></div>
+        <div class="form-field"><label>Source Network</label><input id="m1bSourceNetwork" value="Internal"></div>
+        <div class="form-field"><label>Source Transaction Hash / Ref</label><input id="m1bSourceHash" placeholder="REF-..."></div>
+        <div class="form-field"><label>Currency</label><select id="m1bCurrency"><option value="USD">USD</option><option value="EUR">EUR</option></select></div>
+        <div class="form-field"><label>Total Reserve Value</label><input id="m1bTotal" type="number" step="0.01" placeholder="100000000.00"></div>
+        <div class="form-field"><label>Tokenized Value</label><input id="m1bTokenized" type="number" step="0.01" placeholder="10000000.00"></div>
+        <div class="form-field"><label>FX Rate to USD</label><input id="m1bFx" type="number" step="0.00000001" value="1.00"></div>
+        <div class="form-field"><label>FX Rate Source</label><input id="m1bFxSource" value="manual"></div>
+        <div class="form-field"><label>Valuation Date</label><input id="m1bValuation" type="datetime-local"></div>
+        <div class="form-field"><label>Proof Document Hash</label><input id="m1bProof" placeholder="0x..."></div>
+        <div class="form-field"><label>Created By</label><input id="m1bCreatedBy" value="admin"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn btn-success" onclick="m1rCreateBatch()">Create Batch</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('m1rBatchForm').style.display='none'">Cancel</button>
+      </div>
+    </div>
+    <div id="m1rBatchBody"><div class="empty-state"><div class="icon">B</div>Loading batches...</div></div>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
     <div class="panel">
       <div class="panel-head"><h3>Reserve Update</h3></div>
@@ -1612,12 +1647,13 @@ function m1rLoad(){
     document.getElementById('m1rReadyBody').innerHTML='<div class="table-wrap"><table><thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('m1rReadyBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
   m1rLoadContracts(false);
+  m1rLoadBatches();
   api('/api/v1/m1-funds/audit?limit=100').then(function(r){
     var rows=(r.events||[]);
     document.getElementById('m1rAuditCount').textContent=rows.length+' events';
     if(!rows.length){document.getElementById('m1rAuditBody').innerHTML='<div class="empty-state"><div class="icon">🏦</div>No M1 audit events yet</div>';return;}
-    var th='<th>Event</th><th>Fund</th><th>Actor</th><th>TX</th><th>Proof</th><th>Time</th>';
-    var tb=rows.map(function(x){return '<tr><td>'+esc(x.type||'')+'</td><td><code style="font-size:10px;">'+esc(x.fund_id||'—')+'</code></td><td>'+esc(x.approved_by||'—')+'</td><td>'+(x.tx_hash?'<code style="font-size:10px;">'+esc(x.tx_hash).slice(0,18)+'...</code>':'—')+'</td><td>'+(x.proof_document_hash?'<code style="font-size:10px;">'+esc(x.proof_document_hash).slice(0,18)+'...</code>':'—')+'</td><td style="font-size:11px;">'+fmtDate(x.timestamp)+'</td></tr>';}).join('');
+    var th='<th>Event</th><th>Fund</th><th>Batch</th><th>Actor</th><th>TX</th><th>Proof</th><th>Time</th>';
+    var tb=rows.map(function(x){return '<tr><td>'+esc(x.type||'')+'</td><td><code style="font-size:10px;">'+esc(x.fund_id||'—')+'</code></td><td><code style="font-size:10px;">'+esc(x.batch_id||'—')+'</code></td><td>'+esc(x.actor||'—')+'</td><td>'+(x.tx_hash?'<code style="font-size:10px;">'+esc(x.tx_hash).slice(0,18)+'...</code>':'—')+'</td><td>'+(x.proof_document_hash?'<code style="font-size:10px;">'+esc(x.proof_document_hash).slice(0,18)+'...</code>':'—')+'</td><td style="font-size:11px;">'+fmtDate(x.timestamp)+'</td></tr>';}).join('');
     document.getElementById('m1rAuditBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('m1rAuditBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
   m1rLoadLists();
@@ -1674,6 +1710,106 @@ function m1rSyncContracts(){
     m1rLoadContracts(true);
     m1rLoadLists();
   }).catch(function(e){showToast('Blockchain sync error: '+e.message,'error');m1rLoadContracts(false);});
+}
+function m1rMoney(v,symbol){return fmtNum(v||0)+' '+esc(symbol||'');}
+function m1rShowBatchForm(){
+  var el=document.getElementById('m1rBatchForm');
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+function m1rLoadBatches(){
+  api('/api/v1/m1-funds/batches?limit=100').then(function(r){
+    var s=r.batch_summary||{};
+    var cs=s.currency_summary||{};
+    var usd=cs.USD||{}, eur=cs.EUR||{};
+    document.getElementById('m1rBatchCount').textContent=(r.items||[]).length+' batches';
+    document.getElementById('m1rBatchCards').innerHTML=
+      '<div class="stat-card"><span>Total Reserve USD</span><strong>'+m1rMoney(usd.total_reserve_value,'USD')+'</strong><small>USD batches</small></div>'
+      +'<div class="stat-card"><span>Total Reserve EUR</span><strong>'+m1rMoney(eur.total_reserve_value,'EUR')+'</strong><small>EUR batches</small></div>'
+      +'<div class="stat-card"><span>Tokenized USD</span><strong>'+m1rMoney(usd.tokenized_value,'USD')+'</strong><small>USD batches</small></div>'
+      +'<div class="stat-card"><span>Tokenized EUR</span><strong>'+m1rMoney(eur.tokenized_value,'EUR')+'</strong><small>EUR batches</small></div>'
+      +'<div class="stat-card"><span>Total USD Equivalent</span><strong>'+m1rMoney(s.total_tokenized_value_usd_equivalent,'USD')+'</strong><small>All batches</small></div>'
+      +'<div class="stat-card"><span>Issued Tokens</span><strong>'+m1rMoney(s.total_issued_tokens,'M1')+'</strong><small>Batch issued sum</small></div>'
+      +'<div class="stat-card"><span>Available to Mint</span><strong>'+m1rMoney(s.total_available_to_mint,'M1')+'</strong><small>All batches</small></div>'
+      +'<div class="stat-card"><span>Active / USD / EUR</span><strong>'+esc(String(s.active_batches_count||0))+' / '+esc(String(s.usd_batches_count||0))+' / '+esc(String(s.eur_batches_count||0))+'</strong><small>Batch counts</small></div>';
+    var rows=r.items||[];
+    if(!rows.length){document.getElementById('m1rBatchBody').innerHTML='<div class="empty-state"><div class="icon">B</div>No tokenization batches yet</div>';return;}
+    var th='<th>Batch ID</th><th>Sender Ref</th><th>Sender</th><th>Source</th><th>Currency</th><th>FX</th><th>Reserve</th><th>Tokenized</th><th>Tokenized USD</th><th>Issued</th><th>Available</th><th>Proof</th><th>Status</th><th>Actions</th>';
+    var tb=rows.map(function(x){
+      return '<tr>'
+        +'<td><code style="font-size:10px;">'+esc(x.batch_id||'')+'</code></td>'
+        +'<td>'+esc(x.sender_reference||'—')+'</td>'
+        +'<td>'+esc(x.sender_name||'—')+'</td>'
+        +'<td>'+esc(x.source_asset_type||'—')+'</td>'
+        +'<td><strong>'+esc(x.currency||'')+'</strong></td>'
+        +'<td>'+esc(String(x.fx_rate_to_usd||'—'))+'</td>'
+        +'<td>'+m1rMoney(x.total_reserve_value,x.currency)+'</td>'
+        +'<td>'+m1rMoney(x.tokenized_value,x.currency)+'</td>'
+        +'<td>'+m1rMoney(x.tokenized_value_usd,'USD')+'</td>'
+        +'<td>'+m1rMoney(x.issued_tokens,'M1')+'</td>'
+        +'<td>'+m1rMoney(x.available_to_mint,'M1')+'</td>'
+        +'<td>'+(x.proof_document_hash?'<code style="font-size:10px;">'+esc(x.proof_document_hash).slice(0,14)+'...</code>':'—')+'</td>'
+        +'<td>'+badge(String(x.status||'').toUpperCase())+'</td>'
+        +'<td>'+m1rBatchActions(x)+'</td>'
+        +'</tr>';
+    }).join('');
+    document.getElementById('m1rBatchBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
+  }).catch(function(e){document.getElementById('m1rBatchBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
+}
+function m1rBatchActions(x){
+  var id=esc(x.batch_id||'');
+  return '<div style="display:flex;gap:5px;flex-wrap:wrap;">'
+    +'<button class="btn btn-ghost" style="font-size:10px;padding:4px 7px;" data-id="'+id+'" onclick="m1rViewBatch(this.dataset.id)">View</button>'
+    +'<button class="btn btn-success" style="font-size:10px;padding:4px 7px;" data-id="'+id+'" data-action="approve" onclick="m1rBatchStatus(this.dataset.id,this.dataset.action)">Approve</button>'
+    +'<button class="btn btn-warning" style="font-size:10px;padding:4px 7px;" data-id="'+id+'" data-action="pause" onclick="m1rBatchStatus(this.dataset.id,this.dataset.action)">Pause</button>'
+    +'<button class="btn btn-danger" style="font-size:10px;padding:4px 7px;" data-id="'+id+'" data-action="close" onclick="m1rBatchStatus(this.dataset.id,this.dataset.action)">Close</button>'
+    +'<button class="btn btn-primary" style="font-size:10px;padding:4px 7px;" data-id="'+id+'" onclick="m1rReconcileBatch(this.dataset.id)">Reconcile</button>'
+    +'<button class="btn btn-ghost" style="font-size:10px;padding:4px 7px;" data-id="'+id+'" onclick="m1rExportBatch(this.dataset.id)">Export</button>'
+    +'</div>';
+}
+function m1rCreateBatch(){
+  var body={
+    batch_id:m1rVal('m1bId')||null,
+    sender_reference:m1rVal('m1bSenderRef'),
+    sender_name:m1rVal('m1bSenderName')||null,
+    sender_wallet:m1rVal('m1bSenderWallet')||null,
+    source_asset_type:m1rVal('m1bAssetType')||'M1 Funds',
+    source_network:m1rVal('m1bSourceNetwork')||'Internal',
+    source_transaction_hash:m1rVal('m1bSourceHash')||null,
+    total_reserve_value:m1rVal('m1bTotal'),
+    tokenized_value:m1rVal('m1bTokenized'),
+    currency:m1rVal('m1bCurrency')||'USD',
+    fx_rate_to_usd:m1rVal('m1bFx')||'1.00',
+    fx_rate_source:m1rVal('m1bFxSource')||'manual',
+    valuation_date:m1rISOFromLocal('m1bValuation'),
+    proof_document_hash:m1rVal('m1bProof'),
+    created_by:m1rVal('m1bCreatedBy')||'admin',
+    metadata_json:{testnet:true}
+  };
+  api('/api/v1/m1-funds/batches',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('Batch created','ok');document.getElementById('m1rBatchForm').style.display='none';m1rLoad();}).catch(function(e){showToast('Batch create error: '+e.message,'error');});
+}
+function m1rViewBatch(id){
+  api('/api/v1/m1-funds/batches/'+encodeURIComponent(id)).then(function(r){
+    document.getElementById('m1rDetailPanel').style.display='block';
+    document.getElementById('m1rDetailBody').textContent=JSON.stringify(r,null,2);
+    document.getElementById('m1rDetailPanel').scrollIntoView({behavior:'smooth',block:'center'});
+  }).catch(function(e){showToast('Batch detail error: '+e.message,'error');});
+}
+function m1rBatchStatus(id,action){
+  var reason=prompt('Reason for '+action+' batch '+id+' (optional):')||'';
+  api('/api/v1/m1-funds/batches/'+encodeURIComponent(id)+'/'+action,{method:'POST',body:JSON.stringify({actor:'admin',reason:reason})}).then(function(){showToast('Batch '+action+' saved','ok');m1rLoad();}).catch(function(e){showToast('Batch '+action+' error: '+e.message,'error');});
+}
+function m1rReconcileBatch(id){
+  var issued=prompt('Issued M1 tokens for this batch:');
+  if(!issued)return;
+  var tx=prompt('Mint tx_hash (optional). Leave empty for manual admin reconciliation:')||'';
+  api('/api/v1/m1-funds/batches/'+encodeURIComponent(id)+'/reconcile',{method:'POST',body:JSON.stringify({issued_tokens:issued,mint_tx_hash:tx||null,source:tx?'sepolia_tx_hash':'manual_admin_reconciliation',approved_by:'admin'})}).then(function(){showToast('Batch reconciled','ok');m1rLoad();}).catch(function(e){showToast('Batch reconcile error: '+e.message,'error');});
+}
+function m1rExportBatch(id){
+  api('/api/v1/m1-funds/batches/'+encodeURIComponent(id)+'/export').then(function(data){
+    var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=id+'.json';a.click();
+    showToast('Batch exported','ok');
+  }).catch(function(e){showToast('Batch export error: '+e.message,'error');});
 }
 function m1rTinyTable(target,countId,rows,columns,emptyIcon,emptyText){
   document.getElementById(countId).textContent=rows.length+' items';

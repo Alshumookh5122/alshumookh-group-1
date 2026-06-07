@@ -179,6 +179,7 @@ class Settings(BaseSettings):
     webhook_enabled: bool = Field(default=False, alias="WEBHOOK_ENABLED")
     webhook_callback_url: str | None = Field(default=None, alias="WEBHOOK_CALLBACK_URL")
     webhook_secret: str | None = Field(default=None, alias="WEBHOOK_SECRET")
+    testnet_allow_supply_mismatch: bool = Field(default=True, alias="TESTNET_ALLOW_SUPPLY_MISMATCH")
 
     notify_from_email: str = Field(default="no-reply@alshumookhgroup.com", alias="NOTIFY_FROM_EMAIL")
     notify_to_email: str = Field(default="info@alshumookhgroup.com", alias="NOTIFY_TO_EMAIL")

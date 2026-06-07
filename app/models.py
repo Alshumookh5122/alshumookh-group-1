@@ -923,6 +923,50 @@ class M1RedeemRequest(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class M1TokenizationBatch(Base):
+    __tablename__ = "m1_tokenization_batches"
+    __table_args__ = (
+        UniqueConstraint("fund_id", "sender_reference", name="uq_m1_batch_fund_sender_reference"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    batch_id: Mapped[str] = mapped_column(String(96), unique=True, nullable=False, index=True)
+    fund_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    sender_reference: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    sender_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    sender_wallet: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    source_asset_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_network: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_transaction_hash: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
+
+    total_reserve_value: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    tokenized_value: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    issued_tokens: Mapped[Decimal] = mapped_column(Numeric(30, 8), default=Decimal("0"), nullable=False)
+    available_to_mint: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
+    fx_rate_to_usd: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=Decimal("1"), nullable=False)
+    total_reserve_value_usd: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    tokenized_value_usd: Mapped[Decimal] = mapped_column(Numeric(30, 8), nullable=False)
+    issued_tokens_value_usd: Mapped[Decimal] = mapped_column(Numeric(30, 8), default=Decimal("0"), nullable=False)
+    fx_rate_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fx_rate_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    m1_contract_address: Mapped[str] = mapped_column(String(128), nullable=False)
+    treasury_wallet: Mapped[str] = mapped_column(String(128), nullable=False)
+    proof_document_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    valuation_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    mint_tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    burn_tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+
+    status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False, index=True)
+    approved_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
 class M1BlockchainConfirmation(Base):
     __tablename__ = "m1_blockchain_confirmations"
 
@@ -947,6 +991,7 @@ class M1AuditLog(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     fund_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    batch_id: Mapped[str | None] = mapped_column(String(96), nullable=True, index=True)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
