@@ -317,7 +317,9 @@ def verify_payload_hmac(
     return hmac.compare_digest(expected, received)
 
 
-def payload_sha256(raw_body: bytes) -> str:
+def payload_sha256(raw_body: bytes | str) -> str:
+    if isinstance(raw_body, str):
+        raw_body = raw_body.encode("utf-8")
     return hashlib.sha256(raw_body).hexdigest()
 
 
