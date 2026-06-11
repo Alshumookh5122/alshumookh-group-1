@@ -1050,7 +1050,7 @@ function viewPayload(id) {
 
     var acts=[];
     var vstatus=p.verification_status||'';
-    if(['RECEIVED','PARSED','AWAITING_TX_HASH'].indexOf(vstatus)>=0){
+    if(['RECEIVED','PARSED','AWAITING_TX_HASH','MANUAL_REVIEW'].indexOf(vstatus)>=0){
       acts.push('<button class="btn btn-primary" data-pid="'+id+'" onclick="verifyPl(this.dataset.pid)">Verify On-Chain</button>');
     }
     if(vstatus!=='MANUAL_REVIEW'){
