@@ -1029,7 +1029,7 @@ function loadPayloads() {
 function viewPayload(id) {
   api('/api/v1/admin/payloads/'+id).then(function(p) {
     var fields=[
-      ['ID',p.id],['Verification Status',badge(p.verification_status)],
+      ['ID',p.payload_id||p.id||'—'],['Verification Status',badge(p.verification_status)],
       ['Amount',fmtNum(p.amount)+' '+(p.asset||'USDT')],
       ['Network',(p.network_name||p.network||'—').toUpperCase()],
       ['TX Hash',p.tx_hash||'—'],['Sender',p.sender_wallet||'—'],

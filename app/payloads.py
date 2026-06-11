@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 import logging
 import time
+
+logger = logging.getLogger(__name__)
 import uuid
 import hmac
 from datetime import datetime, timezone
@@ -28,7 +30,8 @@ from app.audit_service import log_event
 from app.auth import hash_api_key, require_admin_api_key, verify_settlement_access_token
 from app.database import get_db
 from app.deps import AdminKey
-from app.models import ApiClient, ExternalPayload, PayloadVerificationStatus, TransactionFile
+from app.models import ApiClient, ExternalPayload, OutboundTransferStatus, PayloadVerificationStatus, TransactionFile
+from app.transfer_service import create_outbound_transfer
 from app.payload_service import (
     detect_network,
     decrypt_payload_jwe,
@@ -928,6 +931,26 @@ async def review_payload(
             ep.verification_status = PayloadVerificationStatus.RECONCILED.value
         else:
             ep.verification_status = PayloadVerificationStatus.MANUAL_REVIEW.value
+
+        # Auto-create outbound transfer if payload has recipient + amount
+        if ep.receiver_wallet and ep.amount and ep.amount > 0:
+            try:
+                network = (ep.network_name or "ethereum").lower()
+                asset = (ep.asset or "USDT").upper()
+                ot = await create_outbound_transfer(
+                    db,
+                    to_address=ep.receiver_wallet,
+                    amount=ep.amount,
+                    network=network,
+                    asset=asset,
+                    payload_id=ep.id,
+                    initiated_by=actor,
+                    notes=f"Auto-created from approved payload {ep.id}",
+                )
+                ot.status = OutboundTransferStatus.AWAITING_APPROVAL.value
+                await db.commit()
+            except Exception as _ot_err:
+                logger.warning("Could not auto-create outbound transfer for payload %s: %s", ep.id, _ot_err)
     elif payload.action == "HOLD":
         ep.review_decision = "ON_HOLD"
         ep.hold_reason = payload.hold_reason
