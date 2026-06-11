@@ -217,14 +217,24 @@ async def process_tokenization_job(
         ).strip().upper()
         if target_asset not in {"USDT", "SIG"}:
             raise ValueError("Tokenization target asset must be USDT or SIG")
-        usdt_amount = usd_amount.quantize(Decimal("0.000001"), rounding=ROUND_DOWN)
+        if target_asset == "SIG":
+            token_precision = Decimal("0.000000000000000001")  # 18 decimals
+        else:
+            token_precision = Decimal("0.000001")               # 6 decimals (USDT)
+        usdt_amount = usd_amount.quantize(token_precision, rounding=ROUND_DOWN)
         job.usdt_amount = usdt_amount
 
         destination = override_destination or job.destination_wallet
         network = override_network or job.network or "ethereum"
 
         if not destination:
-            raise ValueError("No destination wallet configured for tokenization job")
+            destination = (
+                (settings.eth_treasury_address or "").strip()
+                or (settings.treasury_wallet or "").strip()
+                or (settings.master_wallet_ethereum or "").strip()
+            )
+        if not destination:
+            raise ValueError("ETH_TREASURY_ADDRESS is not configured.")
 
         await db.commit()
 
