@@ -44,7 +44,7 @@ class BlockchainVerification:
 
 
 def _rpc_url() -> str | None:
-    return settings.sepolia_rpc_url
+    return settings.active_rpc_url
 
 
 def _web3() -> Web3 | None:
@@ -83,7 +83,7 @@ def _call_contract(address: str, fn_name: str, *args: Any) -> Any:
     w3 = _web3()
     checksum = _safe_checksum(address)
     if w3 is None:
-        raise RuntimeError("SEPOLIA_RPC_URL is not configured or web3 is not installed.")
+        raise RuntimeError("Ethereum RPC URL is not configured or web3 is not installed.")
     if not checksum:
         raise RuntimeError("Invalid contract address.")
     contract = w3.eth.contract(address=checksum, abi=ERC20_VIEW_ABI)
@@ -93,37 +93,39 @@ def _call_contract(address: str, fn_name: str, *args: Any) -> Any:
 def get_transaction_receipt(tx_hash: str) -> dict[str, Any] | None:
     w3 = _web3()
     if w3 is None:
-        raise RuntimeError("SEPOLIA_RPC_URL is not configured or web3 is not installed.")
+        raise RuntimeError("Ethereum RPC URL is not configured or web3 is not installed.")
     receipt = w3.eth.get_transaction_receipt(tx_hash)
     return dict(receipt) if receipt else None
 
 
 def verify_chain_id() -> dict[str, Any]:
     w3 = _web3()
+    rpc = _rpc_url()
     if w3 is None:
         return {
-            "rpc_configured": bool(settings.sepolia_rpc_url),
+            "rpc_configured": bool(rpc),
             "rpc_connected": False,
-            "chain_id_expected": settings.chain_id,
+            "chain_id_expected": settings.active_chain_id,
             "chain_id_actual": None,
             "chain_id_is_expected": False,
-            "error": "SEPOLIA_RPC_URL is not configured." if not settings.sepolia_rpc_url else "web3 package is not installed in this runtime.",
+            "error": "ALCHEMY_ETHEREUM_RPC_URL / ETHEREUM_RPC_URL is not configured." if not rpc else "web3 package is not installed in this runtime.",
         }
     try:
         actual = int(w3.eth.chain_id)
+        expected = settings.active_chain_id
         return {
             "rpc_configured": True,
             "rpc_connected": True,
-            "chain_id_expected": settings.chain_id,
+            "chain_id_expected": expected,
             "chain_id_actual": actual,
-            "chain_id_is_expected": actual == int(settings.chain_id),
+            "chain_id_is_expected": actual == expected,
             "error": None,
         }
     except Exception as exc:
         return {
             "rpc_configured": True,
             "rpc_connected": False,
-            "chain_id_expected": settings.chain_id,
+            "chain_id_expected": settings.active_chain_id,
             "chain_id_actual": None,
             "chain_id_is_expected": False,
             "error": str(exc),
