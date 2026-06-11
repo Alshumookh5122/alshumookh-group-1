@@ -241,6 +241,12 @@ async def init_db():
             await conn.exec_driver_sql(
                 "ALTER TABLE api_clients ADD COLUMN IF NOT EXISTS jwe_required BOOLEAN NOT NULL DEFAULT FALSE"
             )
+            await conn.exec_driver_sql(
+                "ALTER TABLE api_clients ADD COLUMN IF NOT EXISTS bridge_contract_address VARCHAR(128)"
+            )
+            await conn.exec_driver_sql(
+                "ALTER TABLE api_clients ADD COLUMN IF NOT EXISTS egress_ip VARCHAR(64)"
+            )
 
             # ── v2 settlement upgrade: external_payloads table ───────────────
             await conn.exec_driver_sql(

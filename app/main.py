@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 import hmac
 import logging
 import os
@@ -59,6 +60,7 @@ from app.treasury import router as treasury_router
 from app.webhooks import router as webhooks_router, settlement_webhooks_router
 from app.dashboard_pages import router as dashboard_pages_router
 from app.client_pages import router as client_pages_router
+from app.tasks.transfer_confirmations import transfer_confirmation_monitor_loop
 
 # مهم جداً: استيراد الموديلز حتى يتم تسجيل الجداول قبل create_all
 import app.models  # noqa: F401
@@ -224,7 +226,19 @@ async def lifespan(app: FastAPI):
         logger.warning("Enterprise readiness warnings: %s", warnings)
     else:
         logger.info("Enterprise readiness check passed with no warnings.")
-    yield
+    confirmation_monitor_task = None
+    if settings.transfer_confirmation_monitor_enabled:
+        confirmation_monitor_task = asyncio.create_task(transfer_confirmation_monitor_loop())
+        app.state.transfer_confirmation_monitor_task = confirmation_monitor_task
+    try:
+        yield
+    finally:
+        if confirmation_monitor_task:
+            confirmation_monitor_task.cancel()
+            try:
+                await confirmation_monitor_task
+            except asyncio.CancelledError:
+                logger.info("Outbound transfer confirmation monitor stopped.")
 
 
 app = FastAPI(

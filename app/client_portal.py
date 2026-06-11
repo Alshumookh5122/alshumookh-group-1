@@ -28,6 +28,7 @@ from app.document_service import render_order_document
 from app.models import (
     ApiClient,
     ClientAccount,
+    ExternalPayload,
     Network,
     OrderSide,
     OrderStatus,
@@ -160,6 +161,37 @@ def _order_json(order: PaymentOrder) -> dict:
         "tx_hash": getattr(order, "tx_hash", None),
         "failure_reason": getattr(order, "failure_reason", None),
         "created_at": order.created_at,
+    }
+
+
+def _payload_json(payload: ExternalPayload) -> dict:
+    explorer_url = payload.explorer_url
+    if not explorer_url and payload.tx_hash:
+        network = str(payload.network_name or "").strip().lower()
+        if network in {"ethereum", "eth", "erc20"}:
+            explorer_url = f"https://etherscan.io/tx/{payload.tx_hash}"
+        elif network == "base":
+            explorer_url = f"https://basescan.org/tx/{payload.tx_hash}"
+        elif network in {"tron", "trx", "trc20"}:
+            explorer_url = f"https://tronscan.org/#/transaction/{payload.tx_hash}"
+
+    return {
+        "id": str(payload.id),
+        "payload_reference": payload.transaction_reference or payload.request_id or str(payload.id),
+        "transaction_reference": payload.transaction_reference,
+        "amount": str(payload.amount) if payload.amount is not None else None,
+        "asset": payload.asset,
+        "network": payload.network_name,
+        "submitted_date": payload.created_at,
+        "created_at": payload.created_at,
+        "verification_status": payload.verification_status,
+        "parsing_status": payload.parsing_status,
+        "security_level": payload.security_level,
+        "tx_hash": payload.tx_hash,
+        "explorer_url": explorer_url,
+        "block_number": payload.block_number,
+        "confirmations": payload.confirmations,
+        "error_message": payload.error_message,
     }
 
 
@@ -705,6 +737,7 @@ def client_page() -> HTMLResponse:
                 <option value="USDC" selected>USDC</option>
                 <option value="ETH">ETH</option>
                 <option value="USDT">USDT</option>
+                <option value="SIG">SIG</option>
               </select>
             </label>
 
@@ -789,6 +822,7 @@ def client_page() -> HTMLResponse:
                 <option value="USDT" selected>USDT</option>
                 <option value="USDC">USDC</option>
                 <option value="ETH">ETH</option>
+                <option value="SIG">SIG</option>
               </select>
             </label>
 
@@ -835,6 +869,7 @@ def client_page() -> HTMLResponse:
               <option value="USDC" selected>USDC</option>
               <option value="USDT">USDT</option>
               <option value="ETH">ETH</option>
+              <option value="SIG">SIG</option>
               <option value="BTC">BTC</option>
             </select>
           </label>
@@ -1734,6 +1769,7 @@ async def client_me(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/client/orders")
+@router.get("/client/api/orders")
 async def client_orders(request: Request, db: AsyncSession = Depends(get_db)):
     account = await _current_account(request, db)
 
@@ -1745,6 +1781,23 @@ async def client_orders(request: Request, db: AsyncSession = Depends(get_db)):
     )
 
     return [_order_json(order) for order in result.scalars().all()]
+
+
+@router.get("/client/payloads")
+@router.get("/client/api/payloads")
+async def client_payloads(
+    request: Request,
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    account = await _current_account(request, db)
+
+    query = select(ExternalPayload).where(ExternalPayload.api_client_id == account.api_client_id)
+    if status:
+        query = query.where(ExternalPayload.verification_status == status.strip().upper())
+
+    result = await db.execute(query.order_by(ExternalPayload.created_at.desc()).limit(100))
+    return [_payload_json(payload) for payload in result.scalars().all()]
 
 
 @router.get("/client/orders/{order_id}/invoice", response_class=HTMLResponse)

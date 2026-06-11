@@ -200,6 +200,7 @@ async def notify_transfer_completed(
     network: str,
     to_address: str,
     explorer_url: str | None = None,
+    asset: str = "USDT",
 ) -> dict[str, Any] | None:
     """Send webhook + ops email on outbound transfer completion."""
     notify_ops_transfer(
@@ -208,6 +209,8 @@ async def notify_transfer_completed(
         {
             "tx_hash": tx_hash or "N/A",
             "amount_usdt": amount,
+            "amount": amount,
+            "asset": asset,
             "network": network,
             "to_address": to_address,
             "explorer": explorer_url or "N/A",
@@ -222,6 +225,8 @@ async def notify_transfer_completed(
             "transfer_id": transfer_id,
             "tx_hash": tx_hash,
             "amount_usdt": amount,
+            "amount": amount,
+            "asset": asset,
             "network": network,
             "to_address": to_address,
             "explorer_url": explorer_url,

@@ -1100,13 +1100,15 @@ _TRANSFERS_BODY = """
   </div>
 
   <div id="createXferForm" style="display:none;" class="panel">
-    <div class="panel-head"><h3>Create New USDT Transfer</h3></div>
+    <div class="panel-head"><h3>Create New Transfer</h3></div>
     <div style="padding:16px;">
       <div class="form-grid">
         <div class="form-field"><label>Recipient Address *</label>
           <input id="cfTo" placeholder="0x... or T..."></div>
-        <div class="form-field"><label>Amount (USDT) *</label>
+        <div class="form-field"><label>Amount *</label>
           <input id="cfAmt" type="number" step="0.01" placeholder="0.00"></div>
+        <div class="form-field"><label>Asset *</label>
+          <select id="cfAsset"><option value="USDT">USDT</option><option value="SIG">SIG</option></select></div>
         <div class="form-field"><label>Network *</label>
           <select id="cfNet">
             <option value="ethereum">Ethereum (ERC-20)</option>
@@ -1151,6 +1153,7 @@ function createTransfer(){
   var body={
     to_address:document.getElementById('cfTo').value.trim(),
     amount:document.getElementById('cfAmt').value,
+    asset:document.getElementById('cfAsset').value,
     network:document.getElementById('cfNet').value,
     callback_url:document.getElementById('cfCb').value.trim()||null,
     notes:document.getElementById('cfNotes').value.trim()||null
@@ -1172,7 +1175,17 @@ function approveXfer(id){
 }
 function broadcastXfer(id){
   if(!confirm('Broadcast this transfer on-chain?'))return;
-  api('/api/v1/admin/outbound-transfers/'+id+'/broadcast',{method:'POST'}).then(function(){showToast('Broadcast submitted','ok');loadTransfers();}).catch(function(e){showToast('Broadcast error: '+e.message,'error');});
+  var btn=Array.from(document.querySelectorAll('button[data-action="broadcast"]')).find(function(el){return el.dataset.xid===id;});
+  var old=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Broadcasting...';}
+  api('/api/v1/admin/outbound-transfers/'+id+'/broadcast',{method:'POST'}).then(function(row){
+    showToast(row&&row.tx_hash?'Broadcast submitted: '+row.tx_hash.slice(0,12)+'...':'Broadcast submitted','ok');
+    loadTransfers();
+  }).catch(function(e){
+    showToast('Broadcast error: '+e.message,'error');
+  }).finally(function(){
+    if(btn){btn.disabled=false;btn.textContent=old||'Broadcast';}
+  });
 }
 function cancelXfer(id){
   var r=prompt('Cancellation reason:')||'Cancelled by admin';
@@ -1190,17 +1203,25 @@ function viewXfer(id){
   var r=_xferRows[id];
   if(!r){showToast('Transfer details not found. Refresh and try again.','error');return;}
   document.getElementById('xferDetailTitle').textContent='Transfer Details - '+id;
+  var txValue=r.tx_hash?(r.explorer_url?'<a href="'+esc(r.explorer_url)+'" target="_blank"><code>'+esc(r.tx_hash)+'</code></a>':'<code>'+esc(r.tx_hash)+'</code>'):'—';
   var rows=[
-    ['ID',r.id],['Network',r.network],['Amount',fmtNum(r.amount)+' USDT'],['Status',r.status],
-    ['To Address',r.to_address],['TX Hash',r.tx_hash],['Approved By',r.approved_by],
-    ['Broadcast Error',r.error_message],['Callback URL',r.callback_url],['Notes',r.notes],
+    ['ID',esc(r.id)],['Network',esc(r.network)],['Amount',fmtNum(r.amount)+' '+esc(r.asset||'USDT')],['Status',badge(r.status)],
+    ['To Address',esc(r.to_address)],['TX Hash',txValue],['Confirmations',esc(String(r.confirmations||0))],
+    ['Block Number',esc(String(r.block_number||'—'))],['Approved By',esc(r.approved_by)],
+    ['Broadcast Error',esc(r.error_message)],['Callback URL',esc(r.callback_url)],['Notes',esc(r.notes)],
     ['Created At',fmtDate(r.created_at)],['Updated At',fmtDate(r.updated_at)]
   ];
   document.getElementById('xferDetailBody').innerHTML='<div class="table-wrap"><table><tbody>'+rows.map(function(x){
-    return '<tr><th style="width:220px;">'+esc(x[0])+'</th><td style="word-break:break-all;">'+esc(x[1]||'—')+'</td></tr>';
+    return '<tr><th style="width:220px;">'+esc(x[0])+'</th><td style="word-break:break-all;">'+(x[1]||'—')+'</td></tr>';
   }).join('')+'</tbody></table></div>';
   document.getElementById('xferDetailPanel').style.display='block';
   document.getElementById('xferDetailPanel').scrollIntoView({behavior:'smooth'});
+}
+
+function txLink(r){
+  if(!r.tx_hash)return '—';
+  var label='<code style="font-size:10px;" title="'+esc(r.tx_hash)+'">'+esc(r.tx_hash.slice(0,14))+'...</code>';
+  return r.explorer_url?'<a href="'+esc(r.explorer_url)+'" target="_blank">'+label+'</a>':label;
 }
 
 function loadTransfers(){
@@ -1219,7 +1240,7 @@ function loadTransfers(){
       if(['PENDING','AWAITING_APPROVAL'].indexOf(r.status)>=0)
         btns.push('<button class="btn btn-success" data-xid="'+r.id+'" onclick="approveXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Approve</button>');
       if(r.status==='APPROVED')
-        btns.push('<button class="btn btn-primary" data-xid="'+r.id+'" onclick="broadcastXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Broadcast</button>');
+        btns.push('<button class="btn btn-primary" data-xid="'+r.id+'" data-action="broadcast" onclick="broadcastXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Broadcast</button>');
       if(r.status==='FAILED')
         btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="retryXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Retry</button>');
       if(['COMPLETED','CONFIRMED','PENDING_CONFIRMATION','CANCELLED'].indexOf(r.status)<0)
@@ -1230,9 +1251,9 @@ function loadTransfers(){
       return '<tr>'
         +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,10)+'...</code></td>'
         +'<td><strong>'+(r.network||'').toUpperCase()+'</strong></td>'
-        +'<td><strong style="color:#a78bfa;">'+fmtNum(r.amount)+' USDT</strong></td>'
+        +'<td><strong style="color:#a78bfa;">'+fmtNum(r.amount)+' '+(r.asset||'USDT')+'</strong></td>'
         +'<td>'+(r.to_address?'<code style="font-size:10px;" title="'+r.to_address+'">'+r.to_address.slice(0,16)+'...</code>':'—')+'</td>'
-        +'<td>'+(r.tx_hash?'<code style="font-size:10px;" title="'+r.tx_hash+'">'+r.tx_hash.slice(0,14)+'...</code>':'—')+'</td>'
+        +'<td>'+txLink(r)+(r.confirmations?'<div style="font-size:10px;color:var(--muted);">'+r.confirmations+' conf</div>':'')+'</td>'
         +'<td>'+badge(r.status)+'</td>'
         +'<td>'+(r.error_message?'<code style="font-size:10px;color:#fca5a5;" title="'+esc(r.error_message)+'">'+esc(r.error_message).slice(0,36)+'...</code>':'—')+'</td>'
         +'<td>'+(r.approved_by||'—')+'</td>'
@@ -1280,6 +1301,7 @@ _TOKENIZATION_BODY = """
         <div class="form-field"><label>Sender Name</label><input id="m1Name" placeholder="Optional"></div>
         <div class="form-field"><label>Network</label>
           <select id="m1Net"><option value="ethereum">Ethereum</option><option value="tron">TRON</option><option value="base">Base</option></select></div>
+        <div class="form-field"><label>Target Asset</label><select id="m1Asset"><option value="USDT">USDT</option><option value="SIG">SIG</option></select></div>
         <div class="form-field"><label>IBAN</label><input id="m1Iban" placeholder="Optional"></div>
         <div class="form-field" style="grid-column:1 / -1;">
           <button type="button" class="btn btn-ghost" onclick="toggleM1FormGas()" style="font-size:11px;padding:4px 10px;">Show Manual Gas Estimate</button>
@@ -1307,6 +1329,7 @@ _TOKENIZATION_BODY = """
   </div>
 </div>
 <script>
+var _m1Rows={};
 function toggleM1FormGas(){
   var box=document.getElementById('m1FormGasBox');
   if(!box)return;
@@ -1322,14 +1345,16 @@ function toggleM1F(){
   el.style.display=el.style.display==='none'?'block':'none';
 }
 function createJob(){
-  var body={eur_amount:document.getElementById('m1Eur').value,destination_wallet:document.getElementById('m1Dest').value.trim(),sender_reference:document.getElementById('m1Ref').value.trim()||null,sender_name:document.getElementById('m1Name').value.trim()||null,sender_iban:document.getElementById('m1Iban').value.trim()||null,network:document.getElementById('m1Net').value};
+  var body={eur_amount:document.getElementById('m1Eur').value,destination_wallet:document.getElementById('m1Dest').value.trim(),sender_reference:document.getElementById('m1Ref').value.trim()||null,sender_name:document.getElementById('m1Name').value.trim()||null,sender_iban:document.getElementById('m1Iban').value.trim()||null,network:document.getElementById('m1Net').value,target_asset:document.getElementById('m1Asset').value};
   if(!body.eur_amount){showToast('EUR amount is required','error');return;}
   if(!body.destination_wallet){showToast('Destination wallet is required','error');return;}
   api('/api/v1/admin/tokenization-jobs',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('Job created','ok');toggleM1F();loadJobs();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function processJob(id){
-  if(!confirm('Run EUR to USDT tokenization now?'))return;
-  api('/api/v1/admin/tokenization-jobs/'+id+'/process',{method:'POST'}).then(function(){showToast('Job processed','ok');loadJobs();}).catch(function(e){showToast('Processing error: '+e.message,'error');});
+  var r=_m1Rows&&_m1Rows[id]?_m1Rows[id]:null;
+  var target=(r&&r.target_asset)||'USDT';
+  if(!confirm('Run EUR to '+target+' tokenization now?'))return;
+  api('/api/v1/admin/tokenization-jobs/'+id+'/process',{method:'POST',body:JSON.stringify({target_asset:target})}).then(function(){showToast('Job processed','ok');loadJobs();}).catch(function(e){showToast('Processing error: '+e.message,'error');});
 }
 function renderGasEstimate(target, r){
   var html='<div class="panel" style="border-color:rgba(59,130,246,.35);margin:0;"><div style="padding:12px;font-size:12px;line-height:1.7;">'
@@ -1397,12 +1422,14 @@ function loadJobs(){
   var url='/api/v1/admin/tokenization-jobs?limit=100'+(st?'&status='+st:'');
   api(url).then(function(rows) {
     if(!Array.isArray(rows))rows=[];
+    _m1Rows={}; rows.forEach(function(x){_m1Rows[x.id]=x;});
     document.getElementById('m1Count').textContent=rows.length+' jobs';
     if(!rows.length){document.getElementById('m1Body').innerHTML='<div class="empty-state"><div class="icon">🔄</div>No M1 jobs found</div>';return;}
-    var th='<th>ID</th><th>Ref</th><th>Sender</th><th>EUR</th><th>FX Rate</th><th>USDT</th><th>Network</th><th>Status</th><th>Error</th><th>Transfer</th><th>Date</th><th>Gas Fee</th><th>Actions</th>';
+    var th='<th>ID</th><th>Ref</th><th>Sender</th><th>EUR</th><th>FX Rate</th><th>Token Amount</th><th>Network</th><th>Status</th><th>Error</th><th>Transfer</th><th>Date</th><th>Gas Fee</th><th>Actions</th>';
     var tb=rows.map(function(r){
       var wallet=esc(r.destination_wallet||'');
       var amount=esc(r.usdt_amount||r.eur_amount||'1');
+      var target=esc(r.target_asset||'USDT');
       var net=esc(r.network||'ethereum');
       var btns=[];
       var gasInputId='m1Gas_'+r.id;
@@ -1421,7 +1448,7 @@ function loadJobs(){
       +'<td>'+(r.sender_name||'—')+'</td>'
       +'<td><strong style="color:#fbbf24;">'+fmtNum(r.eur_amount)+' EUR</strong></td>'
       +'<td>'+(r.fx_rate||'—')+'</td>'
-      +'<td>'+(r.usdt_amount?'<strong style="color:#a78bfa;">'+fmtNum(r.usdt_amount)+' USDT</strong>':'—')+'</td>'
+      +'<td>'+(r.usdt_amount?'<strong style="color:#a78bfa;">'+fmtNum(r.usdt_amount)+' '+target+'</strong>':'—')+'</td>'
       +'<td>'+((r.network||'').toUpperCase())+'</td>'
       +'<td>'+badge(r.status)+'</td>'
       +'<td>'+(r.error_message?'<code style="font-size:10px;color:#fca5a5;" title="'+esc(r.error_message)+'">'+esc(r.error_message).slice(0,36)+'...</code>':'—')+'</td>'
@@ -2061,7 +2088,7 @@ _PAYMENTS_BODY = """
     <div class="panel-head"><h3>Direct Crypto Payment</h3></div>
     <div style="padding:14px;display:grid;gap:10px;">
       <input id="directAmount" placeholder="Crypto amount" inputmode="decimal" value="100.00">
-      <input id="directAsset" placeholder="Crypto asset" value="USDT" maxlength="8">
+      <select id="directAsset"><option value="USDT">USDT</option><option value="USDC">USDC</option><option value="ETH">ETH</option><option value="SIG">SIG</option></select>
       <select id="directNetwork"><option value="ethereum">Ethereum</option><option value="base">Base</option><option value="tron">TRON</option></select>
       <input id="directEmail" placeholder="Payer email (optional)">
       <button class="btn btn-primary" onclick="createGatewayPayment('direct')">Create Direct Crypto Payment</button>

@@ -192,10 +192,15 @@ CLIENT_ORDERS_HTML = """
       <option value="">جميع الحالات</option>
       <option>CREATED</option><option>PENDING</option><option>PROCESSING</option>
       <option>COMPLETED</option><option>FAILED</option>
+      <option>RECEIVED</option><option>MANUAL_REVIEW</option><option>VERIFIED</option><option>REJECTED</option>
     </select>
     <button class="btn btn-ghost" onclick="loadOrders()">🔄 تحديث</button>
   </div>
   <div id="ordersTable"><div class="empty-state"><div class="icon">📋</div>جاري التحميل...</div></div>
+  <div class="panel" style="margin-top:16px;">
+    <div class="panel-head"><h3>Submitted Payloads</h3></div>
+    <div id="payloadsTable" style="padding:16px;"><div class="empty-state"><div class="icon">📦</div>Loading payloads...</div></div>
+  </div>
 </div>
 <script>
 const CK = ()=>(sessionStorage.getItem('als_client_key')||localStorage.getItem('als_client_key')||'');
@@ -204,9 +209,14 @@ const H = ()=>({'X-Api-Key':CK()});
 async function loadOrders() {
   const st = document.getElementById('orderFilter').value;
   try {
-    const data = await fetch('/client/api/orders'+(st?'?status='+st:''),{headers:H()}).then(r=>r.json());
-    const rows = Array.isArray(data)?data:(data.orders||[]);
+    const [ordersData, payloadsData] = await Promise.all([
+      fetch('/client/api/orders'+(st?'?status='+st:''),{headers:H()}).then(r=>r.json()),
+      fetch('/client/api/payloads'+(st?'?status='+st:''),{headers:H()}).then(r=>r.json())
+    ]);
+    const rows = Array.isArray(ordersData)?ordersData:(ordersData.orders||[]);
+    const payloads = Array.isArray(payloadsData)?payloadsData:(payloadsData.payloads||[]);
     document.getElementById('ordersTable').innerHTML = rows.length ? buildTable(rows) : '<div class="empty-state"><div class="icon">📋</div>لا توجد طلبات</div>';
+    document.getElementById('payloadsTable').innerHTML = payloads.length ? buildPayloadsTable(payloads) : '<div class="empty-state"><div class="icon">📦</div>No submitted payloads</div>';
   } catch(e) { document.getElementById('ordersTable').innerHTML=`<div class="empty-state"><div class="icon">❌</div>${e.message}</div>`; }
 }
 
@@ -225,8 +235,23 @@ function buildTable(rows){
   return `<div class="table-wrap"><table><thead><tr>${h}</tr></thead><tbody>${r}</tbody></table></div>`;
 }
 
+function buildPayloadsTable(rows){
+  const h=['Reference','Amount','Asset','Network','Verification','TX Hash','Submitted'].map(l=>`<th>${l}</th>`).join('');
+  const r=rows.map(p=>`<tr>
+    <td><code style="font-size:10px;">${escapeHtml(p.payload_reference||p.id||'—')}</code></td>
+    <td style="font-weight:700;color:var(--gold);">${p.amount?parseFloat(p.amount).toLocaleString():'—'}</td>
+    <td>${escapeHtml(p.asset||'—')}</td>
+    <td>${escapeHtml(p.network||'—')}</td>
+    <td>${badge(p.verification_status||'RECEIVED')}</td>
+    <td>${p.tx_hash?`<a href="${p.explorer_url||'#'}" target="_blank" style="color:#60a5fa;"><code style="font-size:10px;">${p.tx_hash.slice(0,12)}…</code></a>`:'—'}</td>
+    <td style="font-size:11px;">${fmtDate(p.submitted_date||p.created_at)}</td>
+  </tr>`).join('');
+  return `<div class="table-wrap"><table><thead><tr>${h}</tr></thead><tbody>${r}</tbody></table></div>`;
+}
+
 function badge(s){const c={COMPLETED:'#10b981',PENDING:'#f59e0b',FAILED:'#ef4444',PROCESSING:'#8b5cf6',CREATED:'#6b7280'}[s]||'#6b7280';return `<span style="padding:2px 8px;border-radius:12px;background:${c}22;color:${c};border:1px solid ${c}44;font-size:11px;font-weight:700;">${s}</span>`;}
 function fmtDate(d){return d?new Date(d).toLocaleString('ar-SA',{dateStyle:'short',timeStyle:'short'}):'—';}
+function escapeHtml(v){return String(v||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
 loadOrders();
 </script>
 """
@@ -294,7 +319,7 @@ CLIENT_DIRECT_HTML = f"""
               <input id="dcAmt" type="number" placeholder="100.00" style="width:100%;background:var(--bg2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;margin-top:4px;"></div>
             <div><label style="font-size:12px;color:var(--muted);">العملة</label>
               <select id="dcCurrency" style="width:100%;background:var(--bg2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;margin-top:4px;">
-                <option>USDT</option><option>USDC</option><option>ETH</option>
+                <option>USDT</option><option>USDC</option><option>ETH</option><option>SIG</option>
               </select></div>
             <div style="grid-column:span 2;"><label style="font-size:12px;color:var(--muted);">رقم مرجعي (اختياري)</label>
               <input id="dcRef" placeholder="INV-2026-001" style="width:100%;background:var(--bg2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;margin-top:4px;"></div>
@@ -363,7 +388,7 @@ CLIENT_MOONPAY_HTML = """
             <input id="mpFiat" value="USD" style="width:100%;background:var(--bg2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;margin-top:4px;"></div>
           <div><label style="font-size:12px;color:var(--muted);">عملة الشراء</label>
             <select id="mpCrypto" style="width:100%;background:var(--bg2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;margin-top:4px;">
-              <option>USDC</option><option>ETH</option><option>USDT</option>
+              <option>USDC</option><option>ETH</option><option>USDT</option><option>SIG</option>
             </select></div>
           <div><label style="font-size:12px;color:var(--muted);">الشبكة</label>
             <select id="mpNet" style="width:100%;background:var(--bg2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;margin-top:4px;">

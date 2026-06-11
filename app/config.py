@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     security_silent_probe_blocks: bool = Field(default=True, alias="SECURITY_SILENT_PROBE_BLOCKS")
     global_rate_limit_window_seconds: int = Field(default=60, alias="GLOBAL_RATE_LIMIT_WINDOW_SECONDS")
     global_rate_limit_max_requests: int = Field(default=240, alias="GLOBAL_RATE_LIMIT_MAX_REQUESTS")
+    enable_testnet: bool = Field(default=False, alias="ENABLE_TESTNET")
+    hipercapital_webhook_url: str | None = Field(
+        default=None,
+        alias="HIPERCAPITAL_WEBHOOK_URL",
+    )
 
     database_url: str = Field(
         default="sqlite+aiosqlite:///./alshumookh.db",
@@ -151,7 +156,21 @@ class Settings(BaseSettings):
 
     default_network: str = Field(default="ethereum", alias="DEFAULT_NETWORK")
     default_token_symbol: str = Field(default="USDC", alias="DEFAULT_TOKEN_SYMBOL")
+    supported_crypto_assets_raw: str = Field(default="USDT,USDC,ETH,SIG", alias="SUPPORTED_CRYPTO_ASSETS")
+    tokenization_target_assets_raw: str = Field(default="USDT,SIG", alias="TOKENIZATION_TARGET_ASSETS")
     auto_payout_enabled: bool = Field(default=False, alias="AUTO_PAYOUT_ENABLED")
+    transfer_confirmation_monitor_enabled: bool = Field(
+        default=True,
+        alias="TRANSFER_CONFIRMATION_MONITOR_ENABLED",
+    )
+    transfer_confirmation_interval_seconds: int = Field(
+        default=60,
+        alias="TRANSFER_CONFIRMATION_INTERVAL_SECONDS",
+    )
+    transfer_confirmations_required: int = Field(
+        default=12,
+        alias="TRANSFER_CONFIRMATIONS_REQUIRED",
+    )
 
     sepolia_rpc_url: str | None = Field(default=None, alias="SEPOLIA_RPC_URL")
     token_network: str = Field(default="sepolia", alias="TOKEN_NETWORK")
@@ -252,6 +271,20 @@ class Settings(BaseSettings):
                 combined.append(item)
         # If no origins configured, allow all — prevents blank-list blocking all preflight requests
         return combined or ["*"]
+
+    def supported_crypto_assets(self) -> list[str]:
+        return [
+            item.strip().upper()
+            for item in str(self.supported_crypto_assets_raw or "").split(",")
+            if item.strip()
+        ]
+
+    def tokenization_target_assets(self) -> list[str]:
+        return [
+            item.strip().upper()
+            for item in str(self.tokenization_target_assets_raw or "").split(",")
+            if item.strip()
+        ]
 
     def trusted_proxy_ips(self) -> list[str]:
         configured = [

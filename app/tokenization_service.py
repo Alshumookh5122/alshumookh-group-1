@@ -159,6 +159,7 @@ async def process_tokenization_job(
     *,
     override_destination: str | None = None,
     override_network: str | None = None,
+    override_asset: str | None = None,
     processed_by: str = "system",
 ) -> M1TokenizationJob:
     """
@@ -209,6 +210,13 @@ async def process_tokenization_job(
 
         # ── Step 2: Calculate USDT (1:1 with USD) ─────────────
         job.status = M1TokenizationStatus.CONVERTING.value
+        target_asset = str(
+            override_asset
+            or (job.raw_data or {}).get("target_asset")
+            or "USDT"
+        ).strip().upper()
+        if target_asset not in {"USDT", "SIG"}:
+            raise ValueError("Tokenization target asset must be USDT or SIG")
         usdt_amount = usd_amount.quantize(Decimal("0.000001"), rounding=ROUND_DOWN)
         job.usdt_amount = usdt_amount
 
@@ -229,11 +237,11 @@ async def process_tokenization_job(
             to_address=destination,
             amount=usdt_amount,
             network=network,
-            asset="USDT",
+            asset=target_asset,
             tokenization_job_id=job.id,
             payload_id=job.payload_id,
             initiated_by=processed_by,
-            notes=f"M1 Tokenization Job {job.id} | EUR {job.eur_amount} → USD {usd_amount} → USDT {usdt_amount}",
+            notes=f"M1 Tokenization Job {job.id} | EUR {job.eur_amount} → USD {usd_amount} → {target_asset} {usdt_amount}",
         )
 
         # Mark transfer as awaiting approval (admin must approve before broadcast)
@@ -252,7 +260,8 @@ async def process_tokenization_job(
             {
                 "job_id": job_id,
                 "eur_amount": str(job.eur_amount),
-                "usdt_amount": str(usdt_amount),
+                "token_amount": str(usdt_amount),
+                "target_asset": target_asset,
                 "outbound_transfer_id": ot.id,
                 "destination": destination,
                 "network": network,
@@ -302,6 +311,8 @@ async def get_job_summary(db: AsyncSession, job_id: str) -> dict[str, Any]:
         "fx_rate_eur_usd": str(job.fx_rate_eur_usd) if job.fx_rate_eur_usd else None,
         "usd_amount": str(job.usd_amount) if job.usd_amount else None,
         "usdt_amount": str(job.usdt_amount) if job.usdt_amount else None,
+        "target_asset": str((job.raw_data or {}).get("target_asset") or "USDT").upper(),
+        "raw_data": job.raw_data or {},
         "network": job.network,
         "destination_wallet": job.destination_wallet,
         "fx_provider": job.fx_provider,
@@ -311,6 +322,7 @@ async def get_job_summary(db: AsyncSession, job_id: str) -> dict[str, Any]:
             "tx_hash": ot.tx_hash,
             "explorer_url": ot.explorer_url,
             "amount": str(ot.amount),
+            "asset": ot.asset,
         } if ot else None,
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,

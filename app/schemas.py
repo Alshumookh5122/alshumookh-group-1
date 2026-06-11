@@ -329,6 +329,8 @@ class PaymentStatusResponse(BaseModel):
 class ApiClientCreate(BaseModel):
     name: str = Field(min_length=2, max_length=128)
     allowed_ips: list[str] | None = None
+    bridge_contract_address: str | None = Field(default=None, max_length=128)
+    egress_ip: str | None = Field(default=None, max_length=64)
     hmac_required: bool = False
     oauth_required: bool = False
     mtls_required: bool = False
@@ -351,6 +353,8 @@ class ApiClientCreate(BaseModel):
 class ApiClientUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=128)
     allowed_ips: list[str] | None = None
+    bridge_contract_address: str | None = Field(default=None, max_length=128)
+    egress_ip: str | None = Field(default=None, max_length=64)
     is_active: bool | None = None
     hmac_required: bool | None = None
     oauth_required: bool | None = None
@@ -375,6 +379,8 @@ class ApiClientRead(BaseModel):
     id: str
     name: str
     allowed_ips: list[str] | None
+    bridge_contract_address: str | None = None
+    egress_ip: str | None = None
     is_active: bool
     hmac_required: bool = False
     oauth_required: bool = False
