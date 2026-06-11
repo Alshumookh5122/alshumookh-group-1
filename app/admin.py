@@ -61,7 +61,6 @@ from app.tokenization_service import (
     process_tokenization_job,
 )
 from app.notification_service import (
-    notify_transfer_completed,
     notify_transfer_failed,
     notify_m1_job_ready,
 )
@@ -2448,7 +2447,10 @@ def _transfer_dict(ot: OutboundTransfer) -> dict:
         "amount": str(ot.amount),
         "to_address": ot.to_address,
         "from_address": ot.from_address,
+        "contract_address": ot.contract_address,
         "tx_hash": ot.tx_hash,
+        "block_number": ot.block_number,
+        "confirmations": ot.confirmations,
         "explorer_url": ot.explorer_url,
         "order_id": ot.order_id,
         "payload_id": ot.payload_id,
@@ -2595,19 +2597,7 @@ async def broadcast_transfer(
         # Already logged inside broadcast_outbound_transfer
         raise HTTPException(status_code=500, detail=f"Broadcast failed: {exc}")
 
-    # Send webhook + email notification
-    import asyncio
-    asyncio.create_task(
-        notify_transfer_completed(
-            callback_url=ot.callback_url,
-            transfer_id=ot.id,
-            tx_hash=ot.tx_hash,
-            amount=str(ot.amount),
-            network=ot.network,
-            to_address=ot.to_address,
-            explorer_url=ot.explorer_url,
-        )
-    )
+    # Confirmation notification is handled by the pending-confirmation monitor.
     return _transfer_dict(ot)
 
 

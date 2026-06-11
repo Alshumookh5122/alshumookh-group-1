@@ -25,9 +25,17 @@ from app.models import (
     OutboundTransferStatus,
     PaymentOrder,
 )
+from app.alchemy_service import alchemy_rpc_url
 from app.wallet_service import evm_client, tron_client
 
 settings = get_settings()
+
+ETHEREUM_MAINNET_CHAIN_ID = 1
+ETHEREUM_EXPLORER_TX_BASE = "https://etherscan.io/tx/"
+SUPPORTED_ETHEREUM_ERC20 = {
+    "USDT": {"decimals": 6, "contract": lambda: settings.usdt_eth_contract},
+    "SIG": {"decimals": 18, "contract": lambda: settings.sig_contract_address},
+}
 
 # ─── ABIs ─────────────────────────────────────────────────────────────────────
 
@@ -75,8 +83,52 @@ def _normalized_symbol(symbol: str | None) -> str:
 
 def auto_payout_enabled() -> bool:
     return settings.auto_payout_enabled and bool(
-        settings.eth_treasury_private_key or settings.tron_treasury_private_key
+        settings.eth_private_key
+        or settings.eth_treasury_private_key
+        or settings.tron_treasury_private_key
     )
+
+
+def _ethereum_rpc_url() -> str:
+    return (
+        settings.alchemy_ethereum_rpc_url
+        or settings.alchemy_eth_rpc_url
+        or settings.ethereum_rpc_url
+        or alchemy_rpc_url(Network.ETHEREUM)
+    )
+
+
+def ethereum_mainnet_client() -> Web3:
+    return Web3(Web3.HTTPProvider(_ethereum_rpc_url()))
+
+
+def _eth_broadcast_private_key() -> str:
+    private_key = (settings.eth_private_key or settings.eth_treasury_private_key or "").strip()
+    if not private_key:
+        raise ValueError("ETH_PRIVATE_KEY is not configured")
+    return private_key
+
+
+def _sender_from_private_key(private_key: str) -> str:
+    account = Account.from_key(private_key)
+    sender = Web3.to_checksum_address(account.address)
+    configured = (settings.eth_treasury_address or "").strip()
+    if configured and configured != "0x0000000000000000000000000000000000000000":
+        configured_checksum = Web3.to_checksum_address(configured)
+        if configured_checksum != sender:
+            raise ValueError("ETH_TREASURY_ADDRESS does not match ETH_PRIVATE_KEY sender address")
+    return sender
+
+
+def _ethereum_token_config(asset: str) -> tuple[str, int, str]:
+    symbol = _normalized_symbol(asset)
+    token = SUPPORTED_ETHEREUM_ERC20.get(symbol)
+    if not token:
+        raise ValueError(f"Unsupported Ethereum ERC-20 asset: {asset}. Supported assets: USDT, SIG")
+    contract_address = token["contract"]()
+    if not contract_address:
+        raise ValueError(f"{symbol} contract address is not configured")
+    return symbol, int(token["decimals"]), Web3.to_checksum_address(str(contract_address))
 
 
 def _base_rpc_url() -> str:
@@ -190,14 +242,63 @@ async def payout_already_sent(db: AsyncSession, order_id: str) -> bool:
 
 # ─── Network-specific send functions ──────────────────────────────────────────
 
+async def _send_ethereum_erc20(to_address: str, amount: Decimal, asset: str = "USDT") -> dict[str, Any]:
+    """Sign and broadcast an approved USDT or SIG transfer on Ethereum Mainnet."""
+    symbol, decimals, contract_address = _ethereum_token_config(asset)
+    private_key = _eth_broadcast_private_key()
+    client = ethereum_mainnet_client()
+    chain_id = int(client.eth.chain_id)
+    if chain_id != ETHEREUM_MAINNET_CHAIN_ID:
+        raise ValueError(f"Invalid Ethereum chainId {chain_id}; production broadcast requires Ethereum Mainnet chainId 1")
+
+    sender = _sender_from_private_key(private_key)
+    recipient = Web3.to_checksum_address(to_address)
+    contract = client.eth.contract(address=contract_address, abi=ERC20_ABI)
+
+    value = int(amount * Decimal(10**decimals))
+    if value <= 0:
+        raise ValueError("Transfer amount must be greater than zero")
+
+    nonce = client.eth.get_transaction_count(sender, "pending")
+    gas_price = int(client.eth.gas_price)
+    tx = contract.functions.transfer(recipient, value).build_transaction(
+        {
+            "from": sender,
+            "nonce": nonce,
+            "gasPrice": gas_price,
+            "chainId": chain_id,
+        }
+    )
+    tx["gas"] = int(client.eth.estimate_gas(tx))
+
+    signed = Account.sign_transaction(tx, private_key)
+    raw_transaction = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
+    tx_hash = client.eth.send_raw_transaction(raw_transaction)
+    tx_hash_hex = tx_hash.hex()
+
+    return {
+        "network": "ethereum",
+        "asset": symbol,
+        "tx_hash": tx_hash_hex,
+        "from_address": sender,
+        "to_address": recipient,
+        "amount": str(amount),
+        "decimals": decimals,
+        "contract": contract_address,
+        "chain_id": chain_id,
+        "explorer_url": f"{ETHEREUM_EXPLORER_TX_BASE}{tx_hash_hex}",
+    }
+
+
 async def _send_erc20_usdt(to_address: str, amount: Decimal, network: str = "ethereum") -> dict[str, Any]:
     """Send USDT via ERC-20 on Ethereum or Base."""
-    if not settings.eth_treasury_private_key:
-        raise ValueError("ETH_TREASURY_PRIVATE_KEY is not configured")
+    if network != "base":
+        return await _send_ethereum_erc20(to_address, amount, "USDT")
+
+    if not settings.eth_treasury_private_key and not settings.eth_private_key:
+        raise ValueError("ETH_PRIVATE_KEY is not configured")
     if not settings.eth_treasury_address:
         raise ValueError("ETH_TREASURY_ADDRESS is not configured")
-    if network != "base" and not settings.usdt_eth_contract:
-        raise ValueError("USDT_ETH_CONTRACT is not configured")
 
     if network == "base":
         client = base_client()
@@ -232,8 +333,10 @@ async def _send_erc20_usdt(to_address: str, amount: Decimal, network: str = "eth
     if "gas" not in tx:
         tx["gas"] = client.eth.estimate_gas(tx)
 
-    signed = Account.sign_transaction(tx, settings.eth_treasury_private_key)
-    tx_hash = client.eth.send_raw_transaction(signed.raw_transaction)
+    private_key = _eth_broadcast_private_key()
+    signed = Account.sign_transaction(tx, private_key)
+    raw_transaction = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
+    tx_hash = client.eth.send_raw_transaction(raw_transaction)
     tx_hash_hex = tx_hash.hex()
 
     return {
@@ -400,7 +503,7 @@ async def broadcast_outbound_transfer(
 ) -> OutboundTransfer:
     """
     Broadcast an approved OutboundTransfer to the blockchain.
-    Updates status to BROADCASTING → COMPLETED or FAILED.
+    Updates status to BROADCASTING → PENDING_CONFIRMATION or FAILED.
     """
     result = await db.execute(
         select(OutboundTransfer).where(OutboundTransfer.id == transfer_id)
@@ -418,28 +521,34 @@ async def broadcast_outbound_transfer(
     try:
         network = (ot.network or "ethereum").lower()
         amount = _to_decimal(ot.amount)
+        asset = _normalized_symbol(ot.asset or "USDT")
 
         if network in ("ethereum", "eth"):
-            result_data = await _send_erc20_usdt(ot.to_address, amount, "ethereum")
+            result_data = await _send_ethereum_erc20(ot.to_address, amount, asset)
         elif network == "base":
+            if asset != "USDT":
+                raise ValueError("Base broadcast currently supports USDT/USDC-compatible payout only")
             result_data = await _send_erc20_usdt(ot.to_address, amount, "base")
         elif network in ("tron", "trx"):
+            if asset != "USDT":
+                raise ValueError("TRON broadcast currently supports USDT only")
             result_data = await _send_trc20_usdt(ot.to_address, amount)
         else:
             raise ValueError(f"Unsupported network: {network}")
 
         ot.tx_hash = result_data.get("tx_hash")
         ot.from_address = result_data.get("from_address")
+        ot.contract_address = result_data.get("contract")
         ot.explorer_url = result_data.get("explorer_url")
         ot.raw_result = result_data
-        ot.status = OutboundTransferStatus.COMPLETED.value
-        ot.completed_at = datetime.now(tz=timezone.utc)
+        ot.status = OutboundTransferStatus.PENDING_CONFIRMATION.value
+        ot.completed_at = None
         await db.commit()
         await db.refresh(ot)
 
         await log_event(
             db,
-            "OUTBOUND_TRANSFER_COMPLETED",
+            "OUTBOUND_TRANSFER_BROADCASTED",
             {"transfer_id": transfer_id, **result_data},
             ot.order_id,
         )

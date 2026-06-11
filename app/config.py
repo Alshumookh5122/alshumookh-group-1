@@ -132,10 +132,15 @@ class Settings(BaseSettings):
     fnfcu_auth_token: str | None = Field(default=None, alias="FNFCU_AUTH_TOKEN")
 
     eth_treasury_address: str | None = Field(default=None, alias="ETH_TREASURY_ADDRESS")
+    eth_private_key: str | None = Field(default=None, alias="ETH_PRIVATE_KEY")
     eth_treasury_private_key: str | None = Field(default=None, alias="ETH_TREASURY_PRIVATE_KEY")
     usdt_eth_contract: str = Field(
         default="0xdAC17F958D2ee523a2206206994597C13D831ec7",
         alias="USDT_ETH_CONTRACT",
+    )
+    sig_contract_address: str = Field(
+        default="0xc2ac880e474c3576cc3afb7c560e402ce24d5b37",
+        alias="SIG_CONTRACT_ADDRESS",
     )
 
     tron_api_url: str = Field(default="https://api.trongrid.io", alias="TRON_API_URL")

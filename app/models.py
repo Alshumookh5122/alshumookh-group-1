@@ -30,6 +30,8 @@ class OutboundTransferStatus(str, enum.Enum):
     AWAITING_APPROVAL= "AWAITING_APPROVAL"
     APPROVED         = "APPROVED"
     BROADCASTING     = "BROADCASTING"
+    PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
+    CONFIRMED        = "CONFIRMED"
     COMPLETED        = "COMPLETED"
     FAILED           = "FAILED"
     CANCELLED        = "CANCELLED"

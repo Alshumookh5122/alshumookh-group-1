@@ -346,9 +346,9 @@ function esc(v){
 
 function badge(s){
   var m={
-    'COMPLETED':'#10b981','APPROVED':'#10b981','VERIFIED':'#10b981','RECONCILED':'#10b981',
+    'COMPLETED':'#10b981','CONFIRMED':'#10b981','APPROVED':'#10b981','VERIFIED':'#10b981','RECONCILED':'#10b981',
     'ON_CHAIN_CONFIRMED':'#10b981','ALCHEMY_VERIFIED':'#10b981',
-    'PENDING':'#f59e0b','QUEUED':'#f59e0b','AWAITING_APPROVAL':'#f59e0b',
+    'PENDING':'#f59e0b','PENDING_CONFIRMATION':'#f59e0b','QUEUED':'#f59e0b','AWAITING_APPROVAL':'#f59e0b',
     'FX_FETCHED':'#f59e0b','AWAITING_TX_HASH':'#f59e0b','ALCHEMY_PENDING':'#f59e0b',
     'FAILED':'#ef4444','CANCELLED':'#ef4444','REJECTED':'#ef4444',
     'BROADCASTING':'#8b5cf6','PROCESSING':'#8b5cf6','CONVERTING':'#8b5cf6','SENDING':'#8b5cf6',
@@ -1087,7 +1087,7 @@ _TRANSFERS_BODY = """
     <select id="xtStatus" onchange="loadTransfers()" style="min-width:160px;">
       <option value="">All statuses</option>
       <option>PENDING</option><option>AWAITING_APPROVAL</option><option>APPROVED</option>
-      <option>BROADCASTING</option><option>COMPLETED</option><option>FAILED</option><option>CANCELLED</option>
+      <option>BROADCASTING</option><option>PENDING_CONFIRMATION</option><option>CONFIRMED</option><option>COMPLETED</option><option>FAILED</option><option>CANCELLED</option>
     </select>
     <select id="xtNetwork" onchange="loadTransfers()" style="min-width:130px;">
       <option value="">All networks</option>
@@ -1222,9 +1222,9 @@ function loadTransfers(){
         btns.push('<button class="btn btn-primary" data-xid="'+r.id+'" onclick="broadcastXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Broadcast</button>');
       if(r.status==='FAILED')
         btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="retryXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Retry</button>');
-      if(['COMPLETED','CANCELLED'].indexOf(r.status)<0)
+      if(['COMPLETED','CONFIRMED','PENDING_CONFIRMATION','CANCELLED'].indexOf(r.status)<0)
         btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="cancelXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Cancel</button>');
-      if(r.status!=='BROADCASTING')
+      if(['BROADCASTING','PENDING_CONFIRMATION'].indexOf(r.status)<0)
         btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="deleteXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Delete</button>');
       btns.unshift('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="viewXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">View</button>');
       return '<tr>'
