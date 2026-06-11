@@ -195,7 +195,6 @@ def sync_token_contracts() -> dict[str, Any]:
         "sig": {
             "official_name": settings.sig_token_name,
             "official_symbol": settings.sig_token_symbol,
-            "arabic_display_name": settings.sig_token_arabic_name,
             **_token_snapshot("SIG", settings.sig_token_contract_address, settings.sig_token_decimals, treasury),
         },
     }
