@@ -51,7 +51,21 @@ ERC20_ABI = [
         "payable": False,
         "stateMutability": "nonpayable",
         "type": "function",
-    }
+    },
+    # transferFrom: used when operator wallet spends tokens on behalf of treasury (Ledger)
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "_from", "type": "address"},
+            {"name": "_to", "type": "address"},
+            {"name": "_value", "type": "uint256"},
+        ],
+        "name": "transferFrom",
+        "outputs": [{"name": "", "type": "bool"}],
+        "payable": False,
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
 ]
 
 TRC20_ABI = [
@@ -110,14 +124,36 @@ def _eth_broadcast_private_key() -> str:
 
 
 def _sender_from_private_key(private_key: str) -> str:
+    """
+    Derive the operator wallet address from ETH_PRIVATE_KEY.
+    The operator wallet (MetaMask software) signs and pays gas.
+    It is DIFFERENT from ETH_TREASURY_ADDRESS (Ledger hardware wallet).
+    """
     account = Account.from_key(private_key)
-    sender = Web3.to_checksum_address(account.address)
-    configured = (settings.eth_treasury_address or "").strip()
+    operator = Web3.to_checksum_address(account.address)
+    # Optionally verify against explicit ETH_OPERATOR_ADDRESS if configured
+    configured = (settings.eth_operator_address or "").strip()
     if configured and configured != "0x0000000000000000000000000000000000000000":
         configured_checksum = Web3.to_checksum_address(configured)
-        if configured_checksum != sender:
-            raise ValueError("ETH_TREASURY_ADDRESS does not match ETH_PRIVATE_KEY sender address")
-    return sender
+        if configured_checksum != operator:
+            raise ValueError(
+                "ETH_OPERATOR_ADDRESS does not match the address derived from ETH_PRIVATE_KEY"
+            )
+    return operator
+
+
+def _treasury_address() -> str:
+    """
+    Return the treasury (Ledger) wallet address that holds the tokens.
+    Tokens are transferred FROM this address via transferFrom().
+    """
+    addr = (settings.eth_treasury_address or "").strip()
+    if not addr or addr == "0x0000000000000000000000000000000000000000":
+        raise ValueError(
+            "ETH_TREASURY_ADDRESS is not configured. "
+            "Set it to your Ledger wallet address: 0xBD682cfD8382a90adfDd6745780D3D7959c4d939"
+        )
+    return Web3.to_checksum_address(addr)
 
 
 def _ethereum_token_config(asset: str) -> tuple[str, int, str]:
@@ -243,15 +279,29 @@ async def payout_already_sent(db: AsyncSession, order_id: str) -> bool:
 # ─── Network-specific send functions ──────────────────────────────────────────
 
 async def _send_ethereum_erc20(to_address: str, amount: Decimal, asset: str = "USDT") -> dict[str, Any]:
-    """Sign and broadcast an approved USDT or SIG transfer on Ethereum Mainnet."""
+    """
+    Sign and broadcast a USDT or SIG transferFrom on Ethereum Mainnet.
+
+    Architecture:
+    - Treasury (Ledger) 0xBD682... holds the tokens and has pre-approved the operator.
+    - Operator (MetaMask) 0x620a850... signs the tx and pays ETH gas.
+    - Uses transferFrom(treasury, recipient, amount) — NOT transfer().
+    Prerequisite: Ledger wallet must call approve(operator, amount) once on Etherscan.
+    """
     symbol, decimals, contract_address = _ethereum_token_config(asset)
     private_key = _eth_broadcast_private_key()
     client = ethereum_mainnet_client()
     chain_id = int(client.eth.chain_id)
     if chain_id != ETHEREUM_MAINNET_CHAIN_ID:
-        raise ValueError(f"Invalid Ethereum chainId {chain_id}; production broadcast requires Ethereum Mainnet chainId 1")
+        raise ValueError(
+            f"Invalid Ethereum chainId {chain_id}; "
+            "production broadcast requires Ethereum Mainnet chainId 1"
+        )
 
-    sender = _sender_from_private_key(private_key)
+    # Operator: signs tx, pays gas (MetaMask software wallet)
+    operator = _sender_from_private_key(private_key)
+    # Treasury: holds tokens (Ledger hardware wallet — must have approved operator)
+    treasury = _treasury_address()
     recipient = Web3.to_checksum_address(to_address)
     contract = client.eth.contract(address=contract_address, abi=ERC20_ABI)
 
@@ -259,11 +309,13 @@ async def _send_ethereum_erc20(to_address: str, amount: Decimal, asset: str = "U
     if value <= 0:
         raise ValueError("Transfer amount must be greater than zero")
 
-    nonce = client.eth.get_transaction_count(sender, "pending")
+    nonce = client.eth.get_transaction_count(operator, "pending")
     gas_price = int(client.eth.gas_price)
-    tx = contract.functions.transfer(recipient, value).build_transaction(
+
+    # transferFrom: operator spends from treasury (Ledger) to recipient
+    tx = contract.functions.transferFrom(treasury, recipient, value).build_transaction(
         {
-            "from": sender,
+            "from": operator,
             "nonce": nonce,
             "gasPrice": gas_price,
             "chainId": chain_id,
@@ -280,7 +332,8 @@ async def _send_ethereum_erc20(to_address: str, amount: Decimal, asset: str = "U
         "network": "ethereum",
         "asset": symbol,
         "tx_hash": tx_hash_hex,
-        "from_address": sender,
+        "from_address": treasury,       # tokens come FROM Ledger treasury
+        "operator_address": operator,   # operator signs and pays gas
         "to_address": recipient,
         "amount": str(amount),
         "decimals": decimals,
