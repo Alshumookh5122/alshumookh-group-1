@@ -136,13 +136,26 @@ class Settings(BaseSettings):
     settlement_jwe_private_key_passphrase: str | None = Field(default=None, alias="SETTLEMENT_JWE_PRIVATE_KEY_PASSPHRASE")
     fnfcu_auth_token: str | None = Field(default=None, alias="FNFCU_AUTH_TOKEN")
 
+    # ── Wallet roles ────────────────────────────────────────────────────────
+    # ETH_TREASURY_ADDRESS  : Ledger hardware wallet — RECEIVES funds, never exposed
+    # ETH_PRIVATE_KEY       : MetaMask operator software wallet — SIGNS & BROADCASTS txs
+    # ETH_OPERATOR_ADDRESS  : Optional explicit address of the operator wallet (derived
+    #                         automatically from ETH_PRIVATE_KEY if not set)
     eth_treasury_address: str | None = Field(default=None, alias="ETH_TREASURY_ADDRESS")
     eth_private_key: str | None = Field(default=None, alias="ETH_PRIVATE_KEY")
+    # Operator wallet = MetaMask software wallet used for signing/broadcasting
+    # Address: 0x620a850efe2c97A02560d9bce9978639Ed232BE2
+    eth_operator_address: str = Field(
+        default="0x620a850efe2c97A02560d9bce9978639Ed232BE2",
+        alias="ETH_OPERATOR_ADDRESS",
+    )
     eth_treasury_private_key: str | None = Field(default=None, alias="ETH_TREASURY_PRIVATE_KEY")
+    # ── Token contracts — Ethereum Mainnet only ──────────────────────────────
     usdt_eth_contract: str = Field(
         default="0xdAC17F958D2ee523a2206206994597C13D831ec7",
         alias="USDT_ETH_CONTRACT",
     )
+    # SIG — Al Shumookh International Group Token (Mainnet)
     sig_contract_address: str = Field(
         default="0xc2ac880e474c3576cc3afb7c560e402ce24d5b37",
         alias="SIG_CONTRACT_ADDRESS",
@@ -173,14 +186,18 @@ class Settings(BaseSettings):
     )
 
     sepolia_rpc_url: str | None = Field(default=None, alias="SEPOLIA_RPC_URL")
-    token_network: str = Field(default="sepolia", alias="TOKEN_NETWORK")
-    chain_id: int = Field(default=11155111, alias="CHAIN_ID")
+    # Production network = Ethereum Mainnet (chain_id=1).
+    # Testnet (Sepolia, chain_id=11155111) is enabled only when ENABLE_TESTNET=true.
+    token_network: str = Field(default="ethereum", alias="TOKEN_NETWORK")
+    chain_id: int = Field(default=1, alias="CHAIN_ID")
+    # M1 Fund Token — Ethereum Mainnet
     m1_token_contract_address: str = Field(
         default="0xD999DB972BBDc2C13a9595A1474A04F5e59169a5",
         alias="M1_TOKEN_CONTRACT_ADDRESS",
     )
+    # SIG Token — must match sig_contract_address (Ethereum Mainnet)
     sig_token_contract_address: str = Field(
-        default="0x14E068D3C99cbC8BAe723D83D1761EF4C124A0ab",
+        default="0xc2ac880e474c3576cc3afb7c560e402ce24d5b37",
         alias="SIG_TOKEN_CONTRACT_ADDRESS",
     )
     m1_token_decimals: int = Field(default=18, alias="M1_TOKEN_DECIMALS")
@@ -192,12 +209,8 @@ class Settings(BaseSettings):
         alias="SIG_TOKEN_NAME",
     )
     sig_token_symbol: str = Field(default="SIG", alias="SIG_TOKEN_SYMBOL")
-    sig_token_arabic_name: str = Field(
-        default="توكن الشموخ إنترناشونال جروب",
-        alias="SIG_TOKEN_ARABIC_NAME",
-    )
     treasury_wallet: str = Field(
-        default="0x2FDA743d06aFA6CA8BFD8265daeA17267B496234",
+        default="0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
         alias="TREASURY_WALLET",
     )
     webhook_enabled: bool = Field(default=False, alias="WEBHOOK_ENABLED")
@@ -214,6 +227,33 @@ class Settings(BaseSettings):
     smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
     smtp_tls: bool = Field(default=True, alias="SMTP_TLS")
     sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
+
+    @property
+    def active_chain_id(self) -> int:
+        """Returns 11155111 (Sepolia) when ENABLE_TESTNET=true, else 1 (Mainnet)."""
+        return 11155111 if self.enable_testnet else 1
+
+    @property
+    def active_rpc_url(self) -> str | None:
+        """Returns the correct RPC URL based on testnet flag."""
+        if self.enable_testnet:
+            return self.sepolia_rpc_url
+        return (
+            self.alchemy_ethereum_rpc_url
+            or self.alchemy_eth_rpc_url
+            or self.alchemy_rpc_url
+            or self.ethereum_rpc_url
+        )
+
+    @property
+    def sig_mainnet_contract(self) -> str:
+        """Always returns the real SIG contract on Ethereum Mainnet."""
+        return "0xc2ac880e474c3576cc3afb7c560e402ce24d5b37"
+
+    @property
+    def usdt_mainnet_contract(self) -> str:
+        """Always returns the real USDT contract on Ethereum Mainnet."""
+        return "0xdAC17F958D2ee523a2206206994597C13D831ec7"
 
     @property
     def resolved_coinbase_api_key_id(self) -> str | None:
