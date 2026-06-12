@@ -871,7 +871,20 @@ _ORDERS_BODY = """
       <option>COMPLETED</option><option>FAILED</option><option>REFUNDED</option><option>EXPIRED</option>
     </select>
     <button class="btn btn-ghost" onclick="loadOrders()">Refresh</button>
+    <button class="btn" onclick="batchTokenize()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-size:12px;">
+      ⛓ Record All on Blockchain
+    </button>
   </div>
+
+  <!-- Blockchain info banner -->
+  <div style="background:linear-gradient(135deg,#0d1b4b,#1a3a8b);border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:16px;color:#fff;">
+    <div style="font-size:28px;">⛓</div>
+    <div>
+      <div style="font-weight:700;font-size:13px;letter-spacing:.04em;">BLOCKCHAIN-FIRST TOKENIZATION</div>
+      <div style="font-size:11px;opacity:.8;margin-top:2px;">Every transaction is tokenized as SIG tokens on Ethereum BEFORE being routed to the payment provider. Click <strong>⛓ Blockchain</strong> on any order to create an on-chain record, then Approve + Broadcast in Outbound Transfers to get the real Etherscan TX hash.</div>
+    </div>
+  </div>
+
   <div class="panel">
     <div class="panel-head">
       <h3>Orders List</h3>
@@ -879,6 +892,7 @@ _ORDERS_BODY = """
     </div>
     <div id="ordersBody"><div class="empty-state"><div class="icon">📋</div>Loading...</div></div>
   </div>
+
   <div id="orderDetailPanel" class="panel" style="display:none;">
     <div class="panel-head">
       <h3 id="orderDetailTitle">Transaction Details</h3>
@@ -887,8 +901,43 @@ _ORDERS_BODY = """
     <div id="orderDetailBody" style="padding:16px;"></div>
   </div>
 </div>
+
+<!-- Tokenize modal -->
+<div id="tokenizeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:12px;padding:28px 32px;width:440px;max-width:95vw;border:1px solid #7c3aed;">
+    <h3 style="color:#7c3aed;margin:0 0 10px;">⛓ Record on Blockchain</h3>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 18px;">This converts the order amount to SIG tokens on Ethereum. An OutboundTransfer will be created in AWAITING_APPROVAL status. You must then Approve + Broadcast it to mint the real Etherscan TX hash.</p>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:11px;color:var(--muted);">Token Asset</label>
+      <select id="tkAsset" style="width:100%;margin-top:4px;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        <option value="SIG" selected>SIG (Al Shumookh Token)</option>
+        <option value="USDT">USDT</option>
+      </select>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:11px;color:var(--muted);">Network</label>
+      <select id="tkNetwork" style="width:100%;margin-top:4px;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        <option value="ethereum" selected>Ethereum Mainnet</option>
+        <option value="base">Base</option>
+      </select>
+    </div>
+    <div style="margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" id="tkAutoApprove" style="width:16px;height:16px;">
+      <label for="tkAutoApprove" style="font-size:12px;cursor:pointer;">Auto-approve OutboundTransfer (still requires manual Broadcast)</label>
+    </div>
+    <div id="tkResult" style="display:none;margin-bottom:14px;padding:12px;border-radius:8px;font-size:12px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeTokenizeModal()">Cancel</button>
+      <button class="btn" id="tkBtn" onclick="doTokenize()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;">⛓ Record on Blockchain</button>
+    </div>
+  </div>
+</div>
+
 <script>
+var _tkOrderId = null;
+
 function closeOrderDetails(){document.getElementById('orderDetailPanel').style.display='none';}
+
 function openOrderDetails(id){
   var panel=document.getElementById('orderDetailPanel');
   var body=document.getElementById('orderDetailBody');
@@ -899,12 +948,17 @@ function openOrderDetails(id){
     var docs=data.documents||{};
     var logs=data.audit_logs||[];
     document.getElementById('orderDetailTitle').textContent='Transaction Details - '+(o.external_id||o.id||id);
+
+    var txHashHtml = o.tx_hash
+      ? '<a href="https://etherscan.io/tx/'+esc(o.tx_hash)+'" target="_blank" style="color:#7c3aed;font-family:monospace;font-size:11px;">'+esc(o.tx_hash)+'</a>'
+      : '<span style="color:#f59e0b;font-size:11px;">Not yet recorded on blockchain</span>';
+
     var rows=[
       ['Transaction ID',o.id],['External ID',o.external_id],['Provider',o.provider],['Status',o.status],
       ['Network',o.network],['Fiat Amount',(o.fiat_amount||'—')+' '+(o.fiat_currency||'')],
       ['Crypto Amount',(o.crypto_amount||'—')+' '+(o.crypto_currency||'')],
       ['Payment Reference',o.payment_reference],['Provider Order ID',o.provider_order_id],
-      ['TX Hash',o.tx_hash],['Payer Email',o.payer_email],['Destination',o.destination_address],
+      ['Payer Email',o.payer_email],['Destination',o.destination_address],
       ['Treasury Wallet',o.treasury_wallet_address],['Customer Wallet',o.customer_wallet_address],
       ['Checkout URL',o.checkout_url||o.payment_url],['Idempotency Key',o.idempotency_key],
       ['Failure Reason',o.failure_reason],['Created At',fmtDate(o.created_at)],['Updated At',fmtDate(o.updated_at)]
@@ -914,20 +968,101 @@ function openOrderDetails(id){
       var isUrl=String(val).indexOf('http')===0;
       return '<tr><th style="width:220px;">'+esc(r[0])+'</th><td style="word-break:break-all;">'+(isUrl?'<a href="'+esc(val)+'" target="_blank">'+esc(val)+'</a>':esc(val))+'</td></tr>';
     }).join('');
+
+    // Blockchain status row (special rendered HTML)
+    var blockchainRow = '<tr style="background:linear-gradient(90deg,rgba(124,58,237,.07),transparent);">'
+      +'<th style="width:220px;color:#7c3aed;">⛓ Blockchain TX Hash</th>'
+      +'<td style="word-break:break-all;">'+txHashHtml+'</td></tr>';
+
     var logRows=logs.length?logs.map(function(l){
       return '<tr><td>'+esc(l.event_type||'')+'</td><td>'+esc(l.method||'')+'</td><td>'+esc(l.endpoint||'')+'</td><td>'+esc(String(l.status_code||'—'))+'</td><td>'+fmtDate(l.created_at)+'</td></tr>';
     }).join(''):'<tr><td colspan="5">No audit logs found.</td></tr>';
+
     body.innerHTML=
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">'
       +'<button class="btn btn-primary" onclick="window.open(\\'/api/v1/admin/orders/'+esc(o.id||id)+'/documents/statement\\',\\'_blank\\')">Print Statement</button>'
       +'<button class="btn btn-ghost" onclick="window.open(\\''+esc(docs.invoice_url||('/api/v1/admin/orders/'+(o.id||id)+'/documents/invoice'))+'\\',\\'_blank\\')">Invoice</button>'
       +'<button class="btn btn-ghost" onclick="window.open(\\'/api/v1/admin/reports/transactions?order_id='+esc(o.id||id)+'\\',\\'_blank\\')">Single Report</button>'
+      +'<button class="btn" onclick="openTokenizeModal(\\''+esc(o.id||id)+'\\');" style="background:#7c3aed;color:#fff;border-color:#7c3aed;">⛓ Record on Blockchain</button>'
       +'</div>'
-      +'<div class="table-wrap"><table><tbody>'+detailRows+'</tbody></table></div>'
+      // Blockchain status callout
+      +(o.tx_hash
+        ? '<div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;">'
+          +'<strong style="color:#10b981;">✅ Blockchain Record Exists</strong> &nbsp;'
+          +'<a href="https://etherscan.io/tx/'+esc(o.tx_hash)+'" target="_blank" style="color:#7c3aed;font-family:monospace;">View on Etherscan</a></div>'
+        : '<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;">'
+          +'<strong style="color:#f59e0b;">⚠ Not yet on blockchain.</strong> Click <strong>⛓ Record on Blockchain</strong> above, then Approve + Broadcast in Outbound Transfers.</div>')
+      +'<div class="table-wrap"><table><tbody>'+blockchainRow+detailRows+'</tbody></table></div>'
       +'<h4 style="margin:18px 0 8px;">Audit Trail</h4><div class="table-wrap"><table><thead><tr><th>Event</th><th>Method</th><th>Endpoint</th><th>Status</th><th>Date</th></tr></thead><tbody>'+logRows+'</tbody></table></div>';
     panel.scrollIntoView({behavior:'smooth'});
   }).catch(function(e){body.innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
 }
+
+function openTokenizeModal(id){
+  _tkOrderId=id;
+  document.getElementById('tkResult').style.display='none';
+  document.getElementById('tkBtn').disabled=false;
+  document.getElementById('tkBtn').textContent='⛓ Record on Blockchain';
+  document.getElementById('tokenizeModal').style.display='flex';
+}
+function closeTokenizeModal(){
+  document.getElementById('tokenizeModal').style.display='none';
+}
+document.getElementById('tokenizeModal').addEventListener('click',function(e){if(e.target===this)closeTokenizeModal();});
+
+function doTokenize(){
+  if(!_tkOrderId)return;
+  var asset=document.getElementById('tkAsset').value;
+  var network=document.getElementById('tkNetwork').value;
+  var autoApprove=document.getElementById('tkAutoApprove').checked;
+  var btn=document.getElementById('tkBtn');
+  btn.disabled=true;
+  btn.textContent='Processing...';
+  var res=document.getElementById('tkResult');
+  res.style.display='none';
+  api('/api/v1/admin/orders/'+_tkOrderId+'/tokenize',{
+    method:'POST',
+    body:JSON.stringify({asset:asset,network:network,auto_approve:autoApprove})
+  }).then(function(r){
+    res.style.display='block';
+    res.style.background='rgba(16,185,129,.15)';
+    res.style.border='1px solid rgba(16,185,129,.4)';
+    res.style.color='#10b981';
+    res.innerHTML='<strong>✅ Blockchain record created!</strong><br>'
+      +'Job ID: <code>'+esc(r.tokenization_job_id||'—')+'</code><br>'
+      +'SIG Amount: <strong>'+esc(r.sig_amount||'—')+'</strong><br>'
+      +'OutboundTransfer ID: <code>'+esc(r.outbound_transfer_id||'—')+'</code><br>'
+      +'Status: '+esc(r.outbound_transfer_status||'—')+'<br>'
+      +'<br><em>Go to Outbound Transfers → Approve → Broadcast to get the real Etherscan TX hash.</em>';
+    btn.disabled=false;
+    btn.textContent='Done';
+    loadOrders();
+  }).catch(function(e){
+    res.style.display='block';
+    res.style.background='rgba(239,68,68,.15)';
+    res.style.border='1px solid rgba(239,68,68,.4)';
+    res.style.color='#ef4444';
+    res.innerHTML='<strong>Error:</strong> '+esc(e.message||String(e));
+    btn.disabled=false;
+    btn.textContent='⛓ Record on Blockchain';
+  });
+}
+
+function batchTokenize(){
+  if(!confirm('This will create blockchain tokenization records for ALL orders.\\n\\nAn AWAITING_APPROVAL OutboundTransfer will be created for each.\\nYou will need to Approve + Broadcast each one in Outbound Transfers.\\n\\nContinue?'))return;
+  var st=document.getElementById('ordStatus').value;
+  showToast('Creating batch blockchain records...','info');
+  api('/api/v1/admin/orders/tokenize-batch',{
+    method:'POST',
+    body:JSON.stringify({status:st||null,asset:'SIG',network:'ethereum',auto_approve:false})
+  }).then(function(r){
+    showToast('Batch done: '+r.success+' recorded, '+r.failed+' failed out of '+r.processed,'ok');
+    loadOrders();
+  }).catch(function(e){
+    showToast('Batch failed: '+(e.message||String(e)),'error');
+  });
+}
+
 function loadOrders() {
   var st = document.getElementById('ordStatus').value;
   var url = '/api/v1/admin/orders' + (st ? '?status='+st : '');
@@ -938,20 +1073,30 @@ function loadOrders() {
       document.getElementById('ordersBody').innerHTML='<div class="empty-state"><div class="icon">📋</div>No orders found</div>';
       return;
     }
-    var th = '<th>ID</th><th>Provider</th><th>Fiat</th><th>Crypto</th><th>Status</th><th>Network</th><th>Email</th><th>Ref</th><th>TX</th><th>Date</th><th>Action</th>';
-    var tb = rows.map(function(o){return '<tr>'
-      +'<td><code style="font-size:10px;" title="'+o.id+'">'+o.id.slice(0,10)+'...</code></td>'
-      +'<td>'+(o.provider||'—')+'</td>'
-      +'<td>'+fmtNum(o.fiat_amount)+' '+(o.fiat_currency||'')+'</td>'
-      +'<td>'+fmtNum(o.crypto_amount,6)+' '+(o.crypto_currency||'')+'</td>'
-      +'<td>'+badge(o.status)+'</td>'
-      +'<td>'+(o.network||'—')+'</td>'
-      +'<td>'+(o.payer_email||'—')+'</td>'
-      +'<td>'+(o.payment_reference?'<code style="font-size:10px;">'+o.payment_reference+'</code>':'—')+'</td>'
-      +'<td>'+(o.tx_hash?'<code style="font-size:10px;" title="'+o.tx_hash+'">'+o.tx_hash.slice(0,14)+'...</code>':'—')+'</td>'
-      +'<td style="font-size:11px;">'+fmtDate(o.created_at)+'</td>'
-      +'<td><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-ghost" data-oid="'+o.id+'" onclick="openOrderDetails(this.dataset.oid)" style="font-size:11px;padding:3px 8px;">View</button><button class="btn btn-primary" data-oid="'+o.id+'" onclick="window.open(\\'/api/v1/admin/orders/'+o.id+'/documents/statement\\',\\'_blank\\')" style="font-size:11px;padding:3px 8px;">Statement</button><button class="btn btn-danger" data-oid="'+o.id+'" onclick="deleteOrderPage(this.dataset.oid)" style="font-size:11px;padding:3px 8px;">Delete</button></div></td>'
-      +'</tr>';}).join('');
+    var th = '<th>ID</th><th>Provider</th><th>Fiat</th><th>Crypto</th><th>Status</th><th>Network</th><th>Email</th><th>Ref</th><th>⛓ TX Hash</th><th>Date</th><th>Action</th>';
+    var tb = rows.map(function(o){
+      var txCell = o.tx_hash
+        ? '<a href="https://etherscan.io/tx/'+esc(o.tx_hash)+'" target="_blank" style="color:#7c3aed;font-family:monospace;font-size:10px;" title="'+esc(o.tx_hash)+'">'+o.tx_hash.slice(0,12)+'...</a>'
+        : '<span style="color:#f59e0b;font-size:10px;">Not on chain</span>';
+      return '<tr>'
+        +'<td><code style="font-size:10px;" title="'+o.id+'">'+o.id.slice(0,10)+'...</code></td>'
+        +'<td>'+(o.provider||'—')+'</td>'
+        +'<td>'+fmtNum(o.fiat_amount)+' '+(o.fiat_currency||'')+'</td>'
+        +'<td>'+fmtNum(o.crypto_amount,6)+' '+(o.crypto_currency||'')+'</td>'
+        +'<td>'+badge(o.status)+'</td>'
+        +'<td>'+(o.network||'—')+'</td>'
+        +'<td>'+(o.payer_email||'—')+'</td>'
+        +'<td>'+(o.payment_reference?'<code style="font-size:10px;">'+o.payment_reference+'</code>':'—')+'</td>'
+        +'<td>'+txCell+'</td>'
+        +'<td style="font-size:11px;">'+fmtDate(o.created_at)+'</td>'
+        +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
+        +'<button class="btn btn-ghost" data-oid="'+o.id+'" onclick="openOrderDetails(this.dataset.oid)" style="font-size:10px;padding:3px 7px;">View</button>'
+        +'<button class="btn" data-oid="'+o.id+'" onclick="openTokenizeModal(this.dataset.oid)" style="font-size:10px;padding:3px 7px;background:#7c3aed;color:#fff;border-color:#7c3aed;" title="Record on Ethereum Blockchain">⛓</button>'
+        +'<button class="btn btn-primary" data-oid="'+o.id+'" onclick="window.open(\\'/api/v1/admin/orders/'+o.id+'/documents/statement\\',\\'_blank\\')" style="font-size:10px;padding:3px 7px;">Stmt</button>'
+        +'<button class="btn btn-danger" data-oid="'+o.id+'" onclick="deleteOrderPage(this.dataset.oid)" style="font-size:10px;padding:3px 7px;">Del</button>'
+        +'</div></td>'
+        +'</tr>';
+    }).join('');
     document.getElementById('ordersBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e) {
     document.getElementById('ordersBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';
@@ -3130,7 +3275,7 @@ function printAllTransactions(){
 }
 
 function loadReportOrders(){
-  document.getElementById('rOrderCount').textContent='Loadingâ¦';
+  document.getElementById('rOrderCount').textContent='Loading...';
   api('/api/v1/admin/orders').then(function(rows){
     if(!Array.isArray(rows)) rows=rows.orders||[];
     _rData.orders=rows;
@@ -3157,7 +3302,7 @@ function loadReportOrders(){
 }
 
 function loadReportM1(){
-  document.getElementById('rM1Count').textContent='Loadingâ¦';
+  document.getElementById('rM1Count').textContent='Loading...';
   api('/api/v1/admin/tokenization-jobs?limit=200').then(function(rows){
     if(!Array.isArray(rows)) rows=[];
     _rData.m1=rows;
@@ -3181,7 +3326,7 @@ function loadReportM1(){
 }
 
 function loadReportPayloads(){
-  document.getElementById('rPayloadCount').textContent='Loadingâ¦';
+  document.getElementById('rPayloadCount').textContent='Loading...';
   api('/api/v1/admin/payloads?limit=200').then(function(data){
     var rows=Array.isArray(data)?data:(data.payloads||[]);
     _rData.payloads=rows;
@@ -3203,7 +3348,7 @@ function loadReportPayloads(){
 }
 
 function loadReportTransfers(){
-  document.getElementById('rXferCount').textContent='Loadingâ¦';
+  document.getElementById('rXferCount').textContent='Loading...';
   api('/api/v1/admin/outbound-transfers?limit=200').then(function(data){
     var rows=Array.isArray(data)?data:(data.transfers||[]);
     _rData.transfers=rows;

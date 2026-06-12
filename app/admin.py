@@ -832,6 +832,279 @@ async def delete_order(
     return {"deleted": True, "order_id": str(order_id)}
 
 
+# ─── Blockchain-First Tokenization for any Payment Order ──────────────────────
+
+@router.post("/orders/{order_id}/tokenize", tags=["admin-orders"])
+async def tokenize_order(
+    order_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    payload: dict = Body(default_factory=dict),
+):
+    """
+    Blockchain-First flow: Record the order on Ethereum BEFORE routing to provider.
+
+    1. Converts the order's payment amount → EUR → USD → SIG tokens
+    2. Creates an M1TokenizationJob and processes it immediately
+    3. Creates an AWAITING_APPROVAL OutboundTransfer linked to this order
+    4. Admin approves + broadcasts → real Etherscan TX hash saved to the order
+    5. Order then proceeds to the payment provider (Stripe / Circle / MoonPay)
+
+    Body (all optional):
+      destination_wallet: str   — override destination (default: ETH_TREASURY_ADDRESS)
+      network:            str   — "ethereum" (default)
+      asset:              str   — "SIG" (default) or "USDT"
+      auto_approve:       bool  — if true, also approve the OutboundTransfer immediately
+    """
+    destination_wallet = payload.get("destination_wallet") or None
+    network            = str(payload.get("network") or "ethereum").lower()
+    asset              = str(payload.get("asset") or "SIG").upper()
+    auto_approve       = bool(payload.get("auto_approve", False))
+
+    # ── 1. Fetch order ──────────────────────────────────────────────────────
+    res = await db.execute(
+        select(PaymentOrder).where(cast(PaymentOrder.id, String) == str(order_id))
+    )
+    order = res.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # ── 2. Determine EUR-equivalent amount ─────────────────────────────────
+    fiat_amount    = order.fiat_amount
+    fiat_currency  = (order.fiat_currency or "USD").strip().upper()
+    crypto_amount  = order.crypto_amount
+
+    eur_amount: Decimal | None = None
+    fx_rate_used: Decimal | None = None
+
+    if fiat_amount and fiat_amount > 0:
+        if fiat_currency == "EUR":
+            eur_amount = fiat_amount
+        else:
+            # Convert USD (or other) → EUR using live FX
+            fx_rate, fx_src = await fetch_live_eur_usd()
+            fx_rate_used = fx_rate
+            eur_amount = (fiat_amount / fx_rate).quantize(Decimal("0.000001"))
+    elif crypto_amount and crypto_amount > 0:
+        # Treat USDT/SIG crypto as USD-equivalent → then EUR
+        fx_rate, fx_src = await fetch_live_eur_usd()
+        fx_rate_used = fx_rate
+        eur_amount = (crypto_amount / fx_rate).quantize(Decimal("0.000001"))
+
+    if not eur_amount or eur_amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Order has no usable fiat or crypto amount for blockchain tokenization.",
+        )
+
+    # ── 3. Create M1TokenizationJob linked to this order ───────────────────
+    payer_ref = (
+        getattr(order, "external_id", None)
+        or getattr(order, "idempotency_key", None)
+        or str(order.id)
+    )
+    payer_name = getattr(order, "payer_email", None) or "ALSHUMOOKH ORDER"
+
+    job = await create_tokenization_job(
+        db,
+        eur_amount=eur_amount,
+        sender_reference=payer_ref,
+        sender_name=payer_name,
+        sender_iban=None,
+        payload_id=None,
+        destination_wallet=destination_wallet or None,
+        network=network,
+        notes=f"Blockchain-first record for PaymentOrder {order_id}",
+        raw_data={
+            "order_id": order_id,
+            "target_asset": asset,
+            "source": "order_blockchain_record",
+            "original_fiat_amount": str(fiat_amount) if fiat_amount else None,
+            "original_fiat_currency": fiat_currency,
+            "original_crypto_amount": str(crypto_amount) if crypto_amount else None,
+            "fx_rate_used": str(fx_rate_used) if fx_rate_used else None,
+            "provider": (
+                order.provider.value
+                if hasattr(order.provider, "value")
+                else str(order.provider)
+            ),
+        },
+    )
+
+    # ── 4. Process the pipeline: EUR → USD → SIG ───────────────────────────
+    try:
+        job = await process_tokenization_job(
+            db,
+            str(job.id),
+            override_asset=asset,
+            processed_by="admin",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Tokenization pipeline failed: {exc}",
+        ) from exc
+
+    # ── 5. Link outbound transfer's order_id to this PaymentOrder ──────────
+    ot_id = job.outbound_transfer_id
+    ot = None
+    if ot_id:
+        ot_res = await db.execute(
+            select(OutboundTransfer).where(OutboundTransfer.id == ot_id)
+        )
+        ot = ot_res.scalar_one_or_none()
+        if ot and not ot.order_id:
+            ot.order_id = order_id
+            await db.commit()
+
+    # ── 6. Optionally auto-approve (admin still needs to broadcast manually) ─
+    if auto_approve and ot:
+        try:
+            ot = await approve_outbound_transfer(db, str(ot_id), approved_by="admin (auto)")
+        except Exception:
+            pass  # Non-fatal — admin can approve from dashboard
+
+    await log_event(
+        db,
+        "ORDER_BLOCKCHAIN_RECORD_CREATED",
+        {
+            "order_id": order_id,
+            "tokenization_job_id": str(job.id),
+            "eur_amount": str(eur_amount),
+            "sig_amount": str(job.usdt_amount) if job.usdt_amount else None,
+            "outbound_transfer_id": ot_id,
+            "network": network,
+            "asset": asset,
+            "auto_approve": auto_approve,
+        },
+        order_id,
+    )
+
+    return {
+        "ok": True,
+        "order_id": order_id,
+        "tokenization_job_id": str(job.id),
+        "job_status": job.status,
+        "eur_amount": str(eur_amount),
+        "sig_amount": str(job.usdt_amount) if job.usdt_amount else None,
+        "network": network,
+        "asset": asset,
+        "outbound_transfer_id": ot_id,
+        "outbound_transfer_status": ot.status if ot else None,
+        "message": (
+            "Blockchain record created. "
+            + ("OutboundTransfer auto-approved — go to Outbound Transfers and click Broadcast to mint on Ethereum."
+               if auto_approve
+               else "Go to Outbound Transfers → Approve → Broadcast to record the TX hash on Ethereum.")
+        ),
+    }
+
+
+@router.post("/orders/tokenize-batch", tags=["admin-orders"])
+async def tokenize_orders_batch(
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    payload: dict = Body(default_factory=dict),
+):
+    """
+    Bulk blockchain recording: tokenize all matching orders in one call.
+
+    Body:
+      order_ids:   list[str]  — specific IDs to process (optional)
+      status:      str        — filter by status, e.g. "COMPLETED" (optional)
+      asset:       str        — "SIG" (default)
+      network:     str        — "ethereum" (default)
+      auto_approve: bool      — also auto-approve each outbound transfer
+    """
+    order_ids    = payload.get("order_ids") or []
+    status_filter = payload.get("status") or None
+    asset        = str(payload.get("asset") or "SIG").upper()
+    network      = str(payload.get("network") or "ethereum").lower()
+    auto_approve = bool(payload.get("auto_approve", False))
+
+    query = select(PaymentOrder)
+    if order_ids:
+        query = query.where(PaymentOrder.id.in_(order_ids))
+    if status_filter:
+        try:
+            query = query.where(PaymentOrder.status == OrderStatus(status_filter.upper()))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status_filter}")
+    query = query.limit(50)
+
+    res = await db.execute(query)
+    orders = list(res.scalars().all())
+
+    results = []
+    for order in orders:
+        try:
+            sub_payload = {
+                "asset": asset,
+                "network": network,
+                "auto_approve": auto_approve,
+            }
+            # Reuse single-order logic inline
+            fiat_amount   = order.fiat_amount
+            fiat_currency = (order.fiat_currency or "USD").strip().upper()
+            crypto_amount = order.crypto_amount
+            eur_amount: Decimal | None = None
+
+            if fiat_amount and fiat_amount > 0:
+                if fiat_currency == "EUR":
+                    eur_amount = fiat_amount
+                else:
+                    fx_rate, _ = await fetch_live_eur_usd()
+                    eur_amount = (fiat_amount / fx_rate).quantize(Decimal("0.000001"))
+            elif crypto_amount and crypto_amount > 0:
+                fx_rate, _ = await fetch_live_eur_usd()
+                eur_amount = (crypto_amount / fx_rate).quantize(Decimal("0.000001"))
+
+            if not eur_amount or eur_amount <= 0:
+                results.append({"order_id": str(order.id), "ok": False, "error": "No usable amount"})
+                continue
+
+            job = await create_tokenization_job(
+                db,
+                eur_amount=eur_amount,
+                sender_reference=order.external_id or str(order.id),
+                sender_name=getattr(order, "payer_email", None) or "ALSHUMOOKH ORDER",
+                network=network,
+                notes=f"Batch blockchain record for PaymentOrder {order.id}",
+                raw_data={"order_id": str(order.id), "target_asset": asset, "source": "batch_tokenization"},
+            )
+            job = await process_tokenization_job(db, str(job.id), override_asset=asset, processed_by="admin")
+
+            ot_id = job.outbound_transfer_id
+            if ot_id:
+                ot_res = await db.execute(select(OutboundTransfer).where(OutboundTransfer.id == ot_id))
+                ot = ot_res.scalar_one_or_none()
+                if ot and not ot.order_id:
+                    ot.order_id = str(order.id)
+                    await db.commit()
+                if auto_approve and ot:
+                    try:
+                        await approve_outbound_transfer(db, str(ot_id), approved_by="admin (batch)")
+                    except Exception:
+                        pass
+
+            results.append({
+                "order_id": str(order.id),
+                "ok": True,
+                "tokenization_job_id": str(job.id),
+                "outbound_transfer_id": ot_id,
+                "sig_amount": str(job.usdt_amount) if job.usdt_amount else None,
+            })
+        except Exception as exc:
+            results.append({"order_id": str(order.id), "ok": False, "error": str(exc)})
+
+    return {
+        "processed": len(results),
+        "success": sum(1 for r in results if r.get("ok")),
+        "failed": sum(1 for r in results if not r.get("ok")),
+        "results": results,
+    }
+
+
 @router.post("/clients", response_model=ApiClientCreated)
 async def create_client(
     payload: ApiClientCreate,
@@ -1929,8 +2202,31 @@ async def swift_update_status(
         await db.commit()
         return {"ok": True, "record_id": record_id, "record_type": record_type, "status": new_status}
 
+    elif record_type == "M1_JOB":
+        from sqlalchemy import select as sa_select
+        result = await db.execute(
+            sa_select(M1TokenizationJob).where(
+                cast(M1TokenizationJob.id, String) == record_id
+            )
+        )
+        rec = result.scalar_one_or_none()
+        if not rec:
+            raise HTTPException(status_code=404, detail="M1 tokenization job not found")
+        valid_m1 = {s.value for s in M1TokenizationStatus}
+        if new_status not in valid_m1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status for M1 job. Valid: {sorted(valid_m1)}",
+            )
+        rec.status = new_status
+        await db.commit()
+        await log_event(db, "M1_JOB_STATUS_UPDATED", details={
+            "job_id": str(rec.id), "new_status": new_status, "updated_by": "admin_swift"
+        })
+        return {"ok": True, "record_id": record_id, "record_type": record_type, "status": new_status}
+
     else:
-        raise HTTPException(status_code=400, detail="Invalid record_type. Use PAYMENT_ORDER or SETTLEMENT_PAYLOAD")
+        raise HTTPException(status_code=400, detail="Invalid record_type. Use PAYMENT_ORDER, SETTLEMENT_PAYLOAD or M1_JOB")
 
 
 @router.post("/swift/{record_id}/notes")
