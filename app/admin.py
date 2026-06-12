@@ -1593,221 +1593,347 @@ async def transactions_report(
     db: AsyncSession = Depends(get_db),
     order_id: str | None = None,
 ):
-    stmt = select(PaymentOrder).order_by(PaymentOrder.created_at.desc())
+    import datetime as _dt
+
+    # ── CSS shared across all report types ───────────────────────────
+    _CSS = """
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#111827;background:#f4f7fb;padding:30px}
+    .sheet{max-width:1200px;margin:0 auto;background:#fff;border:1px solid #d8e0ea;box-shadow:0 18px 50px rgba(15,23,42,.08);padding:36px}
+    .letterhead{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #0D1B3E;padding-bottom:18px;margin-bottom:18px}
+    .lh-left .brand{color:#C9A84C;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
+    .lh-left h1{font-size:26px;color:#0D1B3E;margin:6px 0 4px}
+    .lh-left .sub{color:#667085;font-size:12px}
+    .lh-right{text-align:right;font-size:11px;color:#667085;line-height:1.8}
+    .lh-right strong{color:#0D1B3E;font-size:12px}
+    .badge-type{display:inline-block;padding:3px 10px;font-size:11px;font-weight:800;letter-spacing:.08em;border-radius:4px;margin-top:6px}
+    .bt-order{background:#dbeafe;color:#1e40af}
+    .bt-m1{background:#d1fae5;color:#065f46}
+    .bt-payload{background:#fef3c7;color:#92400e}
+    .bt-transfer{background:#ede9fe;color:#5b21b6}
+    .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:20px 0}
+    .metric{border:1px solid #d8e0ea;padding:14px;border-radius:8px;background:#fbfcff}
+    .metric span{color:#667085;font-size:11px;display:block}
+    .metric strong{display:block;margin-top:6px;font-size:22px;color:#0D1B3E}
+    .sec-title{background:#0D1B3E;color:#C9A84C;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:6px 12px;margin:20px 0 0}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th,td{border-bottom:1px solid #d8e0ea;padding:9px 8px;text-align:left;vertical-align:top;word-break:break-word}
+    th{background:#f0f4fc;color:#2A3F72;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+    tr:nth-child(even) td{background:#f8fafc}
+    .hash{font-family:'Courier New',monospace;font-size:10px;color:#1565C0;word-break:break-all}
+    .url-link{color:#1565C0;font-size:10px;text-decoration:none}
+    .url-link:hover{text-decoration:underline}
+    .st{display:inline-block;padding:3px 8px;border-radius:5px;font-weight:800;font-size:11px}
+    .COMPLETED,.CONFIRMED,.VERIFIED,.RECONCILED,.SENT{color:#0f8a5f;background:#e7f6ef}
+    .PENDING,.PROCESSING,.CREATED,.PENDING_CONFIRMATION,.AWAITING_APPROVAL,.APPROVED,.BROADCASTING,.PARSED,.MANUAL_REVIEW{color:#ad6a00;background:#fff6e8}
+    .FAILED,.REJECTED,.CANCELLED{color:#b83232;background:#fff0f0}
+    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #d8e0ea;margin-top:0}
+    .detail-row{display:contents}
+    .detail-row .dk{background:#f0f4fc;font-weight:700;color:#2A3F72;padding:8px 12px;border-bottom:1px solid #d8e0ea;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+    .detail-row .dv{padding:8px 12px;border-bottom:1px solid #d8e0ea;font-size:12px;color:#111}
+    .detail-row .dv.mono{font-family:'Courier New',monospace;font-size:11px;word-break:break-all}
+    .detail-row .dv.hi{color:#1565C0;font-family:'Courier New',monospace;font-size:10px;word-break:break-all;background:#EBF3FF}
+    .bc-box{background:#E8F5E9;border:1.5px solid #1B7A4A;padding:12px 16px;margin:14px 0;text-align:center}
+    .bc-box .bc-title{font-size:13px;font-weight:800;color:#1B7A4A;letter-spacing:.06em}
+    .bc-box .bc-hash{font-family:'Courier New',monospace;font-size:11px;color:#1565C0;margin-top:4px;word-break:break-all}
+    .bc-box .bc-url{font-size:11px;color:#555;margin-top:3px}
+    .actions{max-width:1200px;margin:16px auto 0;display:flex;gap:10px;justify-content:flex-end}
+    .btn{min-height:38px;padding:8px 18px;border:0;border-radius:6px;font-weight:800;font-size:12px;cursor:pointer;letter-spacing:.04em}
+    .btn-print{background:#0D1B3E;color:#fff}
+    .btn-close{background:#fff;color:#0D1B3E;border:2px solid #0D1B3E}
+    @media print{body{background:#fff;padding:0}.sheet{border:0;box-shadow:none}.actions{display:none}}
+    """
+
+    now_str = _dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    # ── SINGLE-RECORD LOOKUP (order_id provided) ─────────────────────
     if order_id:
-        stmt = select(PaymentOrder).where(cast(PaymentOrder.id, String) == str(order_id))
+        oid = str(order_id).strip()
+
+        # 1. PaymentOrder
+        r1 = await db.execute(select(PaymentOrder).where(cast(PaymentOrder.id, String) == oid))
+        po = r1.scalar_one_or_none()
+        if po:
+            tx = getattr(po, "tx_hash", None)
+            explorer = f"https://etherscan.io/tx/{tx.lstrip('0x') if tx else ''}" if tx else None
+            st_val = po.status.value if hasattr(po.status, "value") else str(po.status)
+            html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Transaction Report — {oid}</title><style>{_CSS}</style></head><body>
+<div class="sheet">
+  <div class="letterhead">
+    <div class="lh-left">
+      <div class="brand">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>
+      <h1>Transaction Report</h1>
+      <div class="sub">Payment Order — Full Transaction Record</div>
+      <span class="badge-type bt-order">PAYMENT ORDER</span>
+    </div>
+    <div class="lh-right">
+      <strong>Reference</strong><br>{po.external_id or po.id}<br>
+      <strong>Generated</strong><br>{now_str}<br>
+      <strong>Status</strong><br><span class="st {st_val}">{st_val}</span>
+    </div>
+  </div>
+  <div class="sec-title">Transaction Details</div>
+  <div class="detail-grid">
+    <div class="detail-row"><div class="dk">Transaction UUID</div><div class="dv mono">{po.id}</div></div>
+    <div class="detail-row"><div class="dk">Payment Reference</div><div class="dv mono">{po.payment_reference or po.external_id or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Status</div><div class="dv"><span class="st {st_val}">{st_val}</span></div></div>
+    <div class="detail-row"><div class="dk">Provider</div><div class="dv mono">{po.provider.value if hasattr(po.provider,"value") else po.provider}</div></div>
+    <div class="detail-row"><div class="dk">Network</div><div class="dv mono">{po.network.value if hasattr(po.network,"value") else po.network}</div></div>
+    <div class="detail-row"><div class="dk">Fiat Amount</div><div class="dv">{po.fiat_amount or "-"} {po.fiat_currency or ""}</div></div>
+    <div class="detail-row"><div class="dk">Crypto Amount</div><div class="dv">{po.crypto_amount or "-"} {po.crypto_currency or ""}</div></div>
+    <div class="detail-row"><div class="dk">Payer Email</div><div class="dv">{po.payer_email or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Sender Wallet</div><div class="dv mono">{po.user_wallet_address or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Receiver Wallet</div><div class="dv mono">{po.treasury_wallet_address or po.customer_wallet_address or "-"}</div></div>
+    <div class="detail-row"><div class="dk">TX Hash</div><div class="dv {'hi' if tx else 'mono'}">{tx or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Provider Order ID</div><div class="dv mono">{po.provider_order_id or "-"}</div></div>
+    <div class="detail-row"><div class="dk">External ID</div><div class="dv mono">{po.external_id or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Failure Reason</div><div class="dv">{po.failure_reason or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Created At (UTC)</div><div class="dv">{po.created_at}</div></div>
+    <div class="detail-row"><div class="dk">Updated At (UTC)</div><div class="dv">{po.updated_at}</div></div>
+  </div>
+  {f'<div class="bc-box"><div class="bc-title">&#10003; BLOCKCHAIN TRANSACTION — ETHEREUM MAINNET</div><div class="bc-hash">TX HASH: {tx}</div><div class="bc-url">Verify: <a class="url-link" href="{explorer}" target="_blank">{explorer}</a></div></div>' if tx else ""}
+</div>
+<div class="actions">
+  <button class="btn btn-print" onclick="window.print()">&#128424; Print / Save PDF</button>
+  <button class="btn btn-close" onclick="window.close()">&#10005; Close</button>
+</div></body></html>"""
+            return HTMLResponse(html)
+
+        # 2. M1TokenizationJob
+        r2 = await db.execute(select(M1TokenizationJob).where(cast(M1TokenizationJob.id, String) == oid))
+        job = r2.scalar_one_or_none()
+        if job:
+            st_val = str(job.status)
+            xfer_id = str(job.outbound_transfer_id) if job.outbound_transfer_id else None
+            # try to get TX hash from linked OutboundTransfer
+            tx = None
+            explorer = None
+            if xfer_id:
+                rx = await db.execute(select(OutboundTransfer).where(cast(OutboundTransfer.id, String) == xfer_id))
+                xfer = rx.scalar_one_or_none()
+                if xfer:
+                    tx = xfer.tx_hash
+                    explorer = xfer.explorer_url or (f"https://etherscan.io/tx/{tx.lstrip('0x')}" if tx else None)
+            html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>M1 Tokenization Report — {oid}</title><style>{_CSS}</style></head><body>
+<div class="sheet">
+  <div class="letterhead">
+    <div class="lh-left">
+      <div class="brand">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>
+      <h1>M1 Tokenization Report</h1>
+      <div class="sub">EUR → SIG Settlement — Full Transaction Record</div>
+      <span class="badge-type bt-m1">M1 TOKENIZATION</span>
+    </div>
+    <div class="lh-right">
+      <strong>M1 Job ID</strong><br>{job.id}<br>
+      <strong>Generated</strong><br>{now_str}<br>
+      <strong>Status</strong><br><span class="st {st_val}">{st_val}</span>
+    </div>
+  </div>
+  <div class="sec-title">M1 Job Details</div>
+  <div class="detail-grid">
+    <div class="detail-row"><div class="dk">M1 Job UUID</div><div class="dv mono">{job.id}</div></div>
+    <div class="detail-row"><div class="dk">Sender Reference</div><div class="dv mono">{job.sender_reference or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Sender Full Name</div><div class="dv">{job.sender_name or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Sender IBAN</div><div class="dv mono">{job.sender_iban or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Job Status</div><div class="dv"><span class="st {st_val}">{st_val}</span></div></div>
+    <div class="detail-row"><div class="dk">Settlement Network</div><div class="dv mono">{job.network or "ethereum"}</div></div>
+    <div class="detail-row"><div class="dk">EUR Amount</div><div class="dv">{job.eur_amount or "-"} EUR</div></div>
+    <div class="detail-row"><div class="dk">USD Converted</div><div class="dv">{job.usd_amount or "-"} USD</div></div>
+    <div class="detail-row"><div class="dk">FX Rate EUR/USD</div><div class="dv">{job.fx_rate_eur_usd or "-"}</div></div>
+    <div class="detail-row"><div class="dk">SIG Token Output</div><div class="dv">{job.usdt_amount or "-"} SIG</div></div>
+    <div class="detail-row"><div class="dk">SIG Token Contract</div><div class="dv mono">0xdAC17F958D2ee523a2206206994597C13D831ec7</div></div>
+    <div class="detail-row"><div class="dk">Destination Wallet</div><div class="dv mono">{job.destination_wallet or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Outbound Transfer ID</div><div class="dv mono">{xfer_id or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Linked Payload ID</div><div class="dv mono">{job.payload_id or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Blockchain TX Hash</div><div class="dv {'hi' if tx else 'mono'}">{tx or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Error Message</div><div class="dv">{job.error_message or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Created At (UTC)</div><div class="dv">{job.created_at}</div></div>
+    <div class="detail-row"><div class="dk">Updated At (UTC)</div><div class="dv">{job.updated_at}</div></div>
+  </div>
+  {f'<div class="bc-box"><div class="bc-title">&#10003; BLOCKCHAIN TRANSACTION CONFIRMED — ETHEREUM MAINNET</div><div class="bc-hash">TX HASH: {tx}</div><div class="bc-url">Verify: <a class="url-link" href="{explorer}" target="_blank">{explorer}</a></div></div>' if tx else ""}
+</div>
+<div class="actions">
+  <button class="btn btn-print" onclick="window.print()">&#128424; Print / Save PDF</button>
+  <button class="btn btn-close" onclick="window.close()">&#10005; Close</button>
+</div></body></html>"""
+            return HTMLResponse(html)
+
+        # 3. ExternalPayload
+        r3 = await db.execute(select(ExternalPayload).where(cast(ExternalPayload.id, String) == oid))
+        ep = r3.scalar_one_or_none()
+        if ep:
+            tx = ep.tx_hash
+            explorer = ep.explorer_url or (f"https://etherscan.io/tx/{tx.lstrip('0x')}" if tx else None)
+            st_val = str(ep.verification_status)
+            html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Settlement Payload Report — {oid}</title><style>{_CSS}</style></head><body>
+<div class="sheet">
+  <div class="letterhead">
+    <div class="lh-left">
+      <div class="brand">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>
+      <h1>Settlement Payload Report</h1>
+      <div class="sub">Inbound SWIFT Payload — Full Verification Record</div>
+      <span class="badge-type bt-payload">SETTLEMENT PAYLOAD</span>
+    </div>
+    <div class="lh-right">
+      <strong>Payload UUID</strong><br>{ep.id}<br>
+      <strong>Generated</strong><br>{now_str}<br>
+      <strong>Status</strong><br><span class="st {st_val}">{st_val}</span>
+    </div>
+  </div>
+  <div class="sec-title">Payload Details</div>
+  <div class="detail-grid">
+    <div class="detail-row"><div class="dk">Payload UUID</div><div class="dv mono">{ep.id}</div></div>
+    <div class="detail-row"><div class="dk">Transaction Reference</div><div class="dv mono">{ep.transaction_reference or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Verification Status</div><div class="dv"><span class="st {st_val}">{st_val}</span></div></div>
+    <div class="detail-row"><div class="dk">Parsing Status</div><div class="dv">{ep.parsing_status or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Security Level</div><div class="dv">{ep.security_level or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Amount</div><div class="dv">{ep.amount or "-"} {ep.asset or ""}</div></div>
+    <div class="detail-row"><div class="dk">Network</div><div class="dv mono">{ep.network_name or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Sender Wallet</div><div class="dv mono">{ep.sender_wallet or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Receiver Wallet</div><div class="dv mono">{ep.receiver_wallet or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Token Contract</div><div class="dv mono">{ep.token_contract or "0xdAC17F958D2ee523a2206206994597C13D831ec7"}</div></div>
+    <div class="detail-row"><div class="dk">Settlement Type</div><div class="dv">{ep.settlement_type or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Authorization Code</div><div class="dv">{ep.authorization_code or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Block Number</div><div class="dv">{ep.block_number or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Confirmations</div><div class="dv">{ep.confirmations or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Review Decision</div><div class="dv">{ep.review_decision or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Review Note</div><div class="dv">{ep.review_note or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Blockchain TX Hash</div><div class="dv {'hi' if tx else 'mono'}">{tx or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Error Message</div><div class="dv">{ep.error_message or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Created At (UTC)</div><div class="dv">{ep.created_at}</div></div>
+  </div>
+  {f'<div class="bc-box"><div class="bc-title">&#10003; BLOCKCHAIN TRANSACTION VERIFIED — ETHEREUM MAINNET</div><div class="bc-hash">TX HASH: {tx}</div><div class="bc-url">Verify: <a class="url-link" href="{explorer}" target="_blank">{explorer}</a></div></div>' if tx else ""}
+</div>
+<div class="actions">
+  <button class="btn btn-print" onclick="window.print()">&#128424; Print / Save PDF</button>
+  <button class="btn btn-close" onclick="window.close()">&#10005; Close</button>
+</div></body></html>"""
+            return HTMLResponse(html)
+
+        # 4. OutboundTransfer
+        r4 = await db.execute(select(OutboundTransfer).where(cast(OutboundTransfer.id, String) == oid))
+        xfer = r4.scalar_one_or_none()
+        if xfer:
+            tx = xfer.tx_hash
+            explorer = xfer.explorer_url or (f"https://etherscan.io/tx/{tx.lstrip('0x')}" if tx else None)
+            st_val = str(xfer.status)
+            html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Outbound Transfer Report — {oid}</title><style>{_CSS}</style></head><body>
+<div class="sheet">
+  <div class="letterhead">
+    <div class="lh-left">
+      <div class="brand">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>
+      <h1>Outbound Transfer Report</h1>
+      <div class="sub">SIG Token Blockchain Settlement — Full Record</div>
+      <span class="badge-type bt-transfer">OUTBOUND TRANSFER</span>
+    </div>
+    <div class="lh-right">
+      <strong>Transfer ID</strong><br>{xfer.id}<br>
+      <strong>Generated</strong><br>{now_str}<br>
+      <strong>Status</strong><br><span class="st {st_val}">{st_val}</span>
+    </div>
+  </div>
+  <div class="sec-title">Transfer Details</div>
+  <div class="detail-grid">
+    <div class="detail-row"><div class="dk">Transfer UUID</div><div class="dv mono">{xfer.id}</div></div>
+    <div class="detail-row"><div class="dk">Linked Order ID</div><div class="dv mono">{xfer.order_id or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Linked Payload ID</div><div class="dv mono">{xfer.payload_id or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Linked M1 Job ID</div><div class="dv mono">{xfer.tokenization_job_id or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Status</div><div class="dv"><span class="st {st_val}">{st_val}</span></div></div>
+    <div class="detail-row"><div class="dk">Network</div><div class="dv mono">{xfer.network}</div></div>
+    <div class="detail-row"><div class="dk">Asset</div><div class="dv">{xfer.asset}</div></div>
+    <div class="detail-row"><div class="dk">Token Contract (SIG)</div><div class="dv mono">{xfer.contract_address or "0xdAC17F958D2ee523a2206206994597C13D831ec7"}</div></div>
+    <div class="detail-row"><div class="dk">From Address</div><div class="dv mono">{xfer.from_address or "ALSHUMOOKH SIG TREASURY"}</div></div>
+    <div class="detail-row"><div class="dk">To Address</div><div class="dv mono">{xfer.to_address}</div></div>
+    <div class="detail-row"><div class="dk">Amount</div><div class="dv">{xfer.amount} {xfer.asset}</div></div>
+    <div class="detail-row"><div class="dk">Blockchain TX Hash</div><div class="dv {'hi' if tx else 'mono'}">{tx or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Etherscan URL</div><div class="dv {'hi' if explorer else 'mono'}">{f'<a class="url-link" href="{explorer}" target="_blank">{explorer}</a>' if explorer else "-"}</div></div>
+    <div class="detail-row"><div class="dk">Block Number</div><div class="dv">{xfer.block_number or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Confirmations</div><div class="dv">{xfer.confirmations or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Gas Used</div><div class="dv">{xfer.gas_used or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Approved By</div><div class="dv">{xfer.approved_by or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Approved At</div><div class="dv">{xfer.approved_at or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Broadcasted At</div><div class="dv">{xfer.broadcasted_at or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Completed At</div><div class="dv">{xfer.completed_at or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Error Message</div><div class="dv">{xfer.error_message or "-"}</div></div>
+    <div class="detail-row"><div class="dk">Retry Count</div><div class="dv">{xfer.retry_count}</div></div>
+    <div class="detail-row"><div class="dk">Created At (UTC)</div><div class="dv">{xfer.created_at}</div></div>
+  </div>
+  {f'<div class="bc-box"><div class="bc-title">&#10003; BLOCKCHAIN TRANSACTION CONFIRMED — ETHEREUM MAINNET</div><div class="bc-hash">TX HASH: {tx}</div><div class="bc-url">Verify: <a class="url-link" href="{explorer}" target="_blank">{explorer}</a></div></div>' if tx else ""}
+</div>
+<div class="actions">
+  <button class="btn btn-print" onclick="window.print()">&#128424; Print / Save PDF</button>
+  <button class="btn btn-close" onclick="window.close()">&#10005; Close</button>
+</div></body></html>"""
+            return HTMLResponse(html)
+
+        # Nothing found in any table
+        raise HTTPException(status_code=404, detail=f"No record found for ID: {oid}")
+
+    # ── NO order_id → full overview of all PaymentOrders ─────────────
+    stmt = select(PaymentOrder).order_by(PaymentOrder.created_at.desc())
     res = await db.execute(stmt)
     orders = list(res.scalars().all())
-    if order_id and not orders:
-        raise HTTPException(status_code=404, detail="Order not found")
 
-    completed = [order for order in orders if order.status == OrderStatus.COMPLETED]
-    pending = [
-        order
-        for order in orders
-        if order.status in {OrderStatus.CREATED, OrderStatus.PENDING, OrderStatus.PROCESSING}
-    ]
-    failed = [order for order in orders if order.status == OrderStatus.FAILED]
-
-    fiat_total = sum(float(order.fiat_amount or 0) for order in completed)
-    crypto_total = sum(float(order.crypto_amount or 0) for order in completed)
+    completed = [o for o in orders if o.status == OrderStatus.COMPLETED]
+    pending   = [o for o in orders if o.status in {OrderStatus.CREATED, OrderStatus.PENDING, OrderStatus.PROCESSING}]
+    failed    = [o for o in orders if o.status == OrderStatus.FAILED]
+    fiat_total   = sum(float(o.fiat_amount or 0) for o in completed)
+    crypto_total = sum(float(o.crypto_amount or 0) for o in completed)
 
     rows = "".join(
-        f"""
-        <tr>
-          <td>{order.external_id or order.id}</td>
-          <td><span class="status {order.status.value}">{order.status.value}</span></td>
-          <td>{order.provider.value}</td>
-          <td>{order.network.value}</td>
-          <td>{order.fiat_amount or "-"} {order.fiat_currency or ""}</td>
-          <td>{order.crypto_amount or "-"} {order.crypto_currency or ""}</td>
-          <td>{order.user_wallet_address or "-"}</td>
-          <td>{getattr(order, "tx_hash", None) or "-"}</td>
-          <td>{order.created_at}</td>
-        </tr>
-        """
-        for order in orders
+        f"""<tr>
+          <td class="hash">{o.external_id or o.id}</td>
+          <td><span class="st {o.status.value}">{o.status.value}</span></td>
+          <td>{o.provider.value}</td>
+          <td>{o.network.value}</td>
+          <td>{o.fiat_amount or "-"} {o.fiat_currency or ""}</td>
+          <td>{o.crypto_amount or "-"} {o.crypto_currency or ""}</td>
+          <td class="hash">{o.user_wallet_address or "-"}</td>
+          <td class="hash">{getattr(o,"tx_hash",None) or "-"}</td>
+          <td>{o.created_at}</td>
+        </tr>"""
+        for o in orders
     )
 
-    return HTMLResponse(
-        f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Transactions Report</title>
-  <style>
-    body {{
-      margin:0;
-      padding:34px;
-      font-family:Arial,sans-serif;
-      color:#111827;
-      background:#f4f7fb;
-    }}
-    .sheet {{
-      max-width:1180px;
-      margin:0 auto;
-      padding:34px;
-      background:white;
-      border:1px solid #d8e0ea;
-      box-shadow:0 18px 50px rgba(15,23,42,.08);
-    }}
-    .head {{
-      display:flex;
-      justify-content:space-between;
-      gap:20px;
-      border-bottom:2px solid #d8e0ea;
-      padding-bottom:20px;
-    }}
-    .brand {{
-      color:#c79a45;
-      font-size:13px;
-      font-weight:900;
-      text-transform:uppercase;
-    }}
-    h1 {{
-      margin:8px 0 0;
-      font-size:32px;
-    }}
-    p {{
-      color:#667085;
-      line-height:1.6;
-    }}
-    .metrics {{
-      display:grid;
-      grid-template-columns:repeat(5,1fr);
-      gap:12px;
-      margin:22px 0;
-    }}
-    .metric {{
-      border:1px solid #d8e0ea;
-      padding:14px;
-      border-radius:8px;
-      background:#fbfcff;
-    }}
-    .metric span {{
-      color:#667085;
-      font-size:12px;
-    }}
-    .metric strong {{
-      display:block;
-      margin-top:7px;
-      font-size:24px;
-    }}
-    table {{
-      width:100%;
-      border-collapse:collapse;
-      font-size:12px;
-    }}
-    th,
-    td {{
-      border-bottom:1px solid #d8e0ea;
-      padding:10px 8px;
-      text-align:left;
-      vertical-align:top;
-      word-break:break-word;
-    }}
-    th {{
-      background:#f8fafc;
-      color:#667085;
-    }}
-    .status {{
-      display:inline-block;
-      padding:4px 8px;
-      border-radius:6px;
-      font-weight:800;
-    }}
-    .COMPLETED {{
-      color:#0f8a5f;
-      background:#e7f6ef;
-    }}
-    .PENDING,
-    .PROCESSING,
-    .CREATED {{
-      color:#ad6a00;
-      background:#fff6e8;
-    }}
-    .FAILED {{
-      color:#b83232;
-      background:#fff0f0;
-    }}
-    .actions {{
-      max-width:1180px;
-      margin:18px auto 0;
-      text-align:right;
-    }}
-    button {{
-      min-height:40px;
-      padding:8px 14px;
-      border:0;
-      border-radius:7px;
-      background:#1f5fd0;
-      color:white;
-      font-weight:800;
-      cursor:pointer;
-    }}
-    @media print {{
-      body {{
-        background:white;
-        padding:0;
-      }}
-      .sheet {{
-        border:0;
-        box-shadow:none;
-      }}
-      .actions {{
-        display:none;
-      }}
-    }}
-  </style>
-</head>
-<body>
-  <section class="sheet">
-    <div class="head">
-      <div>
-        <div class="brand">ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT</div>
-        <h1>Transactions Report</h1>
-        <p>Production payment gateway report for MoonPay Commerce and direct crypto receiving.</p>
-      </div>
-      <div>
-        <strong>Generated</strong><br>{orders[0].created_at if orders else "-"}
-      </div>
+    return HTMLResponse(f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Transactions Report</title><style>{_CSS}</style></head><body>
+<div class="sheet">
+  <div class="letterhead">
+    <div class="lh-left">
+      <div class="brand">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>
+      <h1>Transactions Report</h1>
+      <div class="sub">All Payment Orders — Production Gateway</div>
     </div>
-
-    <div class="metrics">
-      <div class="metric"><span>Total Orders</span><strong>{len(orders)}</strong></div>
-      <div class="metric"><span>Completed</span><strong>{len(completed)}</strong></div>
-      <div class="metric"><span>Pending</span><strong>{len(pending)}</strong></div>
-      <div class="metric"><span>Failed</span><strong>{len(failed)}</strong></div>
-      <div class="metric"><span>Fiat Completed</span><strong>{round(fiat_total, 2)} USD</strong></div>
+    <div class="lh-right">
+      <strong>Generated</strong><br>{now_str}<br>
+      <strong>Total Orders</strong><br>{len(orders)}
     </div>
-
-    <p>Total completed crypto amount: {round(crypto_total, 8)}</p>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Reference</th>
-          <th>Status</th>
-          <th>Provider</th>
-          <th>Network</th>
-          <th>Fiat</th>
-          <th>Crypto</th>
-          <th>Wallet</th>
-          <th>TX Hash</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-      <tbody>{rows}</tbody>
-    </table>
-  </section>
-
-  <div class="actions">
-    <button onclick="window.print()">Print / Save PDF</button>
   </div>
-</body>
-</html>"""
-    )
+  <div class="metrics">
+    <div class="metric"><span>Total Orders</span><strong>{len(orders)}</strong></div>
+    <div class="metric"><span>Completed</span><strong>{len(completed)}</strong></div>
+    <div class="metric"><span>Pending</span><strong>{len(pending)}</strong></div>
+    <div class="metric"><span>Failed</span><strong>{len(failed)}</strong></div>
+    <div class="metric"><span>Fiat Total</span><strong>{round(fiat_total,2)}</strong></div>
+    <div class="metric"><span>Crypto Total</span><strong>{round(crypto_total,6)}</strong></div>
+  </div>
+  <div class="sec-title">All Payment Orders</div>
+  <table>
+    <thead><tr>
+      <th>Reference</th><th>Status</th><th>Provider</th><th>Network</th>
+      <th>Fiat</th><th>Crypto</th><th>Wallet</th><th>TX Hash</th><th>Created</th>
+    </tr></thead>
+    <tbody>{rows}</tbody>
+  </table>
+</div>
+<div class="actions">
+  <button class="btn btn-print" onclick="window.print()">&#128424; Print / Save PDF</button>
+</div></body></html>""")
 
 
 @router.get("/wallets")
