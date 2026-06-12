@@ -1640,7 +1640,7 @@ function setGasInvoiceStatus(jobId,status){
   if(!orderId){showToast('Create a gas invoice first, then set its status.','error');return;}
   var statusMap={COMPLETED:'COMPLETED',PENDING:'PENDING',REFUND:'FAILED'};
   var apiStatus=statusMap[status]||status;
-  api('/api/v1/admin/orders/'+orderId+'/status',{method:'PUT',body:JSON.stringify({status:apiStatus,note:status==='REFUND'?'Gas invoice refunded from admin dashboard':null})})
+  api('/api/v1/admin/orders/'+orderId+'/status',{method:'POST',body:JSON.stringify({status:apiStatus,note:status==='REFUND'?'Gas invoice refunded from admin dashboard':null})})
     .then(function(){showToast('Gas invoice → '+status,'ok');})
     .catch(function(e){showToast('Status error: '+e.message,'error');});
 }
