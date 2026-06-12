@@ -3024,6 +3024,211 @@ async def retry_transfer(
     return _transfer_dict(ot)
 
 
+@router.post("/outbound-transfers/{transfer_id}/force-check", tags=["admin-transfers"])
+async def force_check_transfer_confirmation(
+    transfer_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Manually trigger a blockchain confirmation check for a specific PENDING_CONFIRMATION transfer.
+    Useful when the background monitor hasn't updated yet or you want to refresh immediately.
+    """
+    from app.tasks.transfer_confirmations import check_pending_transfer_confirmations_once
+    from app.transfer_service import ethereum_mainnet_client, base_client
+
+    result = await db.execute(
+        select(OutboundTransfer).where(OutboundTransfer.id == transfer_id)
+    )
+    ot = result.scalar_one_or_none()
+    if not ot:
+        raise HTTPException(status_code=404, detail="Transfer not found")
+
+    if ot.status not in (
+        OutboundTransferStatus.PENDING_CONFIRMATION.value,
+        OutboundTransferStatus.BROADCASTING.value,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Transfer status is {ot.status}; only PENDING_CONFIRMATION or BROADCASTING can be force-checked",
+        )
+
+    if not ot.tx_hash:
+        raise HTTPException(status_code=400, detail="Transfer has no TX hash to check")
+
+    try:
+        network = (ot.network or "ethereum").lower()
+        if network in {"ethereum", "eth", "erc20"}:
+            client = ethereum_mainnet_client()
+            explorer_base = "https://etherscan.io/tx/"
+        elif network == "base":
+            client = base_client()
+            explorer_base = "https://basescan.org/tx/"
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported network for check: {network}")
+
+        current_block = int(client.eth.block_number)
+        receipt = client.eth.get_transaction_receipt(ot.tx_hash)
+
+        if receipt is None:
+            return {
+                "transfer_id": transfer_id,
+                "tx_hash": ot.tx_hash,
+                "status": ot.status,
+                "confirmations": 0,
+                "message": "Transaction not yet mined — still pending in mempool",
+                "current_block": current_block,
+            }
+
+        block_number = int(receipt["blockNumber"])
+        on_chain_status = int(receipt.get("status", 1))
+        gas_used = receipt.get("gasUsed")
+        confirmations = max(0, current_block - block_number + 1)
+        required = max(1, int(settings.transfer_confirmations_required or 12))
+
+        ot.block_number = block_number
+        ot.confirmations = confirmations
+        if gas_used is not None:
+            ot.gas_used = int(gas_used)
+        if not ot.explorer_url:
+            ot.explorer_url = f"{explorer_base}{ot.tx_hash}"
+
+        if on_chain_status == 0:
+            ot.status = OutboundTransferStatus.FAILED.value
+            ot.error_message = "On-chain transaction reverted"
+            await db.commit()
+            await log_event(db, "OUTBOUND_TRANSFER_CHAIN_FAILED", {
+                "transfer_id": ot.id, "tx_hash": ot.tx_hash,
+                "block_number": block_number, "confirmations": confirmations,
+            }, ot.order_id)
+            return {"transfer_id": transfer_id, "status": "FAILED",
+                    "message": "Transaction reverted on-chain", "block_number": block_number}
+
+        if confirmations >= required:
+            ot.status = OutboundTransferStatus.CONFIRMED.value
+            ot.completed_at = datetime.now(timezone.utc)
+            ot.error_message = None
+            await db.commit()
+            await log_event(db, "OUTBOUND_TRANSFER_CONFIRMED", {
+                "transfer_id": ot.id, "tx_hash": ot.tx_hash, "asset": ot.asset,
+                "network": ot.network, "block_number": block_number,
+                "confirmations": confirmations,
+            }, ot.order_id)
+            return {
+                "transfer_id": transfer_id, "status": "CONFIRMED",
+                "tx_hash": ot.tx_hash, "block_number": block_number,
+                "confirmations": confirmations,
+                "explorer_url": ot.explorer_url,
+                "message": f"✓ Confirmed with {confirmations} confirmations",
+            }
+        else:
+            await db.commit()
+            return {
+                "transfer_id": transfer_id, "status": ot.status,
+                "tx_hash": ot.tx_hash, "block_number": block_number,
+                "confirmations": confirmations, "required": required,
+                "message": f"Mined at block {block_number} — waiting for {required - confirmations} more confirmations",
+            }
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Blockchain check failed: {exc}")
+
+
+@router.post("/outbound-transfers/{transfer_id}/rebroadcast", tags=["admin-transfers"])
+async def rebroadcast_stuck_transfer(
+    transfer_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Re-broadcast a PENDING_CONFIRMATION transfer that appears stuck in the mempool.
+    This re-signs and sends the same transfer with a fresh nonce and gas price.
+    Use when the original TX has been stuck for a long time without being mined.
+    """
+    result = await db.execute(
+        select(OutboundTransfer).where(OutboundTransfer.id == transfer_id)
+    )
+    ot = result.scalar_one_or_none()
+    if not ot:
+        raise HTTPException(status_code=404, detail="Transfer not found")
+    if ot.status != OutboundTransferStatus.PENDING_CONFIRMATION.value:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Transfer status is {ot.status}; only PENDING_CONFIRMATION can be re-broadcast",
+        )
+
+    old_hash = ot.tx_hash
+    ot.status = OutboundTransferStatus.APPROVED.value
+    ot.approved_by = "admin (rebroadcast)"
+    ot.approved_at = datetime.now(timezone.utc)
+    ot.tx_hash = None
+    ot.block_number = None
+    ot.confirmations = 0
+    ot.error_message = None
+    await db.commit()
+
+    try:
+        ot = await broadcast_outbound_transfer(db, transfer_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Re-broadcast failed: {exc}")
+
+    await log_event(db, "OUTBOUND_TRANSFER_REBROADCAST", {
+        "transfer_id": ot.id, "old_tx_hash": old_hash,
+        "new_tx_hash": ot.tx_hash, "network": ot.network,
+    }, ot.order_id)
+
+    return {
+        **_transfer_dict(ot),
+        "old_tx_hash": old_hash,
+        "message": f"Re-broadcast successful. New TX: {ot.tx_hash}",
+    }
+
+
+@router.post("/outbound-transfers/{transfer_id}/force-complete", tags=["admin-transfers"])
+async def force_complete_transfer(
+    transfer_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    payload: dict = Body(default_factory=dict),
+):
+    """
+    Manually force a transfer to CONFIRMED status (admin override).
+    Use only when you have independently verified the TX on Etherscan.
+    Optionally supply: block_number, confirmations, notes.
+    """
+    result = await db.execute(
+        select(OutboundTransfer).where(OutboundTransfer.id == transfer_id)
+    )
+    ot = result.scalar_one_or_none()
+    if not ot:
+        raise HTTPException(status_code=404, detail="Transfer not found")
+
+    ot.status = OutboundTransferStatus.CONFIRMED.value
+    ot.completed_at = datetime.now(timezone.utc)
+    ot.error_message = None
+    if payload.get("block_number"):
+        ot.block_number = int(payload["block_number"])
+    if payload.get("confirmations"):
+        ot.confirmations = int(payload["confirmations"])
+    if payload.get("tx_hash"):
+        ot.tx_hash = str(payload["tx_hash"])
+    if ot.tx_hash and not ot.explorer_url:
+        network = (ot.network or "ethereum").lower()
+        base = "https://etherscan.io/tx/" if network in {"ethereum", "eth"} else "https://basescan.org/tx/"
+        ot.explorer_url = f"{base}{ot.tx_hash}"
+
+    await db.commit()
+    await log_event(db, "OUTBOUND_TRANSFER_FORCE_COMPLETED", {
+        "transfer_id": ot.id, "tx_hash": ot.tx_hash,
+        "force_completed_by": "admin",
+        "notes": payload.get("notes", ""),
+    }, ot.order_id)
+
+    return {**_transfer_dict(ot), "message": "Transfer manually marked as CONFIRMED"}
+
+
 @router.delete("/outbound-transfers/{transfer_id}", tags=["admin-transfers"])
 async def delete_transfer(
     transfer_id: str,

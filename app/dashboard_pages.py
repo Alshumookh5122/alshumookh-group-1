@@ -1315,6 +1315,7 @@ _TRANSFERS_BODY = """
       <button class="btn btn-ghost" onclick="closeXferDetails()">Close</button>
     </div>
     <div id="xferDetailBody" style="padding:16px;"></div>
+    <div id="xferDetailActions" style="padding:0 16px 16px;"></div>
   </div>
 </div>
 <script>
@@ -1369,6 +1370,33 @@ function cancelXfer(id){
 function retryXfer(id){
   api('/api/v1/admin/outbound-transfers/'+id+'/retry',{method:'POST'}).then(function(){showToast('Retry started','ok');loadTransfers();}).catch(function(e){showToast('Retry error: '+e.message,'error');});
 }
+function forceCheckXfer(id){
+  showToast('Checking blockchain...','ok');
+  api('/api/v1/admin/outbound-transfers/'+id+'/force-check',{method:'POST'}).then(function(res){
+    var msg=res.message||('Status: '+res.status);
+    if(res.status==='CONFIRMED') showToast('✓ CONFIRMED! '+res.confirmations+' confirmations. TX: '+((res.tx_hash||'').slice(0,14))+'...','ok');
+    else if(res.status==='FAILED') showToast('Transaction FAILED on-chain','error');
+    else showToast(msg,'ok');
+    loadTransfers();
+  }).catch(function(e){showToast('Check error: '+e.message,'error');});
+}
+function rebroadcastXfer(id){
+  if(!confirm('Re-broadcast this stuck transaction with a fresh nonce and gas price? The old TX hash will be replaced.'))return;
+  showToast('Re-broadcasting...','ok');
+  api('/api/v1/admin/outbound-transfers/'+id+'/rebroadcast',{method:'POST'}).then(function(res){
+    showToast('Re-broadcast OK! New TX: '+((res.tx_hash||'').slice(0,14))+'...','ok');
+    loadTransfers();
+  }).catch(function(e){showToast('Re-broadcast error: '+e.message,'error');});
+}
+function forceCompleteXfer(id){
+  var txHash=prompt('Enter TX Hash to force-confirm (leave blank to keep current):','');
+  if(txHash===null)return;
+  var body={notes:'Force completed by admin'};
+  if(txHash)body.tx_hash=txHash;
+  api('/api/v1/admin/outbound-transfers/'+id+'/force-complete',{method:'POST',body:JSON.stringify(body)}).then(function(){
+    showToast('Transfer force-completed as CONFIRMED','ok');loadTransfers();
+  }).catch(function(e){showToast('Error: '+e.message,'error');});
+}
 function deleteXfer(id){
   if(!confirm('Delete this transfer? This cannot be undone.'))return;
   api('/api/v1/admin/outbound-transfers/'+id,{method:'DELETE'}).then(function(){showToast('Transfer deleted','ok');loadTransfers();}).catch(function(e){showToast('Delete error: '+e.message,'error');});
@@ -1389,6 +1417,16 @@ function viewXfer(id){
   document.getElementById('xferDetailBody').innerHTML='<div class="table-wrap"><table><tbody>'+rows.map(function(x){
     return '<tr><th style="width:220px;">'+esc(x[0])+'</th><td style="word-break:break-all;">'+(x[1]||'—')+'</td></tr>';
   }).join('')+'</tbody></table></div>';
+  // Action buttons based on status
+  var actionBtns='';
+  if(r.status==='PENDING_CONFIRMATION'){
+    actionBtns='<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">'
+      +'<button class="btn btn-success" data-xid="'+id+'" onclick="forceCheckXfer(this.dataset.xid)" style="font-size:12px;">⛓ Check Blockchain</button>'
+      +'<button class="btn btn-ghost" data-xid="'+id+'" onclick="rebroadcastXfer(this.dataset.xid)" style="font-size:12px;color:#f59e0b;border-color:#f59e0b;">↺ Re-broadcast</button>'
+      +'<button class="btn btn-ghost" data-xid="'+id+'" onclick="forceCompleteXfer(this.dataset.xid)" style="font-size:12px;color:#a78bfa;border-color:#a78bfa;">✓ Force Confirm</button>'
+      +'</div>';
+  }
+  document.getElementById('xferDetailActions').innerHTML=actionBtns;
   document.getElementById('xferDetailPanel').style.display='block';
   document.getElementById('xferDetailPanel').scrollIntoView({behavior:'smooth'});
 }
@@ -1418,6 +1456,11 @@ function loadTransfers(){
         btns.push('<button class="btn btn-primary" data-xid="'+r.id+'" data-action="broadcast" onclick="broadcastXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Broadcast</button>');
       if(r.status==='FAILED')
         btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="retryXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Retry</button>');
+      if(r.status==='PENDING_CONFIRMATION'){
+        btns.push('<button class="btn btn-success" data-xid="'+r.id+'" onclick="forceCheckXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;background:linear-gradient(135deg,#059669,#047857);" title="Check blockchain for confirmations">⛓ Check</button>');
+        btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="rebroadcastXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;color:#f59e0b;border-color:#f59e0b;" title="Re-broadcast with fresh nonce if stuck">↺ Re-broadcast</button>');
+        btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="forceCompleteXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;color:#a78bfa;border-color:#a78bfa;" title="Manually confirm after verifying on Etherscan">✓ Force Confirm</button>');
+      }
       if(['COMPLETED','CONFIRMED','PENDING_CONFIRMATION','CANCELLED'].indexOf(r.status)<0)
         btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="cancelXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Cancel</button>');
       if(['BROADCASTING','PENDING_CONFIRMATION'].indexOf(r.status)<0)
