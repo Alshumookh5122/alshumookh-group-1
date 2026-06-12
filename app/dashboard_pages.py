@@ -3292,9 +3292,9 @@ function loadReportOrders(){
       +'<td>'+esc(o.network||'')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(o.created_at)+'</td>'
       +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
-        +'<button class="btn btn-primary" data-id="'+esc(o.id||'')+'" onclick="window.open(\'/api/v1/admin/orders/\'+encodeURIComponent(this.dataset.id)+\'/documents/statement\',\'_blank\')" style="font-size:10px;padding:2px 7px;">Statement</button>'
-        +'<button class="btn btn-ghost" data-id="'+esc(o.id||'')+'" onclick="window.open(\'/api/v1/admin/orders/\'+encodeURIComponent(this.dataset.id)+\'/documents/invoice\',\'_blank\')" style="font-size:10px;padding:2px 7px;">Invoice</button>'
-        +'<button class="btn btn-ghost" data-id="'+esc(o.id||'')+'" onclick="document.getElementById(\'reportOrderId\').value=this.dataset.id;openSingleReport();" style="font-size:10px;padding:2px 7px;">Report</button>'
+        +'<button class="btn btn-primary" data-id="'+esc(o.id||'')+'" onclick="window.open(\\\'/api/v1/admin/orders/\\\'+encodeURIComponent(this.dataset.id)+\\\'/documents/statement\\\',\\\'_blank\\\')" style="font-size:10px;padding:2px 7px;">Statement</button>'
+        +'<button class="btn btn-ghost" data-id="'+esc(o.id||'')+'" onclick="window.open(\\\'/api/v1/admin/orders/\\\'+encodeURIComponent(this.dataset.id)+\\\'/documents/invoice\\\',\\\'_blank\\\')" style="font-size:10px;padding:2px 7px;">Invoice</button>'
+        +'<button class="btn btn-ghost" data-id="'+esc(o.id||'')+'" onclick="document.getElementById(\\\'reportOrderId\\\').value=this.dataset.id;openSingleReport();" style="font-size:10px;padding:2px 7px;">Report</button>'
         +'</div></td>'
       +'</tr>';}).join('');
     document.getElementById('reportOrders').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Reference</th><th>Provider</th><th>Status</th><th>Fiat</th><th>Crypto</th><th>Network</th><th>Date</th><th>Actions</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
@@ -3319,7 +3319,7 @@ function loadReportM1(){
       +'<td>'+esc((r.network||'—').toUpperCase())+'</td>'
       +'<td>'+badge(r.status)+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><button class="btn btn-ghost" data-ref="'+esc(r.id||'')+'" onclick="document.getElementById(\'reportOrderId\').value=this.dataset.ref;switchRTab(\'orders\')" style="font-size:10px;padding:2px 7px;">Find Order</button></td>'
+      +'<td><button class="btn btn-ghost" data-ref="'+esc(r.id||'')+'" onclick="document.getElementById(\\\'reportOrderId\\\').value=this.dataset.ref;switchRTab(\\\'orders\\\')" style="font-size:10px;padding:2px 7px;">Find Order</button></td>'
       +'</tr>';}).join('');
     document.getElementById('reportM1').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Reference</th><th>Sender</th><th>EUR</th><th>FX Rate</th><th>SIG Amount</th><th>Network</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('reportM1').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
