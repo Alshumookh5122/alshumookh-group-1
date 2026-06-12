@@ -1358,12 +1358,216 @@ function exportJSON() {
   showToast('JSON exported');
 }
 
-// ── Export PDF
+// ── Export PDF — Professional SWIFT Bank Document
 function exportPDF() {
   if (!_results.length) { showToast('No results to export','warn'); return; }
-  document.getElementById('print-meta').textContent =
-    'Generated: '+new Date().toUTCString()+'  |  Session: '+SESSION_ID+'  |  Query: '+_lastQuery;
-  window.print();
+  var now = new Date();
+  var genDate = now.toUTCString();
+  var refNum = 'SWIFT-' + now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2) + '-' + Math.random().toString(36).slice(2,8).toUpperCase();
+
+  var html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+  html += '<title>SWIFT Message — ALSHUMOOKH GLOBAL</title>';
+  html += '<style>';
+  html += '*{box-sizing:border-box;margin:0;padding:0}';
+  html += 'body{font-family:"Times New Roman",Times,serif;font-size:11pt;color:#111;background:#fff;padding:0}';
+  html += '@page{size:A4;margin:18mm 20mm}';
+  html += '.page{max-width:210mm;margin:0 auto;padding:10mm 12mm;background:#fff}';
+  // Header
+  html += '.hdr{border-bottom:3px solid #1a3a6b;padding-bottom:10px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-start}';
+  html += '.hdr-left{}';
+  html += '.bank-name{font-size:14pt;font-weight:bold;color:#1a3a6b;letter-spacing:.03em}';
+  html += '.bank-sub{font-size:8.5pt;color:#555;margin-top:2px}';
+  html += '.hdr-right{text-align:right}';
+  html += '.ref-box{border:1px solid #1a3a6b;padding:5px 10px;font-size:8.5pt;font-family:"Courier New",monospace;color:#1a3a6b}';
+  html += '.ref-label{font-size:7.5pt;color:#888;margin-bottom:2px}';
+  // Gold bar
+  html += '.gold-bar{height:4px;background:linear-gradient(90deg,#1a3a6b,#c9a227,#1a3a6b);margin-bottom:14px}';
+  // Msg header band
+  html += '.msg-band{background:#1a3a6b;color:#fff;padding:6px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}';
+  html += '.msg-type{font-size:13pt;font-weight:bold;font-family:"Courier New",monospace;letter-spacing:.08em}';
+  html += '.msg-label{font-size:8.5pt;opacity:.85}';
+  html += '.msg-status{font-size:8pt;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:2px}';
+  // MT fields
+  html += '.mt-section{margin-bottom:14px}';
+  html += '.mt-section-title{font-size:8pt;font-weight:bold;text-transform:uppercase;letter-spacing:.1em;color:#1a3a6b;border-bottom:1px solid #c5d3ee;padding-bottom:3px;margin-bottom:6px}';
+  html += '.mt-row{display:flex;gap:0;border-bottom:1px solid #e8e8e8;min-height:22px}';
+  html += '.mt-row:last-child{border-bottom:none}';
+  html += '.mt-code{width:48px;font-family:"Courier New",monospace;font-size:9pt;font-weight:bold;color:#1a3a6b;padding:4px 6px;flex-shrink:0;border-right:2px solid #1a3a6b;background:#f0f4ff}';
+  html += '.mt-field{width:160px;font-size:8pt;font-weight:bold;color:#555;padding:4px 8px;flex-shrink:0;background:#fafbff;border-right:1px solid #e0e8f8}';
+  html += '.mt-val{flex:1;font-family:"Courier New",monospace;font-size:9pt;padding:4px 8px;word-break:break-all;color:#111}';
+  html += '.mt-val.empty{color:#bbb;font-style:italic;font-family:inherit;font-size:8.5pt}';
+  // Detail table
+  html += '.detail-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-top:6px}';
+  html += '.detail-table th{background:#1a3a6b;color:#fff;padding:4px 8px;text-align:left;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em}';
+  html += '.detail-table td{padding:3px 8px;border-bottom:1px solid #e8e8e8;vertical-align:top}';
+  html += '.detail-table tr:nth-child(even) td{background:#f7f9fc}';
+  html += '.detail-table td:first-child{font-weight:bold;color:#444;width:200px;font-size:8pt}';
+  html += '.detail-table td:last-child{font-family:"Courier New",monospace;word-break:break-all}';
+  // Footer / seal
+  html += '.footer{margin-top:18px;padding-top:10px;border-top:2px solid #1a3a6b;display:flex;justify-content:space-between;align-items:flex-end}';
+  html += '.footer-left{font-size:7.5pt;color:#777;line-height:1.5}';
+  html += '.seal{width:80px;height:80px;border-radius:50%;border:2px solid #1a3a6b;display:flex;align-items:center;justify-content:center;text-align:center;font-size:6.5pt;color:#1a3a6b;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;line-height:1.3}';
+  html += '.auth-block{text-align:center}';
+  html += '.sig-line{border-bottom:1px solid #333;width:160px;margin:28px auto 4px}';
+  html += '.sig-label{font-size:7.5pt;color:#555}';
+  html += '.separator{height:20px}';
+  html += '.page-break{page-break-before:always}';
+  html += '</style></head><body>';
+
+  _results.forEach(function(r, idx) {
+    var isOrder = r.record_type === 'PAYMENT_ORDER';
+    var isM1    = r.record_type === 'M1_JOB';
+    var msgType = isOrder ? 'MT103' : (isM1 ? 'MT910' : 'MT202');
+    var msgLabel = isOrder ? 'SINGLE CUSTOMER CREDIT TRANSFER'
+                 : isM1   ? 'M1 TOKENIZATION — EUR TO SIG SETTLEMENT'
+                           : 'GENERAL FINANCIAL INSTITUTION TRANSFER';
+    var status = (r.status||'UNKNOWN').toUpperCase();
+    var dateStr = r.created_at ? new Date(r.created_at).toISOString().replace('T',' ').slice(0,19)+' UTC' : '—';
+    var yymmdd = r.created_at ? new Date(r.created_at).toISOString().slice(2,10).replace(/-/g,'') : '——————';
+
+    if (idx > 0) html += '<div class="page-break"></div>';
+    html += '<div class="page">';
+
+    // Header
+    html += '<div class="hdr">';
+    html += '<div class="hdr-left"><div class="bank-name">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>';
+    html += '<div class="bank-sub">Dubai — United Arab Emirates &nbsp;|&nbsp; BIC/SWIFT: ALSGBFC0 &nbsp;|&nbsp; SWIFT Network Member</div></div>';
+    html += '<div class="hdr-right"><div class="ref-label">Document Reference</div>';
+    html += '<div class="ref-box">'+esc(refNum)+'-'+(idx+1).toString().padStart(2,'0')+'</div>';
+    html += '<div class="ref-label" style="margin-top:4px;">Generated: '+esc(genDate)+'</div></div>';
+    html += '</div>';
+
+    html += '<div class="gold-bar"></div>';
+
+    // Message type band
+    html += '<div class="msg-band">';
+    html += '<div><div class="msg-type">'+esc(msgType)+'</div><div class="msg-label">'+esc(msgLabel)+'</div></div>';
+    html += '<div class="msg-status">'+esc(status)+'</div>';
+    html += '</div>';
+
+    // MT Field blocks
+    function mtRow(code, label, val) {
+      var empty = !val || val === '—';
+      return '<div class="mt-row"><div class="mt-code">'+esc(code)+'</div>'
+        +'<div class="mt-field">'+esc(label)+'</div>'
+        +'<div class="mt-val'+(empty?' empty':'')+'">'+esc(empty?'NOT PROVIDED':String(val))+'</div></div>';
+    }
+
+    html += '<div class="mt-section"><div class="mt-section-title">SWIFT Message Fields</div>';
+    if (isOrder) {
+      var fmtAmt = r.fiat_amount ? yymmdd+'/'+( r.fiat_currency||'USD')+'/'+r.fiat_amount : null;
+      html += mtRow(':20:','TRN', r.trn || r.reference || r.id);
+      html += mtRow(':21:','UETR', r.uetr || r.id);
+      html += mtRow(':23B:','BANK OP CODE','CRED');
+      html += mtRow(':32A:','VALUE DATE/CCY/AMOUNT', fmtAmt);
+      html += mtRow(':50K:','ORDERING CUSTOMER', [r.sender_email, r.sender_wallet].filter(Boolean).join(' | ') || null);
+      html += mtRow(':52A:','ORDERING INSTITUTION', r.provider);
+      html += mtRow(':57A:','ACCOUNT WITH INSTITUTION', r.network);
+      html += mtRow(':59:','BENEFICIARY', r.receiver_wallet);
+      html += mtRow(':70:','REMITTANCE INFO', r.external_id || r.provider_order_id);
+      html += mtRow(':71A:','CHARGES','SHA');
+      html += mtRow(':77B:','TX HASH', r.tx_hash);
+    } else if (isM1) {
+      var eurAmt = r.fiat_amount ? yymmdd+'/EUR/'+r.fiat_amount : null;
+      html += mtRow(':20:','M1 TRN', r.trn || r.id);
+      html += mtRow(':21:','UETR', r.uetr || r.id);
+      html += mtRow(':23B:','OPERATION','EUR→SIG TOKENIZATION');
+      html += mtRow(':32A:','VALUE DATE/EUR AMOUNT', eurAmt);
+      html += mtRow(':32B:','SIG OUTPUT', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'SIG') : null);
+      html += mtRow(':50K:','ORDERING PARTY', [r.sender_name, r.sender_reference, r.sender_iban].filter(Boolean).join(' | ') || null);
+      html += mtRow(':57A:','SETTLEMENT NETWORK', r.network);
+      html += mtRow(':59:','DESTINATION WALLET', r.destination_wallet);
+      html += mtRow(':70:','FX RATE EUR/USD', r.fx_rate_eur_usd ? 'EUR/USD @ '+r.fx_rate_eur_usd : null);
+      html += mtRow(':71A:','TRANSFER ID', r.outbound_transfer_id);
+      html += mtRow(':77B:','PAYLOAD REF', r.payload_id);
+    } else {
+      var fmtAmt2 = r.amount ? yymmdd+'/'+(r.asset||'USDT')+'/'+r.amount : null;
+      html += mtRow(':20:','TRN', r.trn || r.reference || r.id);
+      html += mtRow(':21:','UETR', r.uetr || r.id);
+      html += mtRow(':32A:','VALUE DATE/ASSET/AMOUNT', fmtAmt2);
+      html += mtRow(':52A:','SECURITY LEVEL', r.security_level);
+      html += mtRow(':57A:','SETTLEMENT TYPE', r.settlement_type);
+      html += mtRow(':58A:','BENEFICIARY WALLET', r.receiver_wallet);
+      html += mtRow(':72:','REVIEW NOTE', r.review_note || r.error_message);
+      html += mtRow(':77B:','TX HASH', r.tx_hash);
+    }
+    html += '</div>';
+
+    // Full detail table
+    html += '<div class="mt-section"><div class="mt-section-title">Complete Transaction Record</div>';
+    html += '<table class="detail-table"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>';
+    var fields = [];
+    if (isOrder) {
+      fields = [
+        ['Transaction UUID', r.id],['Payment Reference', r.reference],
+        ['Status', r.status],['Provider', r.provider],['Network', r.network],
+        ['Fiat Amount', r.fiat_amount ? r.fiat_amount+' '+(r.fiat_currency||'') : '—'],
+        ['Crypto Amount', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'') : '—'],
+        ['Payer Email', r.sender_email || '—'],
+        ['Sender Wallet', r.sender_wallet || '—'],
+        ['Receiver Wallet', r.receiver_wallet || '—'],
+        ['TX Hash', r.tx_hash || '—'],
+        ['Provider Order ID', r.provider_order_id || '—'],
+        ['External ID', r.external_id || '—'],
+        ['Checkout URL', r.checkout_url || '—'],
+        ['Failure Reason', r.failure_reason || '—'],
+        ['Created At', dateStr],
+      ];
+    } else if (isM1) {
+      fields = [
+        ['M1 Job UUID', r.id],['Sender Reference', r.sender_reference || '—'],
+        ['Sender Name', r.sender_name || '—'],['Sender IBAN', r.sender_iban || '—'],
+        ['Status', r.status],['Network', r.network],
+        ['EUR Amount', r.fiat_amount ? r.fiat_amount+' EUR' : '—'],
+        ['USD Converted', r.usd_amount ? r.usd_amount+' USD' : '—'],
+        ['SIG Output', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'SIG') : '—'],
+        ['FX Rate EUR/USD', r.fx_rate_eur_usd || '—'],
+        ['Destination Wallet', r.destination_wallet || '—'],
+        ['Outbound Transfer ID', r.outbound_transfer_id || '—'],
+        ['Linked Payload ID', r.payload_id || '—'],
+        ['Error Message', r.error_message || '—'],
+        ['Created At', dateStr],
+      ];
+    } else {
+      fields = [
+        ['Payload UUID', r.id],['Transaction Reference', r.reference],
+        ['Verification Status', r.status],['Parsing Status', r.parsing_status || '—'],
+        ['Security Level', r.security_level || '—'],['Amount', r.amount ? r.amount+' '+(r.asset||'') : '—'],
+        ['Network', r.network || '—'],['Sender Wallet', r.sender_wallet || '—'],
+        ['Receiver Wallet', r.receiver_wallet || '—'],['TX Hash', r.tx_hash || '—'],
+        ['Token Contract', r.token_contract || '—'],['Settlement Type', r.settlement_type || '—'],
+        ['Authorization Code', r.authorization_code || '—'],
+        ['Review Decision', r.review_decision || '—'],['Review Note', r.review_note || '—'],
+        ['Error Message', r.error_message || '—'],['Created At', dateStr],
+      ];
+    }
+    fields.forEach(function(f) {
+      html += '<tr><td>'+esc(f[0])+'</td><td>'+esc(String(f[1]||'—'))+'</td></tr>';
+    });
+    html += '</tbody></table></div>';
+
+    // Footer with seal
+    html += '<div class="footer">';
+    html += '<div class="footer-left">';
+    html += 'This document is an official SWIFT message record issued by<br>';
+    html += '<strong>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</strong><br>';
+    html += 'For verification: compliance@alshumookh-pay.com<br>';
+    html += 'Session: '+esc(SESSION_ID)+' &nbsp;|&nbsp; Query: '+esc(_lastQuery)+'<br>';
+    html += '<em style="color:#aaa;font-size:7pt;">CONFIDENTIAL — FOR AUTHORIZED PERSONNEL ONLY — © ALSHUMOOKH GROUP 2026</em>';
+    html += '</div>';
+    html += '<div class="auth-block"><div class="sig-line"></div><div class="sig-label">Authorized Signatory</div><div class="sig-label">Compliance &amp; Settlement Division</div></div>';
+    html += '<div class="seal">ALSHUMOOKH<br>GROUP<br>OFFICIAL<br>SWIFT<br>RECORD</div>';
+    html += '</div>';
+
+    html += '</div>'; // .page
+  });
+
+  html += '</body></html>';
+
+  var w = window.open('','_blank','width=900,height=750');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 600);
 }
 
 // ── IMPORT & VERIFY MODAL ──────────────────────────────────────────────

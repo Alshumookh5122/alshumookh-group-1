@@ -1529,9 +1529,9 @@ function loadJobs(){
         +'</div>'
         +'<div id="m1InvStatus_'+r.id+'" style="display:'+(_m1GasOrders&&_m1GasOrders[r.id]?'flex':'none')+';gap:4px;align-items:center;flex-wrap:wrap;margin-top:6px;">'
         +'<span style="font-size:10px;color:var(--muted);">Invoice:</span>'
-        +'<button class="btn btn-success" data-jid="'+r.id+'" onclick="setGasInvoiceStatus(this.dataset.jid,\'COMPLETED\')" style="font-size:10px;padding:2px 7px;">✅ Paid</button>'
-        +'<button class="btn btn-warning" data-jid="'+r.id+'" onclick="setGasInvoiceStatus(this.dataset.jid,\'PENDING\')" style="font-size:10px;padding:2px 7px;">⏳ Pending</button>'
-        +'<button class="btn btn-danger" data-jid="'+r.id+'" onclick="setGasInvoiceStatus(this.dataset.jid,\'REFUND\')" style="font-size:10px;padding:2px 7px;">↩ Refund</button>'
+        +'<button class="btn btn-success" data-jid="'+r.id+'" onclick="setGasInvoiceStatus(this.dataset.jid,\\'COMPLETED\\')" style="font-size:10px;padding:2px 7px;">✅ Paid</button>'
+        +'<button class="btn btn-warning" data-jid="'+r.id+'" onclick="setGasInvoiceStatus(this.dataset.jid,\\'PENDING\\')" style="font-size:10px;padding:2px 7px;">⏳ Pending</button>'
+        +'<button class="btn btn-danger" data-jid="'+r.id+'" onclick="setGasInvoiceStatus(this.dataset.jid,\\'REFUND\\')" style="font-size:10px;padding:2px 7px;">↩ Refund</button>'
         +'</div>';
       return '<tr>'
       +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,10)+'...</code></td>'
@@ -3099,7 +3099,7 @@ function loadReportM1(){
       +'<td>'+esc((r.network||'').toUpperCase())+'</td>'
       +'<td>'+badge(r.status)+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><button class="btn btn-ghost" data-ref="'+esc(r.id||'')+'" onclick="document.getElementById(\'reportOrderId\').value=this.dataset.ref;switchRTab(\'orders\')" style="font-size:10px;padding:2px 7px;">Find Order</button></td>'
+      +'<td><button class="btn btn-ghost" data-ref="'+esc(r.id||'')+'" onclick="document.getElementById(\\'reportOrderId\\').value=this.dataset.ref;switchRTab(\\'orders\\')" style="font-size:10px;padding:2px 7px;">Find Order</button></td>'
       +'</tr>';}).join('');
     document.getElementById('reportM1').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('reportM1').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
