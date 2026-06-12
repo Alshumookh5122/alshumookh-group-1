@@ -2794,38 +2794,96 @@ loadSec();
 # ─── DOCUMENTS ────────────────────────────────────────────────────────────────
 
 _DOCUMENTS_BODY = """
+<style>
+.doc-hero{background:linear-gradient(135deg,#0d2348 0%,#1a3a6b 100%);padding:24px 28px 20px;border-radius:8px 8px 0 0;position:relative;overflow:hidden;}
+.doc-hero::before{content:\'\';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#8b6914,#c9a227,#f0c040,#c9a227,#8b6914);}
+.doc-hero-title{font-size:20px;font-weight:700;color:#fff;}
+.doc-hero-sub{font-size:11px;color:#8ca8d0;margin-top:4px;}
+.doc-hero-badge{position:absolute;right:24px;top:50%;transform:translateY(-50%);width:56px;height:56px;border:2px solid rgba(192,155,45,.6);border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;color:rgba(230,188,60,.8);font-size:7.5px;font-weight:700;line-height:1.3;}
+.doc-stats{display:flex;gap:0;background:var(--surface2);border-bottom:1px solid var(--line);}
+.doc-stat{flex:1;padding:12px 16px;text-align:center;border-right:1px solid var(--line);}
+.doc-stat:last-child{border-right:none;}
+.doc-stat-num{font-size:20px;font-weight:700;color:var(--brand);}
+.doc-stat-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.doc-filter{display:flex;gap:8px;padding:12px 20px;background:var(--surface2);border-bottom:1px solid var(--line);align-items:center;flex-wrap:wrap;}
+.dbadge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:600;text-decoration:none;border:1px solid;white-space:nowrap;}
+.dbadge-inv{background:rgba(79,142,247,.1);color:#4f8ef7;border-color:rgba(79,142,247,.3);}
+.dbadge-sta{background:rgba(199,154,69,.1);color:#c79a45;border-color:rgba(199,154,69,.3);}
+.dbadge-rec{background:rgba(16,185,129,.08);color:#10b981;border-color:rgba(16,185,129,.25);}
+</style>
 <div class="page-body">
-  <div class="filter-bar">
-    <button class="btn btn-ghost" onclick="loadDocs()">Refresh</button>
-  </div>
-  <div class="panel">
-    <div class="panel-head"><h3>Order Documents</h3><span id="docsCnt" style="color:var(--muted);font-size:12px;"></span></div>
-    <div id="docsBody"><div class="empty-state"><div class="icon">📄</div>Loading...</div></div>
+  <div class="panel" style="padding:0;overflow:hidden;">
+    <div class="doc-hero">
+      <div class="doc-hero-title">&#128196; Document Centre</div>
+      <div class="doc-hero-sub">ALSHUMOOKH &mdash; Generate &amp; download official banking documents for all Payment Orders</div>
+      <div class="doc-hero-badge">ALSH<br>DOCS<br>&#9733;&#9733;</div>
+    </div>
+    <div class="doc-stats">
+      <div class="doc-stat"><div class="doc-stat-num" id="dStatTotal">&mdash;</div><div class="doc-stat-lbl">Total Orders</div></div>
+      <div class="doc-stat"><div class="doc-stat-num" id="dStatCompleted">&mdash;</div><div class="doc-stat-lbl">Completed</div></div>
+      <div class="doc-stat"><div class="doc-stat-num" id="dStatPending">&mdash;</div><div class="doc-stat-lbl">Pending</div></div>
+      <div class="doc-stat"><div class="doc-stat-num" id="dStatFailed">&mdash;</div><div class="doc-stat-lbl">Failed</div></div>
+    </div>
+    <div class="doc-filter">
+      <input id="docSearch" placeholder="&#128269;  Search by ID, reference, email..." style="min-width:240px;" oninput="filterDocs()">
+      <select id="docStatusF" onchange="filterDocs()" style="min-width:130px;">
+        <option value="">All Statuses</option>
+        <option value="COMPLETED">Completed</option>
+        <option value="PENDING">Pending</option>
+        <option value="PROCESSING">Processing</option>
+        <option value="FAILED">Failed</option>
+      </select>
+      <button class="btn btn-ghost" onclick="loadDocs()" style="margin-left:auto;">&#8635; Refresh</button>
+    </div>
+    <div id="docsBody"><div class="empty-state"><div class="icon">&#128196;</div>Loading&hellip;</div></div>
   </div>
 </div>
 <script>
+var _allDocs=[];
+function filterDocs(){
+  var q=(document.getElementById('docSearch').value||'').toLowerCase();
+  var st=document.getElementById('docStatusF').value;
+  var rows=_allDocs.filter(function(r){
+    var m=!q||(r.id||'').toLowerCase().includes(q)||(r.external_id||'').toLowerCase().includes(q)||(r.payment_reference||'').toLowerCase().includes(q)||(r.payer_email||'').toLowerCase().includes(q)||(r.provider_order_id||'').toLowerCase().includes(q);
+    var sm=!st||(r.status||'').toUpperCase()===st;
+    return m&&sm;
+  });
+  renderDocs(rows);
+}
+function renderDocs(rows){
+  if(!rows.length){document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">&#128196;</div>No documents match</div>';return;}
+  var th='<th>Order ID</th><th>Reference / Ext. ID</th><th>Provider</th><th>Status</th><th>Fiat Amount</th><th>Crypto</th><th>Network</th><th>Date</th><th style="min-width:260px;">Documents</th>';
+  var tb=rows.map(function(r){return '<tr>'
+    +'<td><span class="mono-id" title="'+esc(r.id||'')+'">'+esc((r.id||'—').slice(0,12))+'&#8230;</span></td>'
+    +'<td>'+esc(r.external_id||r.payment_reference||r.provider_order_id||'—')+'</td>'
+    +'<td>'+esc(r.provider||'')+'</td>'
+    +'<td>'+badge(r.status||'')+'</td>'
+    +'<td><strong>'+fmtNum(r.fiat_amount)+'&nbsp;'+esc(r.fiat_currency||'')+'</strong></td>'
+    +'<td>'+fmtNum(r.crypto_amount,6)+'&nbsp;'+esc(r.crypto_currency||'')+'</td>'
+    +'<td>'+esc((r.network||'').toUpperCase())+'</td>'
+    +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
+    +'<td><div style="display:flex;gap:5px;flex-wrap:wrap;">'
+      +'<a href="/api/v1/admin/orders/'+esc(r.id)+'/documents/invoice" target="_blank" class="dbadge dbadge-inv">&#128196; Invoice</a>'
+      +'<a href="/api/v1/admin/orders/'+esc(r.id)+'/documents/statement" target="_blank" class="dbadge dbadge-sta">&#128203; Statement</a>'
+      +'<a href="/api/v1/admin/orders/'+esc(r.id)+'/documents/receive-receipt" target="_blank" class="dbadge dbadge-rec">&#9989; Receipt</a>'
+    +'</div></td>'
+    +'</tr>';}).join('');
+  document.getElementById('docsBody').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
+}
 function loadDocs(){
-  api('/api/v1/admin/documents?limit=100').then(function(rows) {
-    if(!Array.isArray(rows))rows=[];
-    document.getElementById('docsCnt').textContent=rows.length+' documents';
-    if(!rows.length){document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">📄</div>No documents found</div>';return;}
-    var th='<th>Order ID</th><th>External ID</th><th>Fiat</th><th>Crypto</th><th>Network</th><th>Status</th><th>Date</th><th>Documents</th>';
-    var tb=rows.map(function(r){return '<tr>'
-      +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,10)+'...</code></td>'
-      +'<td>'+(r.external_id||'—')+'</td>'
-      +'<td>'+fmtNum(r.fiat_amount)+' '+(r.fiat_currency||'')+'</td>'
-      +'<td>'+fmtNum(r.crypto_amount,6)+' '+(r.crypto_currency||'')+'</td>'
-      +'<td>'+(r.network||'—')+'</td>'
-      +'<td>'+badge(r.status)+'</td>'
-      +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><div style="display:flex;gap:4px;">'
-        +'<a href="/api/v1/admin/orders/'+r.id+'/documents/invoice" target="_blank" style="padding:2px 8px;border-radius:5px;background:rgba(79,142,247,.15);color:var(--brand);font-size:11px;text-decoration:none;border:1px solid rgba(79,142,247,.3);">Invoice</a>'
-        +'<a href="/api/v1/admin/orders/'+r.id+'/documents/statement" target="_blank" style="padding:2px 8px;border-radius:5px;background:rgba(199,154,69,.15);color:var(--gold);font-size:11px;text-decoration:none;border:1px solid rgba(199,154,69,.3);">Statement</a>'
-        +'<a href="/api/v1/admin/orders/'+r.id+'/documents/receive-receipt" target="_blank" style="padding:2px 8px;border-radius:5px;background:rgba(16,185,129,.1);color:#10b981;font-size:11px;text-decoration:none;border:1px solid rgba(16,185,129,.2);">Receipt</a>'
-        +'</div></td>'
-      +'</tr>';}).join('');
-    document.getElementById('docsBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-  }).catch(function(e){document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
+  document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">&#128196;</div>Loading&hellip;</div>';
+  api('/api/v1/admin/orders').then(function(data){
+    var rows=Array.isArray(data)?data:(data.orders||[]);
+    _allDocs=rows;
+    var comp=rows.filter(function(r){return (r.status||'').toUpperCase()==='COMPLETED';}).length;
+    var pend=rows.filter(function(r){var s=(r.status||'').toUpperCase();return s==='PENDING'||s==='PROCESSING';}).length;
+    var fail=rows.filter(function(r){return (r.status||'').toUpperCase()==='FAILED';}).length;
+    document.getElementById('dStatTotal').textContent=rows.length;
+    document.getElementById('dStatCompleted').textContent=comp;
+    document.getElementById('dStatPending').textContent=pend;
+    document.getElementById('dStatFailed').textContent=fail;
+    filterDocs();
+  }).catch(function(e){document.getElementById('docsBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
 }
 loadDocs();
 </script>
