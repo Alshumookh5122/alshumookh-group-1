@@ -161,10 +161,12 @@ async def process_tokenization_job(
     override_network: str | None = None,
     override_asset: str | None = None,
     processed_by: str = "system",
+    force: bool = False,
 ) -> M1TokenizationJob:
     """
-    Run the full EUR→USD→USDT tokenization pipeline for a queued job.
+    Run the full EUR→USD→USDT/SIG tokenization pipeline for a queued job.
     Steps: QUEUED → FX_FETCHED → CONVERTING → SENDING → COMPLETED
+    Set force=True to reprocess a COMPLETED job with a different asset (e.g. SIG).
     """
     result = await db.execute(
         select(M1TokenizationJob).where(M1TokenizationJob.id == job_id)
@@ -173,10 +175,14 @@ async def process_tokenization_job(
     if not job:
         raise ValueError(f"M1TokenizationJob {job_id} not found")
 
-    if job.status not in (
+    allowed_statuses = (
         M1TokenizationStatus.QUEUED.value,
         M1TokenizationStatus.FAILED.value,
-    ):
+    )
+    if force:
+        allowed_statuses = allowed_statuses + (M1TokenizationStatus.COMPLETED.value,)
+
+    if job.status not in allowed_statuses:
         raise ValueError(f"Job is in status {job.status}, cannot process")
 
     job.processed_by = processed_by

@@ -2829,6 +2829,7 @@ async def process_job(
             override_network=body.get("network"),
             override_asset=body.get("target_asset"),
             processed_by="admin",
+            force=bool(body.get("force", False)),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

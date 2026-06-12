@@ -1356,6 +1356,14 @@ function processJob(id){
   if(!confirm('Run EUR to '+target+' tokenization now?'))return;
   api('/api/v1/admin/tokenization-jobs/'+id+'/process',{method:'POST',body:JSON.stringify({target_asset:target})}).then(function(){showToast('Job processed','ok');loadJobs();}).catch(function(e){showToast('Processing error: '+e.message,'error');});
 }
+function reprocessJobSIG(id){
+  var r=_m1Rows&&_m1Rows[id]?_m1Rows[id]:null;
+  var eur=r?fmtNum(r.eur_amount)+' EUR':'';
+  if(!confirm('Reprocess job '+eur+' with SIG tokens (force=true)?\nThis will create a new OutboundTransfer using SIG from the treasury.'))return;
+  api('/api/v1/admin/tokenization-jobs/'+id+'/process',{method:'POST',body:JSON.stringify({target_asset:'SIG',force:true})})
+    .then(function(){showToast('Job reprocessed with SIG','ok');loadJobs();})
+    .catch(function(e){showToast('Reprocess error: '+e.message,'error');});
+}
 function renderGasEstimate(target, r){
   var html='<div class="panel" style="border-color:rgba(59,130,246,.35);margin:0;"><div style="padding:12px;font-size:12px;line-height:1.7;">'
     +'<strong>Estimated gas fee:</strong> '+esc(String(r.estimated_native_fee||'0'))+' '+esc(r.native_symbol||'')
@@ -1434,6 +1442,7 @@ function loadJobs(){
       var btns=[];
       var gasInputId='m1Gas_'+r.id;
       if(r.status==='QUEUED') btns.push('<button class="btn btn-primary" data-jid="'+r.id+'" onclick="processJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Process</button>');
+      if(r.status==='COMPLETED'||r.status==='FAILED') btns.push('<button class="btn btn-warning" data-jid="'+r.id+'" onclick="reprocessJobSIG(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">⟳ Reprocess with SIG</button>');
       btns.push('<button class="btn btn-ghost" data-jid="'+r.id+'" onclick="toggleM1GasBox(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Add Gas Fee</button>');
       btns.push('<button class="btn btn-success" data-jid="'+r.id+'" onclick="gasJobInvoice(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Gas Invoice</button>');
       if(r.status!=='SENDING') btns.push('<button class="btn btn-danger" data-jid="'+r.id+'" onclick="deleteJob(this.dataset.jid)" style="font-size:11px;padding:3px 8px;">Delete</button>');
