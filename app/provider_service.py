@@ -409,18 +409,22 @@ class CircleProvider:
         }
         chain = chain_map.get(network, "ETH")
 
+        # Use Circle Programmable Wallet address from settings if available,
+        # otherwise fall back to ledger address from payload
         destination_address = (
-            payload.get("walletAddress")
+            settings.circle_wallet_address
+            or payload.get("walletAddress")
             or payload.get("destinationAddress")
             or payload.get("treasury_wallet_address")
         )
 
-        # Try Circle Payment Intents API — falls back to treasury address if not enabled
+        # Try Circle Payment Intents API first; fall back gracefully with full error logging
         intent_id: str | None = None
         blockchain_address = destination_address
         usdc_amount = amount_float
         payment_methods: list = []
         circle_api_used = False
+        circle_error: str | None = None
 
         if settings.circle_api_key:
             try:
@@ -462,9 +466,29 @@ class CircleProvider:
                                 except (ValueError, TypeError):
                                     pass
                             break
-            except Exception:
-                # Circle API unavailable — continue with treasury address fallback
-                pass
+                else:
+                    # Log the actual error from Circle API
+                    circle_error = (
+                        f"Circle API returned {response.status_code}: {response.text[:500]}"
+                    )
+                    import logging
+                    logging.getLogger("circle_provider").error(
+                        "Circle paymentIntents error | status=%s body=%s",
+                        response.status_code,
+                        response.text[:500],
+                    )
+                    # Fall back: use Circle Programmable Wallet address directly
+                    # Client sends USDC directly to the wallet; webhook confirms receipt
+                    blockchain_address = (
+                        settings.circle_wallet_address
+                        or destination_address
+                    )
+            except Exception as exc:
+                circle_error = f"Circle API connection error: {exc}"
+                import logging
+                logging.getLogger("circle_provider").error(
+                    "Circle API unreachable: %s", exc
+                )
 
         if not blockchain_address:
             raise HTTPException(
@@ -493,7 +517,11 @@ class CircleProvider:
             "chain": chain,
             "usdc_amount": usdc_amount,
             "circle_api_used": circle_api_used,
+            "circle_wallet_address": settings.circle_wallet_address,
+            "circle_wallet_id": settings.circle_wallet_id,
+            "circle_wallet_set_id": settings.circle_wallet_set_id,
             "payment_methods": payment_methods,
+            **({"circle_error": circle_error} if circle_error else {}),
         }
 
 

@@ -216,7 +216,8 @@ async def circle_webhook(
 ):
     """
     POST /api/v1/webhooks/circle
-    Circle Programmable Wallets webhook — receives transaction and wallet events.
+    Circle Programmable Wallets + Payment Intents webhook.
+    Processes transaction events and updates PaymentOrder status accordingly.
     """
     try:
         payload = await request.json()
@@ -225,16 +226,116 @@ async def circle_webhook(
 
     notification_type = payload.get("notificationType") or payload.get("Type", "")
     data = payload.get("data") or payload.get("Message") or {}
+    if isinstance(data, str):
+        import json as _json
+        try:
+            data = _json.loads(data)
+        except Exception:
+            data = {}
 
     await log_event(
         db,
         "CIRCLE_WEBHOOK",
-        {
-            "notificationType": notification_type,
-            "data": data,
-        },
+        {"notificationType": notification_type, "data": data},
         None,
     )
+
+    # ── Map Circle notification types to OrderStatus ─────────────────────────
+    # Payment Intents events
+    STATUS_MAP: dict[str, OrderStatus] = {
+        "payments:transfer:created":   OrderStatus.PROCESSING,
+        "payments:transfer:complete":  OrderStatus.COMPLETED,
+        "payments:transfer:failed":    OrderStatus.FAILED,
+        "payments:transfer:returned":  OrderStatus.REFUNDED,
+        "paymentIntents:created":      OrderStatus.PENDING,
+        "paymentIntents:confirmed":    OrderStatus.PROCESSING,
+        "paymentIntents:complete":     OrderStatus.COMPLETED,
+        "paymentIntents:failed":       OrderStatus.FAILED,
+        "paymentIntents:expired":      OrderStatus.EXPIRED,
+        # Programmable Wallets events
+        "transactions:inbound:created":    OrderStatus.PROCESSING,
+        "transactions:inbound:confirmed":  OrderStatus.COMPLETED,
+        "transactions:inbound:failed":     OrderStatus.FAILED,
+        "transactions:outbound:created":   OrderStatus.PROCESSING,
+        "transactions:outbound:confirmed": OrderStatus.COMPLETED,
+        "transactions:outbound:failed":    OrderStatus.FAILED,
+    }
+
+    new_status = STATUS_MAP.get(notification_type)
+
+    if new_status is not None and isinstance(data, dict):
+        # Extract identifiers to find the matching PaymentOrder
+        intent_id = (
+            data.get("id")
+            or data.get("paymentIntentId")
+            or data.get("intentId")
+        )
+        tx_hash = (
+            data.get("transactionHash")
+            or data.get("txHash")
+            or data.get("transaction", {}).get("txHash")
+            if isinstance(data.get("transaction"), dict) else data.get("txHash")
+        )
+
+        order: PaymentOrder | None = None
+
+        # 1. Try to match by payment intent ID stored in quote_json
+        if intent_id:
+            result = await db.execute(
+                select(PaymentOrder).where(
+                    PaymentOrder.provider == Provider.CIRCLE
+                )
+            )
+            circle_orders = result.scalars().all()
+            for o in circle_orders:
+                q = o.quote_json or {}
+                stored_intent = (
+                    q.get("circle_payment_intent_id")
+                    or q.get("intent_id")
+                )
+                if stored_intent and stored_intent == intent_id:
+                    order = o
+                    break
+
+        # 2. Try to match by external_id / payment_reference
+        if not order:
+            ref = data.get("externalRef") or data.get("referenceId") or data.get("metadata", {}).get("ref") if isinstance(data.get("metadata"), dict) else None
+            if ref:
+                result = await db.execute(
+                    select(PaymentOrder).where(
+                        PaymentOrder.provider == Provider.CIRCLE,
+                        PaymentOrder.payment_reference == ref,
+                    )
+                )
+                order = result.scalar_one_or_none()
+
+        if order:
+            # Only advance status — never go backwards
+            STATUS_ORDER = [
+                OrderStatus.CREATED, OrderStatus.PENDING, OrderStatus.PROCESSING,
+                OrderStatus.COMPLETED, OrderStatus.FAILED,
+                OrderStatus.REFUNDED, OrderStatus.EXPIRED,
+            ]
+            current_idx = STATUS_ORDER.index(order.status) if order.status in STATUS_ORDER else 0
+            new_idx = STATUS_ORDER.index(new_status) if new_status in STATUS_ORDER else 0
+
+            if new_idx >= current_idx or new_status in (OrderStatus.FAILED, OrderStatus.REFUNDED, OrderStatus.EXPIRED):
+                order.status = new_status
+                if tx_hash and not order.payment_reference:
+                    order.payment_reference = str(tx_hash)
+                await db.commit()
+                await log_event(
+                    db,
+                    "CIRCLE_ORDER_STATUS_UPDATED",
+                    {
+                        "order_id": str(order.id),
+                        "new_status": new_status.value,
+                        "notification_type": notification_type,
+                        "intent_id": intent_id,
+                        "tx_hash": tx_hash,
+                    },
+                    order.id,
+                )
 
     return WebhookAck()
 
