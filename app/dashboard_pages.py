@@ -1108,7 +1108,7 @@ _TRANSFERS_BODY = """
         <div class="form-field"><label>Amount *</label>
           <input id="cfAmt" type="number" step="0.01" placeholder="0.00"></div>
         <div class="form-field"><label>Asset *</label>
-          <select id="cfAsset"><option value="USDT">USDT</option><option value="SIG">SIG</option></select></div>
+          <select id="cfAsset"><option value="SIG" selected>SIG (Default)</option><option value="USDT">USDT</option></select></div>
         <div class="form-field"><label>Network *</label>
           <select id="cfNet">
             <option value="ethereum">Ethereum (ERC-20)</option>
@@ -1301,7 +1301,7 @@ _TOKENIZATION_BODY = """
         <div class="form-field"><label>Sender Name</label><input id="m1Name" placeholder="Optional"></div>
         <div class="form-field"><label>Network</label>
           <select id="m1Net"><option value="ethereum">Ethereum</option><option value="tron">TRON</option><option value="base">Base</option></select></div>
-        <div class="form-field"><label>Target Asset</label><select id="m1Asset"><option value="USDT">USDT</option><option value="SIG">SIG</option></select></div>
+        <div class="form-field"><label>Target Asset</label><select id="m1Asset"><option value="SIG" selected>SIG (Default)</option><option value="USDT">USDT</option></select></div>
         <div class="form-field"><label>IBAN</label><input id="m1Iban" placeholder="Optional"></div>
         <div class="form-field" style="grid-column:1 / -1;">
           <button type="button" class="btn btn-ghost" onclick="toggleM1FormGas()" style="font-size:11px;padding:4px 10px;">Show Manual Gas Estimate</button>
@@ -1352,7 +1352,7 @@ function createJob(){
 }
 function processJob(id){
   var r=_m1Rows&&_m1Rows[id]?_m1Rows[id]:null;
-  var target=(r&&r.target_asset)||'USDT';
+  var target=(r&&r.target_asset)||'SIG';
   if(!confirm('Run EUR to '+target+' tokenization now?'))return;
   api('/api/v1/admin/tokenization-jobs/'+id+'/process',{method:'POST',body:JSON.stringify({target_asset:target})}).then(function(){showToast('Job processed','ok');loadJobs();}).catch(function(e){showToast('Processing error: '+e.message,'error');});
 }
@@ -1437,7 +1437,7 @@ function loadJobs(){
     var tb=rows.map(function(r){
       var wallet=esc(r.destination_wallet||'');
       var amount=esc(r.usdt_amount||r.eur_amount||'1');
-      var target=esc(r.target_asset||'USDT');
+      var target=esc(r.target_asset||'SIG');
       var net=esc(r.network||'ethereum');
       var btns=[];
       var gasInputId='m1Gas_'+r.id;

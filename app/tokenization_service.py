@@ -1,14 +1,15 @@
 """
 ALSHUMOOKH — M1 Fund Tokenization Engine
-Pipeline: EUR (SWIFT inbound) → USD (live FX) → USDT (ERC-20 / TRC-20 / Base)
+Pipeline: EUR (SWIFT inbound) → USD (live FX) → SIG tokens (ERC-20 / Ethereum)
 
 Flow:
   1. Receive M1 SWIFT/SEPA payload with EUR amount
   2. Fetch live EUR/USD FX rate
-  3. Calculate USDT amount (1 USDT = 1 USD)
+  3. Calculate SIG amount (1 SIG = 1 USD — reserve-backed)
   4. Create OutboundTransfer record with AWAITING_APPROVAL status
   5. Admin approves → broadcast_outbound_transfer()
   6. Update M1TokenizationJob to COMPLETED
+  7. M1 Reserve grows with each EUR investment, giving SIG real liquidity
 """
 from __future__ import annotations
 
@@ -219,7 +220,7 @@ async def process_tokenization_job(
         target_asset = str(
             override_asset
             or (job.raw_data or {}).get("target_asset")
-            or "USDT"
+            or "SIG"
         ).strip().upper()
         if target_asset not in {"USDT", "SIG"}:
             raise ValueError("Tokenization target asset must be USDT or SIG")
@@ -327,7 +328,7 @@ async def get_job_summary(db: AsyncSession, job_id: str) -> dict[str, Any]:
         "fx_rate_eur_usd": str(job.fx_rate_eur_usd) if job.fx_rate_eur_usd else None,
         "usd_amount": str(job.usd_amount) if job.usd_amount else None,
         "usdt_amount": str(job.usdt_amount) if job.usdt_amount else None,
-        "target_asset": str((job.raw_data or {}).get("target_asset") or "USDT").upper(),
+        "target_asset": str((job.raw_data or {}).get("target_asset") or "SIG").upper(),
         "raw_data": job.raw_data or {},
         "network": job.network,
         "destination_wallet": job.destination_wallet,
