@@ -1378,28 +1378,31 @@ function exportPDF() {
     '@page{size:A4 portrait;margin:0}',
     'html,body{width:210mm;font-family:"Times New Roman",Times,serif;font-size:9.5pt;color:#111;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
 
-    /* Page wrapper */
-    '.page{width:210mm;min-height:297mm;position:relative;page-break-after:always;overflow:hidden;background:#fff}',
+    /* Page wrapper — flex column so footer never overlaps content */
+    '.page{width:210mm;min-height:297mm;position:relative;page-break-after:always;background:#fff;display:flex;flex-direction:column}',
     '.page:last-child{page-break-after:auto}',
 
     /* Top navy bar */
-    '.bar-top{position:absolute;top:0;left:0;right:0;height:22mm;background:#0D1B3E}',
+    '.bar-top{position:absolute;top:0;left:0;right:0;height:22mm;background:#0D1B3E;z-index:2}',
     /* Gold line under top bar */
-    '.bar-gold{position:absolute;top:22mm;left:0;right:0;height:1.5mm;background:#C9A84C}',
+    '.bar-gold{position:absolute;top:22mm;left:0;right:0;height:1.5mm;background:#C9A84C;z-index:2}',
     /* Bottom bar */
-    '.bar-bot{position:absolute;bottom:0;left:0;right:0;height:12mm;background:#0D1B3E}',
-    '.bar-bot-gold{position:absolute;bottom:12mm;left:0;right:0;height:1mm;background:#C9A84C}',
+    '.bar-bot{position:absolute;bottom:0;left:0;right:0;height:12mm;background:#0D1B3E;z-index:2}',
+    '.bar-bot-gold{position:absolute;bottom:12mm;left:0;right:0;height:1mm;background:#C9A84C;z-index:2}',
     /* Left navy stripe */
-    '.bar-side{position:absolute;top:23.5mm;bottom:13mm;left:0;width:3mm;background:#0D1B3E}',
+    '.bar-side{position:absolute;top:23.5mm;bottom:13mm;left:0;width:3mm;background:#0D1B3E;z-index:2}',
 
     /* Watermark */
     '.wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:72pt;font-weight:900;color:rgba(13,27,62,0.04);letter-spacing:.1em;white-space:nowrap;pointer-events:none;z-index:0;font-family:"Times New Roman",Times,serif}',
 
-    /* Content area */
-    '.content{position:relative;z-index:1;margin:0 14mm 14mm 10mm;padding-top:1mm}',
+    /* Content area — flex:1 grows to fill space */
+    '.content{position:relative;z-index:1;flex:1;margin:0 14mm 0 10mm;padding-top:25mm}',
+
+    /* Spacer between content and footer */
+    '.pg-spacer{flex:1;min-height:4mm}',
 
     /* Letterhead inside top bar */
-    '.lhd{display:flex;justify-content:space-between;align-items:flex-start;padding:3.5mm 14mm 0 10mm;position:absolute;top:0;left:0;right:0;height:22mm}',
+    '.lhd{display:flex;justify-content:space-between;align-items:flex-start;padding:3.5mm 14mm 0 10mm;position:absolute;top:0;left:0;right:0;height:22mm;z-index:3}',
     '.lhd-left{}',
     '.bank-name{font-size:13pt;font-weight:700;color:#fff;letter-spacing:.02em;line-height:1.15}',
     '.bank-tag{font-size:6pt;color:#C9A84C;font-weight:700;letter-spacing:.2em;text-transform:uppercase;margin-top:1.5pt}',
@@ -1430,9 +1433,9 @@ function exportPDF() {
     '.mt-tbl tr{border-bottom:0.5pt solid #dce6f5}',
     '.mt-tbl tr:last-child{border-bottom:0.75pt solid #0D1B3E}',
     '.mt-tbl tr:nth-child(even) td{background:#f0f4fc}',
-    '.mt-cd{width:30pt;font-family:"Courier New",monospace;font-size:8pt;font-weight:700;color:#fff;background:#0D1B3E;padding:4pt 5pt;text-align:center;vertical-align:middle}',
-    '.mt-nm{width:110pt;font-size:7pt;font-weight:700;color:#2A3F72;padding:4pt 7pt;vertical-align:middle;border-right:0.5pt solid #c5d3ee}',
-    '.mt-vl{font-family:"Courier New",monospace;font-size:7.5pt;color:#111;padding:4pt 7pt;vertical-align:middle;word-break:break-all}',
+    '.mt-cd{width:28pt;font-family:"Courier New",monospace;font-size:7.5pt;font-weight:700;color:#fff;background:#0D1B3E;padding:2.5pt 4pt;text-align:center;vertical-align:middle}',
+    '.mt-nm{width:108pt;font-size:6.5pt;font-weight:700;color:#2A3F72;padding:2.5pt 6pt;vertical-align:middle;border-right:0.5pt solid #c5d3ee}',
+    '.mt-vl{font-family:"Courier New",monospace;font-size:7pt;color:#111;padding:2.5pt 6pt;vertical-align:middle;word-break:break-all}',
     '.mt-vl.empty{color:#bbb;font-family:"Times New Roman",Times,serif;font-style:italic;font-size:7pt}',
     '.mt-vl.hash{color:#1565C0;font-size:6.5pt}',
     '.mt-vl.url {color:#1565C0;font-size:6pt}',
@@ -1440,9 +1443,9 @@ function exportPDF() {
     /* Detail table */
     '.dtl-tbl{width:100%;border-collapse:collapse;font-size:7.5pt}',
     '.dtl-tbl tr:nth-child(even) td{background:#f0f4fc}',
-    '.dtl-tbl td{padding:3.5pt 7pt;border-bottom:0.5pt solid #dce6f5;vertical-align:top}',
-    '.dtl-tbl td:first-child{font-weight:700;color:#2A3F72;width:110pt;font-size:7pt;white-space:nowrap}',
-    '.dtl-tbl td.mono{font-family:"Courier New",monospace;word-break:break-all;color:#111}',
+    '.dtl-tbl td{padding:2.5pt 6pt;border-bottom:0.5pt solid #dce6f5;vertical-align:top}',
+    '.dtl-tbl td:first-child{font-weight:700;color:#2A3F72;width:108pt;font-size:6.5pt;white-space:nowrap}',
+    '.dtl-tbl td.mono{font-family:"Courier New",monospace;word-break:break-all;color:#111;font-size:7pt}',
     '.dtl-tbl td.hash{font-family:"Courier New",monospace;word-break:break-all;color:#1565C0;font-size:6.5pt}',
     '.dtl-tbl td.green{color:#1B7A4A;font-weight:700}',
     '.dtl-tbl td.hi{background:#D6E4FF !important;font-weight:700;font-family:"Courier New",monospace;color:#1565C0;font-size:6.5pt;word-break:break-all}',
@@ -1453,8 +1456,8 @@ function exportPDF() {
     '.bc-hash{font-family:"Courier New",monospace;font-size:6.5pt;color:#1565C0;margin-top:3pt;word-break:break-all}',
     '.bc-url{font-size:6pt;color:#555;font-style:italic;margin-top:2pt}',
 
-    /* Footer */
-    '.doc-footer{position:absolute;bottom:13mm;left:10mm;right:14mm}',
+    /* Footer — normal flow, always after content, never overlapping */
+    '.doc-footer{margin:0 14mm 14mm 10mm;position:relative;z-index:1}',
     '.footer-rule{border-top:1.5pt solid #0D1B3E;padding-top:4pt}',
     '.footer-inner{display:flex;justify-content:space-between;align-items:flex-end}',
     '.footer-txt{font-size:6pt;color:#555;line-height:1.65}',
@@ -1462,11 +1465,11 @@ function exportPDF() {
     '.footer-conf{font-size:5pt;color:#aaa;margin-top:2pt;font-style:italic}',
     '.seal-area{display:flex;align-items:flex-end;gap:12pt}',
     '.sig-blk{text-align:center}',
-    '.sig-line{border-bottom:0.75pt solid #333;width:85pt;margin:18pt auto 3pt}',
+    '.sig-line{border-bottom:0.75pt solid #333;width:85pt;margin:14pt auto 3pt}',
     '.sig-lbl{font-size:6pt;color:#555}',
-    '.seal{width:56pt;height:56pt;border-radius:50%;border:1.5pt solid #0D1B3E;display:flex;align-items:center;justify-content:center;text-align:center;flex-direction:column}',
-    '.seal-star{font-size:10pt;color:#C9A84C;line-height:1;margin-bottom:1pt}',
-    '.seal-txt{font-size:5pt;color:#0D1B3E;font-weight:700;text-transform:uppercase;letter-spacing:.05em;line-height:1.5}',
+    '.seal{width:52pt;height:52pt;border-radius:50%;border:1.5pt solid #0D1B3E;display:flex;align-items:center;justify-content:center;text-align:center;flex-direction:column}',
+    '.seal-star{font-size:9pt;color:#C9A84C;line-height:1;margin-bottom:1pt}',
+    '.seal-txt{font-size:4.5pt;color:#0D1B3E;font-weight:700;text-transform:uppercase;letter-spacing:.05em;line-height:1.5}',
 
     /* Print controls */
     '.no-print{margin-bottom:10px;text-align:center;font-family:"Courier New",monospace}',
@@ -1539,7 +1542,7 @@ function exportPDF() {
     html += '</div></div>';
 
     /* Content starts below top bar */
-    html += '<div class="content" style="padding-top:25mm">';
+    html += '<div class="content">';
 
     /* Type band */
     html += '<div class="type-band">';
@@ -1691,6 +1694,12 @@ function exportPDF() {
     }
 
     /* Footer */
+    html += '</div>'; /* end .content */
+
+    /* Spacer pushes footer to bottom of flex page */
+    html += '<div class="pg-spacer"></div>';
+
+    /* Footer — outside .content, in normal flow */
     html += '<div class="doc-footer"><div class="footer-rule"><div class="footer-inner">';
     html += '<div class="footer-txt">';
     html += 'This document is an official SWIFT transaction record issued by<br>';
@@ -1702,9 +1711,9 @@ function exportPDF() {
     html += '<div class="seal-area">';
     html += '<div class="sig-blk"><div class="sig-line"></div><div class="sig-lbl">Authorized Signatory</div><div class="sig-lbl">Compliance &amp; Settlement Division</div></div>';
     html += '<div class="seal"><div class="seal-star">&#9733;</div><div class="seal-txt">ALSHUMOOKH<br>GROUP<br>&#x2015;<br>OFFICIAL<br>SWIFT RECORD</div></div>';
-    html += '</div></div></div></div>';
+    html += '</div></div></div></div>'; /* end .doc-footer */
 
-    html += '</div></div>'; /* .content .page */
+    html += '</div>'; /* end .page */
   });
 
   html += '</body></html>';
@@ -2249,14 +2258,14 @@ function printSwiftReceipt() {
     '*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}',
     '@page{size:A4 portrait;margin:0}',
     'html,body{width:210mm;font-family:"Times New Roman",Times,serif;font-size:9.5pt;color:#111;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
-    '.page{width:210mm;min-height:297mm;position:relative;background:#fff}',
+    '.page{width:210mm;min-height:297mm;position:relative;background:#fff;display:flex;flex-direction:column}',
     '.bar-top{position:absolute;top:0;left:0;right:0;height:22mm;background:#0D1B3E}',
     '.bar-gold{position:absolute;top:22mm;left:0;right:0;height:1.5mm;background:#C9A84C}',
     '.bar-bot{position:absolute;bottom:0;left:0;right:0;height:12mm;background:#0D1B3E}',
     '.bar-bot-gold{position:absolute;bottom:12mm;left:0;right:0;height:1mm;background:#C9A84C}',
     '.bar-side{position:absolute;top:23.5mm;bottom:13mm;left:0;width:3mm;background:#0D1B3E}',
     '.wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:72pt;font-weight:900;color:rgba(13,27,62,0.04);letter-spacing:.1em;white-space:nowrap;pointer-events:none;z-index:0}',
-    '.lhd{display:flex;justify-content:space-between;align-items:flex-start;padding:3.5mm 14mm 0 10mm;position:absolute;top:0;left:0;right:0;height:22mm}',
+    '.lhd{display:flex;justify-content:space-between;align-items:flex-start;padding:3.5mm 14mm 0 10mm;position:absolute;top:0;left:0;right:0;height:22mm;z-index:3}',
     '.bank-name{font-size:13pt;font-weight:700;color:#fff;letter-spacing:.02em;line-height:1.15}',
     '.bank-tag{font-size:6pt;color:#C9A84C;font-weight:700;letter-spacing:.2em;text-transform:uppercase;margin-top:1.5pt}',
     '.bank-addr{font-size:6pt;color:rgba(255,255,255,.65);margin-top:2pt;line-height:1.6}',
@@ -2267,7 +2276,8 @@ function printSwiftReceipt() {
     '.lhd-reflbl{font-size:5pt;color:#C9A84C;text-transform:uppercase;letter-spacing:.1em}',
     '.lhd-refval{font-family:"Courier New",monospace;font-size:7pt;font-weight:700;color:#fff}',
     '.lhd-gen{font-size:5.5pt;color:rgba(255,255,255,.5);margin-top:2.5pt}',
-    '.content{position:relative;z-index:1;margin:0 14mm 14mm 10mm;padding-top:25mm}',
+    '.content{position:relative;z-index:1;flex:1;margin:0 14mm 0 10mm;padding-top:25mm}',
+    '.pg-spacer{flex:1;min-height:4mm}',
     '.type-band{display:flex;justify-content:space-between;align-items:center;background:#162050;padding:4pt 10pt;margin-bottom:6pt;border-left:3pt solid #C9A84C}',
     '.type-mt{font-family:"Courier New",monospace;font-size:13pt;font-weight:700;color:#fff;letter-spacing:.1em}',
     '.type-desc{font-size:6.5pt;color:rgba(255,255,255,.7);margin-top:1.5pt;letter-spacing:.04em;text-transform:uppercase}',
@@ -2280,9 +2290,9 @@ function printSwiftReceipt() {
     '.mt-tbl tr{border-bottom:0.5pt solid #dce6f5}',
     '.mt-tbl tr:last-child{border-bottom:0.75pt solid #0D1B3E}',
     '.mt-tbl tr:nth-child(even) td{background:#f0f4fc}',
-    '.mt-cd{width:30pt;font-family:"Courier New",monospace;font-size:8pt;font-weight:700;color:#fff;background:#0D1B3E;padding:4pt 5pt;text-align:center;vertical-align:middle}',
-    '.mt-nm{width:110pt;font-size:7pt;font-weight:700;color:#2A3F72;padding:4pt 7pt;vertical-align:middle;border-right:0.5pt solid #c5d3ee}',
-    '.mt-vl{font-family:"Courier New",monospace;font-size:7.5pt;color:#111;padding:4pt 7pt;vertical-align:middle;word-break:break-all}',
+    '.mt-cd{width:28pt;font-family:"Courier New",monospace;font-size:7.5pt;font-weight:700;color:#fff;background:#0D1B3E;padding:2.5pt 4pt;text-align:center;vertical-align:middle}',
+    '.mt-nm{width:108pt;font-size:6.5pt;font-weight:700;color:#2A3F72;padding:2.5pt 6pt;vertical-align:middle;border-right:0.5pt solid #c5d3ee}',
+    '.mt-vl{font-family:"Courier New",monospace;font-size:7pt;color:#111;padding:2.5pt 6pt;vertical-align:middle;word-break:break-all}',
     '.mt-vl.hash{color:#1565C0;font-size:6.5pt}',
     '.mt-vl.url{color:#1565C0;font-size:6pt}',
     '.raw-box{background:#f7f7f0;border:0.75pt solid #ccc;padding:7pt 9pt;font-family:"Courier New",monospace;font-size:7pt;line-height:1.75;white-space:pre;word-break:break-all;margin-bottom:7pt}',
@@ -2293,11 +2303,11 @@ function printSwiftReceipt() {
     '.tx-detail{margin-bottom:7pt}',
     '.tx-row{display:flex;gap:0;border-bottom:0.5pt solid #e0e8f0;font-size:7.5pt}',
     '.tx-row:nth-child(even){background:#f0f4fc}',
-    '.tx-label{width:115pt;font-weight:700;color:#2A3F72;padding:3.5pt 7pt;font-size:7pt;white-space:nowrap}',
-    '.tx-value{flex:1;font-family:"Courier New",monospace;padding:3.5pt 7pt;word-break:break-all;color:#111}',
+    '.tx-label{width:115pt;font-weight:700;color:#2A3F72;padding:2.5pt 6pt;font-size:6.5pt;white-space:nowrap}',
+    '.tx-value{flex:1;font-family:"Courier New",monospace;padding:2.5pt 6pt;word-break:break-all;color:#111;font-size:7pt}',
     '.tx-value.hash{color:#1565C0;font-size:6.5pt}',
     '.tx-value.green{color:#1B7A4A;font-weight:700}',
-    '.doc-footer{position:absolute;bottom:13mm;left:10mm;right:14mm}',
+    '.doc-footer{margin:0 14mm 14mm 10mm;position:relative;z-index:1}',
     '.footer-rule{border-top:1.5pt solid #0D1B3E;padding-top:4pt}',
     '.footer-inner{display:flex;justify-content:space-between;align-items:flex-end}',
     '.footer-txt{font-size:6pt;color:#555;line-height:1.65}',
@@ -2305,11 +2315,11 @@ function printSwiftReceipt() {
     '.footer-conf{font-size:5pt;color:#aaa;margin-top:2pt;font-style:italic}',
     '.seal-area{display:flex;align-items:flex-end;gap:12pt}',
     '.sig-blk{text-align:center}',
-    '.sig-line{border-bottom:0.75pt solid #333;width:85pt;margin:18pt auto 3pt}',
+    '.sig-line{border-bottom:0.75pt solid #333;width:85pt;margin:12pt auto 3pt}',
     '.sig-lbl{font-size:6pt;color:#555}',
-    '.seal{width:56pt;height:56pt;border-radius:50%;border:1.5pt solid #0D1B3E;display:flex;align-items:center;justify-content:center;text-align:center;flex-direction:column}',
-    '.seal-star{font-size:10pt;color:#C9A84C;line-height:1;margin-bottom:1pt}',
-    '.seal-txt{font-size:5pt;color:#0D1B3E;font-weight:700;text-transform:uppercase;letter-spacing:.05em;line-height:1.5}',
+    '.seal{width:52pt;height:52pt;border-radius:50%;border:1.5pt solid #0D1B3E;display:flex;align-items:center;justify-content:center;text-align:center;flex-direction:column}',
+    '.seal-star{font-size:9pt;color:#C9A84C;line-height:1;margin-bottom:1pt}',
+    '.seal-txt{font-size:4.5pt;color:#0D1B3E;font-weight:700;text-transform:uppercase;letter-spacing:.05em;line-height:1.5}',
     '.no-print{margin-bottom:10px;text-align:center;font-family:"Courier New",monospace}',
     '.btn-p{background:#0D1B3E;color:#fff;border:none;font-family:"Courier New",monospace;font-size:10pt;font-weight:700;padding:8px 20px;cursor:pointer;margin:0 5px;letter-spacing:.06em}',
     '.btn-p:hover{background:#162050}',
@@ -2413,7 +2423,9 @@ function printSwiftReceipt() {
   html += '<div class="seal"><div class="seal-star">&#9733;</div><div class="seal-txt">ALSHUMOOKH<br>GROUP<br>&#x2015;<br>OFFICIAL<br>SWIFT RECORD</div></div>';
   html += '</div></div></div></div>';
 
-  html += '</div></div></body></html>'; /* .content .page */
+  html += '</div>'; /* end .content */
+  html += '<div class="pg-spacer"></div>';
+  html += '</div></body></html>'; /* end .page */
 
   var win = window.open('','_blank','width=1000,height=900,scrollbars=yes');
   if(!win){ showToast('Allow popups to print receipt','warn'); return; }
