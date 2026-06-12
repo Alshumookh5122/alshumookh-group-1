@@ -1639,6 +1639,36 @@ def _payload_swift(ep: ExternalPayload) -> dict:
     }
 
 
+def _m1job_swift(job: M1TokenizationJob) -> dict:
+    """Serialize an M1TokenizationJob as a SWIFT-style record."""
+    reference = job.sender_reference or str(job.id)
+    return {
+        "record_type": "M1_JOB",
+        "id": str(job.id),
+        "reference": reference,
+        "trn": f"M1-{str(job.id).upper()[:18]}",
+        "uetr": f"EUR-SIG-{str(job.id).upper()[:12]}",
+        "status": job.status,
+        "provider": "M1_TOKENIZATION",
+        "network": job.network or "ethereum",
+        "fiat_amount": str(job.eur_amount) if job.eur_amount else None,
+        "fiat_currency": "EUR",
+        "crypto_amount": str(job.usdt_amount) if job.usdt_amount else None,
+        "crypto_currency": job.raw_data.get("target_asset", "SIG") if isinstance(job.raw_data, dict) else "SIG",
+        "sender_name": job.sender_name,
+        "sender_reference": job.sender_reference,
+        "sender_iban": job.sender_iban,
+        "destination_wallet": job.destination_wallet,
+        "outbound_transfer_id": job.outbound_transfer_id,
+        "fx_rate_eur_usd": str(job.fx_rate_eur_usd) if job.fx_rate_eur_usd else None,
+        "usd_amount": str(job.usd_amount) if job.usd_amount else None,
+        "payload_id": job.payload_id,
+        "error_message": job.error_message,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+    }
+
+
 @router.get("/swift/lookup")
 async def swift_lookup(
     q: str,
@@ -1648,7 +1678,8 @@ async def swift_lookup(
     """
     Search for transactions by any reference:
     UUID, external_id, payment_reference, tx_hash, payer_email,
-    transaction_reference, request_id, idempotency_key.
+    transaction_reference, request_id, idempotency_key,
+    sender_reference, M1 job ID.
     """
     q = q.strip()
     if not q or len(q) < 3:
@@ -1746,6 +1777,26 @@ async def swift_lookup(
             }
             for f in all_ep_files if f.content_type == "text/x-internal-note"
         ]
+        results.append(rec)
+
+    # ── Search M1TokenizationJob ─────────────────────────────────────────
+    m1job_q = await db.execute(
+        select(M1TokenizationJob).where(
+            or_(
+                cast(M1TokenizationJob.id, String).ilike(f"%{q}%"),
+                cast(M1TokenizationJob.sender_reference, String).ilike(f"%{q}%"),
+                cast(M1TokenizationJob.sender_name, String).ilike(f"%{q}%"),
+                cast(M1TokenizationJob.sender_iban, String).ilike(f"%{q}%"),
+                cast(M1TokenizationJob.destination_wallet, String).ilike(f"%{q}%"),
+                cast(M1TokenizationJob.outbound_transfer_id, String).ilike(f"%{q}%"),
+                cast(M1TokenizationJob.payload_id, String).ilike(f"%{q}%"),
+            )
+        ).order_by(M1TokenizationJob.created_at.desc()).limit(10)
+    )
+    for job in m1job_q.scalars().all():
+        rec = _m1job_swift(job)
+        rec["files"] = []
+        rec["notes"] = []
         results.append(rec)
 
     return {"query": q, "count": len(results), "results": results}
@@ -3025,6 +3076,58 @@ async def delete_tokenization_job(
     await db.delete(job)
     await db.commit()
     return {"deleted": True, "job_id": job_id}
+
+
+@router.post("/tokenization-jobs/{job_id}/route-provider", tags=["admin-tokenization"])
+async def route_tokenization_job_to_provider(
+    job_id: str,
+    request: Request,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Route a tokenization job's EUR payload to an external liquidity provider (MoonPay, Circle, Stripe)."""
+    result = await db.execute(
+        select(M1TokenizationJob).where(M1TokenizationJob.id == job_id)
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Tokenization job not found")
+
+    body: dict = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    provider = str(body.get("provider") or "").lower().strip()
+    allowed_providers = {"moonpay", "circle", "stripe"}
+    if provider not in allowed_providers:
+        raise HTTPException(status_code=400, detail=f"Provider must be one of: {', '.join(allowed_providers)}")
+
+    eur_amount = float(job.eur_amount) if job.eur_amount else 0.0
+
+    await log_event(
+        db,
+        "M1_JOB_ROUTED_TO_PROVIDER",
+        {
+            "job_id": job.id,
+            "provider": provider,
+            "eur_amount": str(job.eur_amount),
+            "sender_reference": job.sender_reference,
+            "sender_name": job.sender_name,
+            "status": job.status,
+        },
+        None,
+    )
+
+    return {
+        "routed": True,
+        "job_id": job_id,
+        "provider": provider,
+        "eur_amount": eur_amount,
+        "message": f"EUR {eur_amount:,.2f} payload queued for routing to {provider.upper()}. Integration pending activation.",
+        "next_step": f"Connect {provider.upper()} API credentials in settings to enable automatic routing.",
+    }
 
 
 @router.get("/tokenization-jobs/fx-rate/live", tags=["admin-tokenization"])

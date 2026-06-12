@@ -344,22 +344,39 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 
 /* PRINT */
 @media print{
+  @page{size:A4;margin:16mm 20mm}
   body::before,.top-bar,.cmd-bar,.status-bar,.side-panel,.btn-attach,.btn-sc,
   .btn-add-note,.btn-dl,.btn-del,.copy-btn,.btn-back,.status-change-section,
-  .note-form,.explorer-link,.modal-overlay,#toast{display:none !important}
-  body{background:#fff;color:#000;font-size:11px}
+  .note-form,.explorer-link,.modal-overlay,#toast,.btn-export,.btn-hist,
+  .cmd-row2{display:none !important}
+  body{background:#fff !important;color:#111 !important;font-size:10.5px;padding:0}
+  html,body{height:auto}
   .card-body{grid-template-columns:1fr}
-  .results-pane{padding:0}
-  .swt-card{break-inside:avoid;border:1px solid #ccc;margin-bottom:16px}
-  .print-header{display:block !important;text-align:center;margin-bottom:20px;border-bottom:2px solid #000;padding-bottom:12px}
-  .mt-value,.fval,.note-text,.tb-brand{color:#000}
-  .fkey,.mt-code,.mt-label{color:#333}
-  .card-status{border:1px solid #333;color:#000;background:#eee}
-  .card-ref,.card-msgtype{color:#000}
+  .results-pane{padding:8px 0;overflow:auto}
+  .swt-card{break-inside:avoid;border:1px solid #bbb !important;margin-bottom:20px;background:#fff !important;box-shadow:none !important}
+  .print-header{display:block !important;text-align:left;margin-bottom:20px;border-bottom:2px solid #1a3a6b;padding-bottom:12px;background:#fff}
+  .print-logo-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .print-company{font-size:13px;font-weight:bold;color:#1a3a6b;letter-spacing:.04em}
+  .print-subtitle{font-size:10px;color:#555;margin-top:2px}
+  .print-meta-row{font-size:9.5px;color:#777;margin-top:6px;padding-top:6px;border-top:1px solid #ddd}
+  .mt-value,.fval,.note-text{color:#111 !important}
+  .tb-brand{color:#111 !important}
+  .fkey,.mt-code,.mt-label{color:#333 !important}
+  .card-status{border:1px solid #333 !important;color:#000 !important;background:#f5f5f5 !important}
+  .card-ref,.card-msgtype{color:#000 !important}
+  .mt-block{border:1px solid #ddd !important;background:#fafafa !important}
+  .mt-code{color:#1a3a6b !important;font-weight:bold}
+  .detail-table td,.detail-table th{color:#111 !important;border-color:#ddd !important}
+  .card-head{background:#f0f4ff !important;border-bottom:1px solid #c5d3ee !important}
+  .card-uid,.card-date{color:#555 !important}
+  .card-msgtype{color:#1a3a6b !important;font-weight:700}
+  .print-footer{display:block !important;margin-top:24px;padding-top:8px;border-top:1px solid #ccc;font-size:8.5px;color:#888;text-align:center}
 }
 .print-header{display:none;font-family:var(--mono)}
 .print-header h2{font-size:16px;margin-bottom:4px}
 .print-header p{font-size:11px;color:#555}
+.print-logo-row{display:flex;align-items:center;justify-content:space-between}
+.print-footer{display:none}
   </style>
 </head>
 <body>
@@ -367,9 +384,19 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 
   <!-- Print-only header -->
   <div class="print-header">
-    <h2>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</h2>
-    <p>SWIFT Financial Messaging Terminal v3.0 — Transaction Report</p>
-    <p id="print-meta"></p>
+    <div class="print-logo-row">
+      <div>
+        <div class="print-company">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>
+        <div class="print-subtitle">SWIFT Financial Messaging Terminal v3.1 — Official Transaction Report</div>
+      </div>
+      <div style="font-size:9px;color:#888;text-align:right;">CONFIDENTIAL — INTERNAL USE ONLY<br>SWIFT/BIC: ALSGBFC0</div>
+    </div>
+    <div class="print-meta-row" id="print-meta">Generated: — | Session: — | Query: —</div>
+  </div>
+  <!-- Print-only footer -->
+  <div class="print-footer">
+    This document is generated automatically by the ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT SWIFT Terminal System.
+    For verification contact: compliance@alshumookh-pay.com | All rights reserved © ALSHUMOOKH GROUP 2026
   </div>
 
   <!-- TOP BAR -->
@@ -877,10 +904,13 @@ function doClear() {
 // ── RENDER CARD
 function renderCard(r, idx) {
   var isOrder  = r.record_type === 'PAYMENT_ORDER';
-  var msgType  = isOrder ? 'MT103' : 'MT202';
+  var isM1Job  = r.record_type === 'M1_JOB';
+  var msgType  = isOrder ? 'MT103' : (isM1Job ? 'MT910' : 'MT202');
   var msgLabel = isOrder
     ? 'MT103 — SINGLE CUSTOMER CREDIT TRANSFER'
-    : 'MT202 — GENERAL FINANCIAL INSTITUTION TRANSFER';
+    : (isM1Job
+      ? 'MT910 — M1 TOKENIZATION — EUR → SIG SETTLEMENT'
+      : 'MT202 — GENERAL FINANCIAL INSTITUTION TRANSFER');
   var sc  = stCls(r.status);
   var uid = 'c'+idx;
 
@@ -911,6 +941,22 @@ function renderCard(r, idx) {
     mtHtml += mtBlock(':71A:', 'DETAILS OF CHARGES', 'SHA');
     mtHtml += mtBlock(':72:', 'SENDER TO RECEIVER INFORMATION', r.failure_reason || r.checkout_url);
     mtHtml += mtBlock(':77B:', 'REGULATORY REPORTING / TX HASH', r.tx_hash);
+  } else if (isM1Job) {
+    var yymmddM1 = fmtDateShort(r.created_at).replace(/-/g,'').slice(2);
+    var fmtAmtM1 = r.fiat_amount ? yymmddM1+' EUR  '+r.fiat_amount : null;
+    var fmtTokenM1 = r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'SIG') : null;
+    mtHtml += mtBlock(':20:', 'M1 JOB REFERENCE / TRN', r.trn || r.id);
+    mtHtml += mtBlock(':21:', 'UETR / TOKENIZATION REFERENCE', r.uetr || r.id);
+    mtHtml += mtBlock(':23B:', 'OPERATION TYPE', 'EUR→SIG TOKENIZATION');
+    mtHtml += mtBlock(':32A:', 'VALUE DATE / EUR AMOUNT', fmtAmtM1);
+    mtHtml += mtBlock(':32B:', 'SIG TOKEN OUTPUT', fmtTokenM1);
+    mtHtml += mtBlock(':50K:', 'SENDER / ORDERING PARTY', [r.sender_name, r.sender_reference, r.sender_iban].filter(Boolean).join(' | ') || null);
+    mtHtml += mtBlock(':57A:', 'SETTLEMENT NETWORK', r.network);
+    mtHtml += mtBlock(':59:', 'DESTINATION WALLET (BENEFICIARY)', r.destination_wallet);
+    mtHtml += mtBlock(':70:', 'FX RATE EUR/USD', r.fx_rate_eur_usd ? 'EUR/USD @ '+r.fx_rate_eur_usd : null);
+    mtHtml += mtBlock(':71A:', 'OUTBOUND TRANSFER ID', r.outbound_transfer_id);
+    mtHtml += mtBlock(':72:', 'STATUS / ERROR', r.error_message || r.status);
+    mtHtml += mtBlock(':77B:', 'LINKED PAYLOAD ID', r.payload_id);
   } else {
     var yymmdd2 = fmtDateShort(r.created_at).replace(/-/g,'').slice(2);
     var fmtAmt2 = r.amount ? yymmdd2+' '+(r.asset||'')+'  '+r.amount : null;
@@ -964,6 +1010,25 @@ function renderCard(r, idx) {
     detailHtml += dRow('FAILURE REASON',       r.failure_reason,   '',           null);
     detailHtml += dRow('CREATED (VALUE DATE)', fmtDate(r.created_at), 'timing',  null);
     detailHtml += dRow('LAST UPDATED',         fmtDate(r.updated_at), 'timing',  null);
+  } else if (isM1Job) {
+    detailHtml += dRow('M1 JOB UUID',             r.id,                    'hi',         uid+'_uuid');
+    detailHtml += dRow('SENDER REFERENCE',         r.sender_reference,      'hi',         uid+'_ref');
+    detailHtml += dRow('TRN CODE',                 r.trn,                   'hi',         uid+'_trn');
+    detailHtml += dRow('UETR CODE',                r.uetr,                  'hi',         uid+'_uetr');
+    detailHtml += dRow('JOB STATUS',               r.status,                '',           null);
+    detailHtml += dRow('SENDER NAME',              r.sender_name,           'identity',   null);
+    detailHtml += dRow('SENDER IBAN',              r.sender_iban,           'identity',   uid+'_iban');
+    detailHtml += dRow('EUR AMOUNT (FIAT)',         r.fiat_amount ? r.fiat_amount+' EUR' : null, 'monetary', null);
+    detailHtml += dRow('USD CONVERTED AMOUNT',     r.usd_amount ? r.usd_amount+' USD' : null, 'monetary', null);
+    detailHtml += dRow('SIG TOKEN OUTPUT',         r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'SIG') : null, 'monetary', null);
+    detailHtml += dRow('FX RATE EUR/USD',          r.fx_rate_eur_usd,       '',           null);
+    detailHtml += dRow('NETWORK',                  r.network,               '',           null);
+    detailHtml += dRow('DESTINATION WALLET',       r.destination_wallet,    'blockchain', uid+'_dest');
+    detailHtml += dRow('OUTBOUND TRANSFER ID',     r.outbound_transfer_id,  '',           uid+'_xfer');
+    detailHtml += dRow('LINKED PAYLOAD ID',        r.payload_id,            '',           uid+'_payload');
+    detailHtml += dRow('ERROR MESSAGE',            r.error_message,         '',           null);
+    detailHtml += dRow('CREATED (VALUE DATE)',     fmtDate(r.created_at),   'timing',     null);
+    detailHtml += dRow('LAST UPDATED',             fmtDate(r.updated_at),   'timing',     null);
   } else {
     detailHtml += dRow('PAYLOAD UUID',           r.id,               'hi',         uid+'_uuid');
     detailHtml += dRow('TRANSACTION REFERENCE',  r.reference,        'hi',         uid+'_ref');

@@ -369,11 +369,14 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
       --ink:#111827;
       --muted:#667085;
       --line:#d9e1ea;
-      --brand:#1f5fd0;
-      --gold:#c79a45;
+      --brand:#1a3a6b;
+      --brand2:#2656a8;
+      --gold:#b8860b;
+      --gold2:#d4a017;
       --soft:#f7f9fc;
-      --dark:#111820;
-      --green:#0f8f5f;
+      --dark:#0f1f3d;
+      --green:#0a7a4a;
+      --red:#c0392b;
     }}
 
     * {{
@@ -382,301 +385,480 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
 
     body {{
       margin: 0;
-      padding: 36px;
+      padding: 32px;
       color: var(--ink);
-      font-family: Arial, sans-serif;
-      background: #f2f5f8;
+      font-family: 'Times New Roman', Georgia, serif;
+      background: #e8ecf0;
+    }}
+
+    /* Top gold accent bar */
+    .gold-bar {{
+      height: 7px;
+      background: linear-gradient(90deg, var(--brand) 0%, var(--gold2) 50%, var(--brand) 100%);
+      border-radius: 3px 3px 0 0;
     }}
 
     .sheet {{
-      max-width: 960px;
+      max-width: 970px;
       margin: 0 auto;
-      padding: 36px;
+      padding: 0;
       background: white;
-      border: 1px solid var(--line);
-      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+      border: 1px solid #c8d0dc;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.14), inset 0 0 0 4px rgba(26,58,107,0.04);
+    }}
+
+    .sheet-inner {{
+      padding: 36px 40px 32px;
+    }}
+
+    /* Banking certification band */
+    .cert-band {{
+      background: linear-gradient(135deg, var(--brand) 0%, var(--brand2) 100%);
+      color: white;
+      padding: 8px 40px;
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }}
 
     .head {{
       display: flex;
       justify-content: space-between;
       gap: 24px;
-      border-bottom: 3px solid var(--dark);
-      padding-bottom: 24px;
+      border-bottom: 2px solid var(--brand);
+      padding-bottom: 22px;
+      margin-bottom: 6px;
     }}
 
     .brand-block {{
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 18px;
+    }}
+
+    .logo-wrap {{
+      border: 2px solid var(--gold);
+      border-radius: 6px;
+      padding: 6px;
+      background: #0f1f3d;
     }}
 
     .logo {{
-      width: 110px;
-      height: 82px;
+      width: 100px;
+      height: 75px;
       object-fit: contain;
-      border: 1px solid #ead8ad;
-      border-radius: 8px;
-      padding: 7px;
-      background: #080808;
+      display: block;
     }}
 
     .logo-fallback {{
-      width: 74px;
-      height: 74px;
+      width: 70px;
+      height: 70px;
       display: none;
       align-items: center;
       justify-content: center;
-      border-radius: 8px;
-      background: var(--gold);
-      color: var(--dark);
+      border-radius: 6px;
+      background: var(--brand);
+      color: white;
       font-weight: 900;
-      font-size: 20px;
+      font-size: 18px;
+      font-family: Arial, sans-serif;
+      letter-spacing:.04em;
     }}
 
     .brand {{
-      color: var(--gold);
-      font-size: 13px;
+      color: var(--brand);
+      font-size: 11.5px;
       font-weight: 900;
       text-transform: uppercase;
+      letter-spacing: .07em;
+      font-family: Arial, sans-serif;
+    }}
+
+    .brand-tagline {{
+      font-size: 10px;
+      color: var(--muted);
+      font-family: Arial, sans-serif;
+      margin-top: 2px;
     }}
 
     h1 {{
-      margin: 8px 0 0;
-      font-size: 34px;
-      letter-spacing: 0;
+      margin: 8px 0 2px;
+      font-size: 30px;
+      color: var(--dark);
+      font-family: 'Times New Roman', Georgia, serif;
+      font-weight: 700;
     }}
 
     h2 {{
-      margin: 24px 0 8px;
-      font-size: 20px;
+      margin: 20px 0 8px;
+      font-size: 17px;
+      color: var(--brand);
+      font-family: Arial, sans-serif;
+      border-left: 3px solid var(--gold);
+      padding-left: 10px;
     }}
 
     p {{
       color: var(--muted);
       line-height: 1.6;
+      font-size: 13px;
     }}
 
     .doc-number {{
       text-align: right;
-      min-width: 170px;
+      min-width: 200px;
+      border-left: 1px solid var(--line);
+      padding-left: 20px;
     }}
 
-    .doc-number strong {{
-      display: block;
+    .doc-number .num {{
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      font-weight: 900;
+      color: var(--brand);
+      background: #f0f4ff;
+      padding: 4px 10px;
+      border-radius: 4px;
+      display: inline-block;
       margin-bottom: 10px;
+      border: 1px solid #c5d3ee;
+    }}
+
+    .doc-number .issued {{
+      font-size: 11px;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 8px;
+      font-family: Arial, sans-serif;
     }}
 
     .summary {{
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 220px;
+      grid-template-columns: minmax(0, 1fr) 200px;
       gap: 24px;
       align-items: start;
-      margin-top: 22px;
+      margin-top: 20px;
     }}
 
     .amount-due {{
       margin-top: 22px;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 240px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      border: 2px solid var(--brand);
+      border-radius: 8px;
       overflow: hidden;
-      background: #fbfcff;
     }}
 
     .amount-due .left {{
-      padding: 18px 20px;
+      padding: 16px 20px;
+      background: #f8faff;
     }}
 
     .amount-due .right {{
-      padding: 18px 20px;
-      background: var(--dark);
+      padding: 16px 20px;
+      background: var(--brand);
       color: #fff;
       text-align: right;
     }}
 
     .amount-due .label {{
-      color: var(--muted);
-      font-size: 12px;
+      font-size: 10px;
       font-weight: 900;
       text-transform: uppercase;
-      letter-spacing: .08em;
+      letter-spacing: .1em;
+      font-family: Arial, sans-serif;
+    }}
+
+    .amount-due .left .label {{
+      color: var(--muted);
+    }}
+
+    .amount-due .right .label {{
+      color: rgba(255,255,255,0.7);
     }}
 
     .amount-due .total {{
       margin-top: 8px;
-      font-size: 28px;
+      font-size: 26px;
       font-weight: 900;
-      color: var(--gold);
+      color: var(--gold2);
+      font-family: 'Times New Roman', Georgia, serif;
     }}
 
     .qr-box {{
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 14px;
+      border-radius: 6px;
+      padding: 12px;
       text-align: center;
       background: var(--soft);
     }}
 
     .qr-box img {{
-      width: 180px;
-      height: 180px;
+      width: 170px;
+      height: 170px;
       background: white;
-      padding: 8px;
-      border-radius: 6px;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
     }}
 
     .qr-box strong {{
       display: block;
-      margin-top: 10px;
-      font-size: 13px;
+      margin-top: 8px;
+      font-size: 11px;
+      font-family: Arial, sans-serif;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
     }}
 
     .methods {{
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 14px;
+      gap: 10px;
+      margin-top: 12px;
     }}
 
     .method {{
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 13px;
+      border-radius: 6px;
+      border-top: 3px solid var(--brand);
+      padding: 11px;
       background: #fbfcff;
     }}
 
     .method strong {{
       display: block;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
+      font-size: 12px;
+      color: var(--brand);
+      font-family: Arial, sans-serif;
     }}
 
     .method span {{
       color: var(--muted);
-      font-size: 13px;
+      font-size: 12px;
       line-height: 1.45;
     }}
 
     .payment-link {{
       display: inline-block;
-      margin-top: 16px;
-      padding: 12px 16px;
-      border-radius: 6px;
+      margin-top: 14px;
+      padding: 10px 18px;
+      border-radius: 5px;
       background: var(--brand);
       color: #fff;
       font-weight: 800;
       text-decoration: none;
+      font-family: Arial, sans-serif;
+      font-size: 13px;
     }}
 
     .gas-panel {{
-      margin-top: 24px;
-      padding: 20px;
+      margin-top: 22px;
+      padding: 18px 20px;
       border: 1px solid #d9c38a;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #fffaf0, #ffffff);
+      border-left: 4px solid var(--gold);
+      border-radius: 6px;
+      background: linear-gradient(135deg, #fffdf5, #ffffff);
     }}
 
     .eyebrow {{
       color: var(--gold);
-      font-size: 12px;
+      font-size: 10px;
       font-weight: 900;
-      letter-spacing: .08em;
+      letter-spacing: .1em;
       text-transform: uppercase;
+      font-family: Arial, sans-serif;
     }}
 
     .gas-panel h2 {{
-      margin-top: 6px;
+      margin-top: 4px;
     }}
 
     .gas-table {{
-      margin-top: 12px;
+      margin-top: 10px;
       background: white;
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 6px;
       overflow: hidden;
     }}
 
     table {{
       width: 100%;
       border-collapse: collapse;
-      margin-top: 22px;
+      margin-top: 16px;
+      font-size: 13px;
     }}
 
     th,
     td {{
-      padding: 13px 10px;
+      padding: 10px 12px;
       border-bottom: 1px solid var(--line);
       text-align: left;
       vertical-align: top;
     }}
 
     th {{
-      width: 260px;
+      width: 240px;
       color: var(--muted);
       font-weight: 700;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      background: #f8faff;
     }}
 
     td {{
       word-break: break-word;
     }}
 
+    tr:last-child th, tr:last-child td {{
+      border-bottom: none;
+    }}
+
     .status {{
       display: inline-block;
-      padding: 8px 12px;
-      border-radius: 6px;
-      background: #fff6df;
-      color: #8a5c00;
+      padding: 5px 14px;
+      border-radius: 4px;
       font-weight: 900;
+      font-family: Arial, sans-serif;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }}
+
+    .status-pending {{ background: #fff3cd; color: #7a5800; border: 1px solid #f0cc70; }}
+    .status-completed {{ background: #d4edda; color: #1a5c32; border: 1px solid #90d4a5; }}
+    .status-failed {{ background: #f8d7da; color: #7a1a20; border: 1px solid #f5a0a7; }}
+    .status-default {{ background: #e0e8f8; color: #1a3a6b; border: 1px solid #b0c4e0; }}
+
+    .seal-row {{
+      margin-top: 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 20px;
+      padding-top: 16px;
+      border-top: 2px solid var(--brand);
+    }}
+
+    .legal-seal {{
+      border: 2px solid var(--brand);
+      border-radius: 50%;
+      width: 90px;
+      height: 90px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 7px;
+      font-weight: 700;
+      color: var(--brand);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      line-height: 1.3;
+      font-family: Arial, sans-serif;
+      flex-shrink: 0;
+      box-shadow: inset 0 0 0 3px rgba(26,58,107,0.12);
+    }}
+
+    .auth-block {{
+      flex: 1;
+    }}
+
+    .auth-block .auth-line {{
+      border-bottom: 1px solid var(--ink);
+      width: 200px;
+      margin-top: 28px;
+      margin-bottom: 4px;
+    }}
+
+    .auth-block .auth-label {{
+      font-size: 10px;
+      color: var(--muted);
+      font-family: Arial, sans-serif;
     }}
 
     .footer {{
-      margin-top: 30px;
-      padding-top: 18px;
-      border-top: 1px solid var(--line);
+      margin-top: 22px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--brand);
+      background: #f8faff;
+      font-family: Arial, sans-serif;
+      border-radius: 0 0 4px 4px;
+    }}
+
+    .footer p {{
+      margin: 0;
+      font-size: 11px;
       color: var(--muted);
-      font-size: 13px;
+      line-height: 1.55;
+    }}
+
+    .footer .disclaimer {{
+      font-size: 10px;
+      color: #999;
+      margin-top: 8px;
     }}
 
     .actions {{
-      max-width: 960px;
-      margin: 18px auto 0;
+      max-width: 970px;
+      margin: 14px auto 0;
       text-align: right;
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
     }}
 
     button {{
-      min-height: 40px;
-      padding: 8px 14px;
+      min-height: 38px;
+      padding: 7px 16px;
       border: 1px solid var(--brand);
-      border-radius: 6px;
+      border-radius: 5px;
       background: var(--brand);
       color: white;
       font-weight: 700;
       cursor: pointer;
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+    }}
+
+    button.secondary {{
+      background: white;
+      color: var(--brand);
     }}
 
     @media (max-width: 760px) {{
       body {{
-        padding: 18px;
+        padding: 12px;
       }}
 
       .head,
       .summary,
       .amount-due,
-      .methods {{
+      .methods,
+      .seal-row {{
         display: grid;
         grid-template-columns: 1fr;
       }}
 
       .doc-number {{
         text-align: left;
+        border-left: none;
+        padding-left: 0;
+        border-top: 1px solid var(--line);
+        padding-top: 12px;
       }}
     }}
 
     @media print {{
       @page {{
         size: A4;
-        margin: 12mm;
+        margin: 14mm 16mm;
       }}
 
       * {{
@@ -685,7 +867,7 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
       }}
 
       body {{
-        background: #f2f5f8;
+        background: white;
         padding: 0;
       }}
 
@@ -695,7 +877,11 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
       }}
 
       .actions {{
-        display: none;
+        display: none !important;
+      }}
+
+      .gold-bar {{
+        height: 5px;
       }}
     }}
   </style>
@@ -703,71 +889,102 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
 
 <body>
   <section class="sheet">
-    <div class="head">
-      <div class="brand-block">
-        <img
-          class="logo"
-          src="{escape(logo_url)}"
-          alt="AL SHUMOOKH GROUP Logo"
-          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
-        >
-        <div class="logo-fallback">SG</div>
+    <div class="gold-bar"></div>
 
+    <div class="cert-band">
+      <span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT — OFFICIAL DOCUMENT</span>
+      <span>REG: AE-DMCC-2024 | BIC: ALSGBFC0 | TLS 1.3 SECURED</span>
+    </div>
+
+    <div class="sheet-inner">
+      <div class="head">
+        <div class="brand-block">
+          <div class="logo-wrap">
+            <img
+              class="logo"
+              src="{escape(logo_url)}"
+              alt="AL SHUMOOKH GROUP Logo"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
+            >
+            <div class="logo-fallback">SG</div>
+          </div>
+
+          <div>
+            <div class="brand">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>
+            <div class="brand-tagline">Dubai — UAE · Financial Technology &amp; Digital Asset Services</div>
+            <h1>{escape(title)}</h1>
+            <p style="margin:4px 0 0;">{escape(subtitle)}</p>
+          </div>
+        </div>
+
+        <div class="doc-number">
+          <span class="issued">Document No.</span>
+          <div class="num">{escape(number)}</div>
+          <span class="issued">Issued: {escape(issued_at)}</span>
+          <span class="status {"status-completed" if status == "Completed" else "status-pending" if status == "Pending" else "status-failed" if status == "Failed" else "status-default"}">{escape(status)}</span>
+        </div>
+      </div>
+
+      <div class="summary">
         <div>
-          <div class="brand">ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT</div>
-          <h1>{escape(title)}</h1>
-          <p>{escape(subtitle)}</p>
+          <h2>Payment Methods</h2>
+
+          <div class="methods">
+            {method_cards}
+          </div>
+
+          {payment_button}
+        </div>
+
+        <div class="qr-box">
+          <img src="{escape(qr_url)}" alt="Wallet Payment QR Code">
+          <strong>{escape(qr_label)}</strong>
         </div>
       </div>
 
-      <div class="doc-number">
-        <strong>{escape(number)}</strong>
-        <span class="status">{escape(status)}</span>
-      </div>
-    </div>
-
-    <div class="summary">
-      <div>
-        <h2>Payment Methods</h2>
-
-        <div class="methods">
-          {method_cards}
+      <section class="amount-due">
+        <div class="left">
+          <div class="label">Document Purpose</div>
+          <strong style="display:block;margin-top:6px;font-size:15px;">{escape(title)}</strong>
+          <p style="margin-top:6px;font-size:12px;">{escape(note)}</p>
         </div>
+        <div class="right">
+          <div class="label">Amount Due</div>
+          <div class="total">{escape(amount_due)}</div>
+          <div style="font-size:11px;margin-top:8px;opacity:.75;">As of {escape(issued_at)}</div>
+        </div>
+      </section>
 
-        {payment_button}
+      {gas_panel}
+
+      <h2>Transaction Details</h2>
+      <table>{rows_html}</table>
+
+      <div class="seal-row">
+        <div class="auth-block">
+          <div style="font-size:12px;color:var(--muted);font-family:Arial,sans-serif;">Authorized by</div>
+          <div class="auth-line"></div>
+          <div class="auth-label">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>
+          <div class="auth-label" style="margin-top:2px;">Compliance &amp; Settlement Division</div>
+        </div>
+        <div class="legal-seal">ALSHUMOOKH<br>GROUP<br>OFFICIAL<br>DOCUMENT</div>
       </div>
 
-      <div class="qr-box">
-        <img src="{escape(qr_url)}" alt="Wallet Payment QR Code">
-        <strong>{escape(qr_label)}</strong>
-      </div>
-    </div>
-
-    <section class="amount-due">
-      <div class="left">
-        <div class="label">Document Purpose</div>
-        <strong>{escape(title)}</strong>
+      <div class="footer">
         <p>{escape(note)}</p>
+        <p class="disclaimer">
+          This document is an official record issued by ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT.
+          It does not expose API keys, private keys, database credentials, or webhook secrets.
+          For queries contact: compliance@alshumookh-pay.com | All rights reserved © ALSHUMOOKH GROUP 2026.
+          Document is digitally traceable via the transaction ID above.
+        </p>
       </div>
-      <div class="right">
-        <div class="label">Amount Due</div>
-        <div class="total">{escape(amount_due)}</div>
-      </div>
-    </section>
-
-    {gas_panel}
-
-    <h2>Transaction Details</h2>
-    <table>{rows_html}</table>
-
-    <div class="footer">
-      {escape(note)}<br>
-      This document does not expose API keys, private keys, database credentials, or webhook secrets.
     </div>
   </section>
 
   <div class="actions">
-    <button onclick="window.print()">Print / Save PDF</button>
+    <button class="secondary" onclick="window.close()">Close</button>
+    <button onclick="window.print()">&#128424; Print / Save PDF</button>
   </div>
 </body>
 </html>"""
