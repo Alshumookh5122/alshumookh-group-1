@@ -1359,7 +1359,7 @@ function processJob(id){
 function reprocessJobSIG(id){
   var r=_m1Rows&&_m1Rows[id]?_m1Rows[id]:null;
   var eur=r?fmtNum(r.eur_amount)+' EUR':'';
-  if(!confirm('Reprocess job '+eur+' with SIG tokens (force=true)?\nThis will create a new OutboundTransfer using SIG from the treasury.'))return;
+  if(!confirm('Reprocess job '+eur+' with SIG tokens (force=true)? This will create a new OutboundTransfer using SIG from the treasury.'))return;
   api('/api/v1/admin/tokenization-jobs/'+id+'/process',{method:'POST',body:JSON.stringify({target_asset:'SIG',force:true})})
     .then(function(){showToast('Job reprocessed with SIG','ok');loadJobs();})
     .catch(function(e){showToast('Reprocess error: '+e.message,'error');});
