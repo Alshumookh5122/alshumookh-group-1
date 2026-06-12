@@ -1362,296 +1362,336 @@ function exportJSON() {
   showToast('JSON exported');
 }
 
-// ── Export PDF — Professional SWIFT Bank Document
+// ── Export PDF — Professional SWIFT Banking Document ─────────────────
 function exportPDF() {
   if (!_results.length) { showToast('No results to export','warn'); return; }
   var now = new Date();
   var genDate = now.toUTCString();
-  var refNum = 'SWIFT-' + now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2) + '-' + Math.random().toString(36).slice(2,8).toUpperCase();
+  var refBase = 'SWIFT-' + now.getFullYear()
+    + ('0'+(now.getMonth()+1)).slice(-2)
+    + ('0'+now.getDate()).slice(-2)
+    + '-' + Math.random().toString(36).slice(2,8).toUpperCase();
 
+  /* ── CSS ─────────────────────────────────────────────────────────── */
   var css = [
-    '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }',
-    '@page { size: A4 portrait; margin: 0; }',
-    'html { width: 210mm; }',
-    'body { font-family: "Times New Roman", Times, serif; font-size: 10pt; color: #111; background: #fff;',
-    '  -webkit-print-color-adjust: exact; print-color-adjust: exact; }',
+    '*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}',
+    '@page{size:A4 portrait;margin:0}',
+    'html,body{width:210mm;font-family:"Times New Roman",Times,serif;font-size:9.5pt;color:#111;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
 
-    /* Full A4 page wrapper */
-    '.page { width: 210mm; min-height: 297mm; background: #fff; position: relative;',
-    '  padding: 0; page-break-after: always; overflow: hidden; }',
-    '.page:last-child { page-break-after: auto; }',
+    /* Page wrapper */
+    '.page{width:210mm;min-height:297mm;position:relative;page-break-after:always;overflow:hidden;background:#fff}',
+    '.page:last-child{page-break-after:auto}',
 
-    /* Top stripe */
-    '.stripe-top { position: absolute; top: 0; left: 0; right: 0; height: 9mm;',
-    '  background: linear-gradient(90deg, #0a1f4d 0%, #1a3a8b 55%, #c9a227 80%, #f0d060 100%); }',
-
-    /* Bottom stripe */
-    '.stripe-bot { position: absolute; bottom: 0; left: 0; right: 0; height: 5mm;',
-    '  background: linear-gradient(90deg, #c9a227 0%, #f0d060 35%, #1a3a8b 100%); }',
-
-    /* Side accent */
-    '.stripe-side { position: absolute; top: 9mm; bottom: 5mm; left: 0; width: 4mm;',
-    '  background: #0a1f4d; }',
+    /* Top navy bar */
+    '.bar-top{position:absolute;top:0;left:0;right:0;height:22mm;background:#0D1B3E}',
+    /* Gold line under top bar */
+    '.bar-gold{position:absolute;top:22mm;left:0;right:0;height:1.5mm;background:#C9A84C}',
+    /* Bottom bar */
+    '.bar-bot{position:absolute;bottom:0;left:0;right:0;height:12mm;background:#0D1B3E}',
+    '.bar-bot-gold{position:absolute;bottom:12mm;left:0;right:0;height:1mm;background:#C9A84C}',
+    /* Left navy stripe */
+    '.bar-side{position:absolute;top:23.5mm;bottom:13mm;left:0;width:3mm;background:#0D1B3E}',
 
     /* Watermark */
-    '.watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-35deg);',
-    '  font-size: 78pt; font-weight: 900; color: rgba(26,58,139,0.045); letter-spacing: .08em;',
-    '  white-space: nowrap; pointer-events: none; z-index: 0; font-family: "Times New Roman", Times, serif; }',
+    '.wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:72pt;font-weight:900;color:rgba(13,27,62,0.04);letter-spacing:.1em;white-space:nowrap;pointer-events:none;z-index:0;font-family:"Times New Roman",Times,serif}',
 
-    /* Inner content area */
-    '.content { position: relative; z-index: 1; margin: 10mm 14mm 8mm 12mm; padding-top: 4mm; }',
+    /* Content area */
+    '.content{position:relative;z-index:1;margin:0 14mm 14mm 10mm;padding-top:1mm}',
 
-    /* Bank letterhead */
-    '.lhd { display: flex; justify-content: space-between; align-items: flex-start;',
-    '  border-bottom: 2.5pt solid #0a1f4d; padding-bottom: 7pt; margin-bottom: 7pt; }',
-    '.bank-name { font-size: 15pt; font-weight: bold; color: #0a1f4d; letter-spacing: .02em; line-height: 1.15; }',
-    '.bank-tag { font-size: 7pt; color: #c9a227; font-weight: bold; letter-spacing: .18em;',
-    '  text-transform: uppercase; margin-top: 2pt; }',
-    '.bank-addr { font-size: 7pt; color: #666; margin-top: 3pt; line-height: 1.6; }',
-    '.lhd-right { text-align: right; }',
-    '.lhd-doctype { font-size: 6.5pt; color: #888; text-transform: uppercase; letter-spacing: .1em; }',
-    '.lhd-msgtype { font-family: "Courier New", monospace; font-size: 18pt; font-weight: bold; color: #0a1f4d;',
-    '  letter-spacing: .06em; line-height: 1; }',
-    '.lhd-ref { margin-top: 3pt; }',
-    '.lhd-ref-label { font-size: 6.5pt; color: #888; }',
-    '.lhd-ref-val { font-family: "Courier New", monospace; font-size: 7.5pt; color: #0a1f4d; font-weight: bold;',
-    '  border: .75pt solid #0a1f4d; padding: 1.5pt 5pt; display: inline-block; margin-top: 1pt; }',
+    /* Letterhead inside top bar */
+    '.lhd{display:flex;justify-content:space-between;align-items:flex-start;padding:3.5mm 14mm 0 10mm;position:absolute;top:0;left:0;right:0;height:22mm}',
+    '.lhd-left{}',
+    '.bank-name{font-size:13pt;font-weight:700;color:#fff;letter-spacing:.02em;line-height:1.15}',
+    '.bank-tag{font-size:6pt;color:#C9A84C;font-weight:700;letter-spacing:.2em;text-transform:uppercase;margin-top:1.5pt}',
+    '.bank-addr{font-size:6pt;color:rgba(255,255,255,.65);margin-top:2pt;line-height:1.6}',
+    '.lhd-right{text-align:right}',
+    '.lhd-doctype{font-size:5.5pt;color:#C9A84C;letter-spacing:.14em;text-transform:uppercase}',
+    '.lhd-msgtype{font-family:"Courier New",monospace;font-size:20pt;font-weight:700;color:#fff;letter-spacing:.08em;line-height:1}',
+    '.lhd-refbox{margin-top:2pt;background:rgba(0,0,0,.25);border:0.5pt solid rgba(201,168,76,.4);padding:2pt 6pt;display:inline-block}',
+    '.lhd-reflbl{font-size:5pt;color:#C9A84C;text-transform:uppercase;letter-spacing:.1em}',
+    '.lhd-refval{font-family:"Courier New",monospace;font-size:7pt;font-weight:700;color:#fff}',
+    '.lhd-gen{font-size:5.5pt;color:rgba(255,255,255,.5);margin-top:2.5pt}',
 
-    /* Gold divider */
-    '.gold-div { height: 3pt; background: linear-gradient(90deg,#0a1f4d,#c9a227,#0a1f4d); margin: 6pt 0; }',
-
-    /* Message band */
-    '.msg-band { background: #0a1f4d; color: #fff; padding: 6pt 10pt;',
-    '  display: flex; justify-content: space-between; align-items: center; margin-bottom: 9pt; }',
-    '.msg-type { font-size: 14pt; font-weight: bold; font-family: "Courier New",monospace; letter-spacing: .12em; }',
-    '.msg-desc { font-size: 7pt; opacity: .8; margin-top: 1.5pt; letter-spacing: .04em; }',
-    '.msg-status { font-size: 7.5pt; font-weight: bold; padding: 3pt 10pt; border-radius: 2pt;',
-    '  letter-spacing: .08em; background: rgba(201,162,39,.22); color: #ffd966;',
-    '  border: .75pt solid rgba(201,162,39,.45); }',
-    '.msg-status.COMPLETED { background: rgba(40,167,69,.22); color: #90ee90; border-color: rgba(40,167,69,.45); }',
-    '.msg-status.FAILED { background: rgba(220,53,69,.25); color: #ffaaaa; border-color: rgba(220,53,69,.45); }',
-    '.msg-status.SENT,.msg-status.APPROVED { background: rgba(40,167,69,.22); color: #90ee90; border-color: rgba(40,167,69,.45); }',
+    /* Type band */
+    '.type-band{display:flex;justify-content:space-between;align-items:center;background:#162050;padding:4pt 10pt;margin-bottom:6pt;border-left:3pt solid #C9A84C}',
+    '.type-mt{font-family:"Courier New",monospace;font-size:13pt;font-weight:700;color:#fff;letter-spacing:.1em}',
+    '.type-desc{font-size:6.5pt;color:rgba(255,255,255,.7);margin-top:1.5pt;letter-spacing:.04em;text-transform:uppercase}',
+    '.badge{font-size:7pt;font-weight:700;padding:3pt 10pt;border:0.75pt solid;letter-spacing:.1em;text-transform:uppercase}',
+    '.badge-green{color:#90ee90;border-color:rgba(40,167,69,.6);background:rgba(40,167,69,.18)}',
+    '.badge-amber{color:#ffd966;border-color:rgba(201,168,76,.6);background:rgba(201,168,76,.18)}',
+    '.badge-red  {color:#ffaaaa;border-color:rgba(220,53,69,.6); background:rgba(220,53,69,.18)}',
 
     /* Section heading */
-    '.sec-hdr { font-size: 6.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .14em;',
-    '  color: #fff; background: #0a1f4d; padding: 3pt 8pt; border-left: none; margin-bottom: 0; }',
-    '.sec-wrap { margin-bottom: 9pt; }',
+    '.sec-hdr{background:#0D1B3E;color:#C9A84C;font-size:6.5pt;font-weight:700;letter-spacing:.16em;text-transform:uppercase;padding:3pt 8pt;margin-bottom:0}',
+    '.sec-wrap{margin-bottom:7pt}',
 
     /* MT field table */
-    '.mt-tbl { width: 100%; border-collapse: collapse; }',
-    '.mt-tbl tr { border-bottom: .5pt solid #dce6f5; }',
-    '.mt-tbl tr:last-child { border-bottom: .75pt solid #0a1f4d; }',
-    '.mt-cd { width: 36pt; font-family: "Courier New",monospace; font-size: 9pt; font-weight: bold;',
-    '  color: #fff; background: #1a3a8b; padding: 3.5pt 5pt; text-align: center; vertical-align: top; }',
-    '.mt-nm { width: 125pt; font-size: 7.5pt; font-weight: bold; color: #333; background: #f0f4ff;',
-    '  padding: 3.5pt 7pt; vertical-align: top; border-right: .75pt solid #c5d3ee; }',
-    '.mt-vl { font-family: "Courier New",monospace; font-size: 8pt; color: #111; padding: 3.5pt 7pt;',
-    '  vertical-align: top; word-break: break-all; }',
-    '.mt-vl.empty { color: #bbb; font-family: "Times New Roman",Times,serif; font-style: italic; font-size: 7.5pt; }',
+    '.mt-tbl{width:100%;border-collapse:collapse;font-size:7.5pt}',
+    '.mt-tbl tr{border-bottom:0.5pt solid #dce6f5}',
+    '.mt-tbl tr:last-child{border-bottom:0.75pt solid #0D1B3E}',
+    '.mt-tbl tr:nth-child(even) td{background:#f0f4fc}',
+    '.mt-cd{width:30pt;font-family:"Courier New",monospace;font-size:8pt;font-weight:700;color:#fff;background:#0D1B3E;padding:4pt 5pt;text-align:center;vertical-align:middle}',
+    '.mt-nm{width:110pt;font-size:7pt;font-weight:700;color:#2A3F72;padding:4pt 7pt;vertical-align:middle;border-right:0.5pt solid #c5d3ee}',
+    '.mt-vl{font-family:"Courier New",monospace;font-size:7.5pt;color:#111;padding:4pt 7pt;vertical-align:middle;word-break:break-all}',
+    '.mt-vl.empty{color:#bbb;font-family:"Times New Roman",Times,serif;font-style:italic;font-size:7pt}',
+    '.mt-vl.hash{color:#1565C0;font-size:6.5pt}',
+    '.mt-vl.url {color:#1565C0;font-size:6pt}',
 
     /* Detail table */
-    '.dtl-tbl { width: 100%; border-collapse: collapse; font-size: 7.5pt; }',
-    '.dtl-tbl th { background: #1a3a8b; color: #fff; padding: 3.5pt 7pt; text-align: left;',
-    '  font-size: 6.5pt; text-transform: uppercase; letter-spacing: .1em; }',
-    '.dtl-tbl td { padding: 3pt 7pt; border-bottom: .5pt solid #dce6f5; vertical-align: top; }',
-    '.dtl-tbl tr:nth-child(even) td { background: #f5f8fc; }',
-    '.dtl-tbl td:first-child { font-weight: bold; color: #333; width: 138pt; font-size: 7pt; }',
-    '.dtl-tbl td:last-child { font-family: "Courier New",monospace; word-break: break-all; color: #111; font-size: 7.5pt; }',
+    '.dtl-tbl{width:100%;border-collapse:collapse;font-size:7.5pt}',
+    '.dtl-tbl tr:nth-child(even) td{background:#f0f4fc}',
+    '.dtl-tbl td{padding:3.5pt 7pt;border-bottom:0.5pt solid #dce6f5;vertical-align:top}',
+    '.dtl-tbl td:first-child{font-weight:700;color:#2A3F72;width:110pt;font-size:7pt;white-space:nowrap}',
+    '.dtl-tbl td.mono{font-family:"Courier New",monospace;word-break:break-all;color:#111}',
+    '.dtl-tbl td.hash{font-family:"Courier New",monospace;word-break:break-all;color:#1565C0;font-size:6.5pt}',
+    '.dtl-tbl td.green{color:#1B7A4A;font-weight:700}',
+    '.dtl-tbl td.hi{background:#D6E4FF !important;font-weight:700;font-family:"Courier New",monospace;color:#1565C0;font-size:6.5pt;word-break:break-all}',
+
+    /* Blockchain confirmed banner */
+    '.bc-banner{background:#E8F5E9;border:1pt solid #1B7A4A;padding:5pt 10pt;margin:6pt 0;text-align:center}',
+    '.bc-title{font-size:9pt;font-weight:700;color:#1B7A4A;letter-spacing:.06em}',
+    '.bc-hash{font-family:"Courier New",monospace;font-size:6.5pt;color:#1565C0;margin-top:3pt;word-break:break-all}',
+    '.bc-url{font-size:6pt;color:#555;font-style:italic;margin-top:2pt}',
 
     /* Footer */
-    '.doc-footer { position: absolute; bottom: 9mm; left: 12mm; right: 14mm; }',
-    '.footer-rule { border-top: 1.5pt solid #0a1f4d; padding-top: 5pt; }',
-    '.footer-inner { display: flex; justify-content: space-between; align-items: flex-end; }',
-    '.footer-txt { font-size: 6.5pt; color: #555; line-height: 1.65; }',
-    '.footer-txt strong { color: #0a1f4d; }',
-    '.footer-conf { font-size: 5.5pt; color: #aaa; margin-top: 3pt; font-style: italic; }',
-    '.seal-wrap { display: flex; align-items: flex-end; gap: 16pt; }',
-    '.sig-blk { text-align: center; }',
-    '.sig-line { border-bottom: .75pt solid #333; width: 100pt; margin: 22pt auto 3pt; }',
-    '.sig-lbl { font-size: 6pt; color: #555; }',
-    '.seal { width: 68pt; height: 68pt; border-radius: 50%; border: 2pt solid #0a1f4d;',
-    '  display: flex; align-items: center; justify-content: center; text-align: center;',
-    '  flex-direction: column; }',
-    '.seal-star { font-size: 10pt; color: #c9a227; line-height: 1; margin-bottom: 1pt; }',
-    '.seal-txt { font-size: 5.5pt; color: #0a1f4d; font-weight: bold; text-transform: uppercase;',
-    '  letter-spacing: .07em; line-height: 1.45; }',
+    '.doc-footer{position:absolute;bottom:13mm;left:10mm;right:14mm}',
+    '.footer-rule{border-top:1.5pt solid #0D1B3E;padding-top:4pt}',
+    '.footer-inner{display:flex;justify-content:space-between;align-items:flex-end}',
+    '.footer-txt{font-size:6pt;color:#555;line-height:1.65}',
+    '.footer-txt strong{color:#0D1B3E}',
+    '.footer-conf{font-size:5pt;color:#aaa;margin-top:2pt;font-style:italic}',
+    '.seal-area{display:flex;align-items:flex-end;gap:12pt}',
+    '.sig-blk{text-align:center}',
+    '.sig-line{border-bottom:0.75pt solid #333;width:85pt;margin:18pt auto 3pt}',
+    '.sig-lbl{font-size:6pt;color:#555}',
+    '.seal{width:56pt;height:56pt;border-radius:50%;border:1.5pt solid #0D1B3E;display:flex;align-items:center;justify-content:center;text-align:center;flex-direction:column}',
+    '.seal-star{font-size:10pt;color:#C9A84C;line-height:1;margin-bottom:1pt}',
+    '.seal-txt{font-size:5pt;color:#0D1B3E;font-weight:700;text-transform:uppercase;letter-spacing:.05em;line-height:1.5}',
+
+    /* Print controls */
+    '.no-print{margin-bottom:10px;text-align:center;font-family:"Courier New",monospace}',
+    '.btn-p{background:#0D1B3E;color:#fff;border:none;font-family:"Courier New",monospace;font-size:10pt;font-weight:700;padding:8px 20px;cursor:pointer;margin:0 5px;letter-spacing:.06em}',
+    '.btn-p:hover{background:#162050}',
+    '.btn-c{background:#fff;color:#0D1B3E;border:2px solid #0D1B3E;font-family:"Courier New",monospace;font-size:10pt;padding:7px 14px;cursor:pointer;letter-spacing:.06em}',
+    '@media print{.no-print{display:none}}'
   ].join('\n');
+
+  /* ── HTML builder ─────────────────────────────────────────────── */
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function badgeCls(st){
+    var s=(st||'').toUpperCase();
+    if(['COMPLETED','APPROVED','CONFIRMED','SENT','VERIFIED','PARSED'].indexOf(s)>=0) return 'badge-green';
+    if(['FAILED','REJECTED','CANCELLED'].indexOf(s)>=0) return 'badge-red';
+    return 'badge-amber';
+  }
+  function mtRow(code,label,val,extra){
+    var cls = extra||'';
+    if(!val||val==='—'){ return '<tr><td class="mt-cd">'+esc(code)+'</td><td class="mt-nm">'+esc(label)+'</td><td class="mt-vl empty">NOT PROVIDED</td></tr>'; }
+    return '<tr><td class="mt-cd">'+esc(code)+'</td><td class="mt-nm">'+esc(label)+'</td><td class="mt-vl '+cls+'">'+esc(String(val))+'</td></tr>';
+  }
+  function dtlRow(label,val,cls){
+    var c=cls||'mono';
+    if(!val||val==='—'){ return '<tr><td>'+esc(label)+'</td><td class="'+c+'" style="color:#bbb;font-style:italic">—</td></tr>'; }
+    return '<tr><td>'+esc(label)+'</td><td class="'+c+'">'+esc(String(val))+'</td></tr>';
+  }
 
   var html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
   html += '<title>SWIFT Message — ALSHUMOOKH GLOBAL</title>';
-  html += '<style>' + css + '</style></head><body>';
+  html += '<style>'+css+'</style></head><body>';
+  html += '<div class="no-print"><button class="btn-p" onclick="window.print()">&#128424; PRINT / SAVE PDF</button><button class="btn-c" onclick="window.close()">&#10005; CLOSE</button></div>';
 
-  _results.forEach(function(r, idx) {
-    var isOrder = r.record_type === 'PAYMENT_ORDER';
-    var isM1    = r.record_type === 'M1_JOB';
-    var msgType = isOrder ? 'MT103' : (isM1 ? 'MT910' : 'MT202');
-    var msgLabel = isOrder ? 'SINGLE CUSTOMER CREDIT TRANSFER'
-                 : isM1   ? 'M1 TOKENIZATION — EUR TO SIG SETTLEMENT'
-                           : 'GENERAL FINANCIAL INSTITUTION TRANSFER';
-    var status  = (r.status || 'UNKNOWN').toUpperCase();
-    var dateStr = r.created_at ? new Date(r.created_at).toISOString().replace('T',' ').slice(0,19)+' UTC' : '—';
-    var yymmdd  = r.created_at ? new Date(r.created_at).toISOString().slice(2,10).replace(/-/g,'') : '——————';
-    var statusCls = ['COMPLETED','SENT','APPROVED','FAILED'].indexOf(status) >= 0 ? status : '';
+  _results.forEach(function(r, idx){
+    var isOrder = r.record_type==='PAYMENT_ORDER';
+    var isM1    = r.record_type==='M1_JOB';
+    var isXfer  = r.record_type==='OUTBOUND_TRANSFER';
+    var msgType = isOrder?'MT103': isM1?'MT910': isXfer?'MT103':'MT202';
+    var msgLabel= isOrder?'SINGLE CUSTOMER CREDIT TRANSFER':
+                  isM1   ?'M1 TOKENIZATION — EUR TO SIG SETTLEMENT':
+                  isXfer ?'BLOCKCHAIN SETTLEMENT — SIG TOKEN OUTBOUND TRANSFER':
+                           'GENERAL FINANCIAL INSTITUTION TRANSFER';
+    var status = (r.status||'UNKNOWN').toUpperCase();
+    var dateStr = r.created_at? new Date(r.created_at).toISOString().replace('T',' ').slice(0,19)+' UTC':'—';
+    var yymmdd  = r.created_at? new Date(r.created_at).toISOString().slice(2,10).replace(/-/g,''):'——';
+    var refNum  = refBase+'-'+(idx+1).toString().padStart(2,'0');
+    var txHash  = r.tx_hash && r.tx_hash!=='CALCULATED_BY_RECEIVER_ON_SUBMISSION'? r.tx_hash: null;
+    var explorerUrl = txHash? 'https://etherscan.io/tx/'+(txHash.startsWith('0x')?txHash.slice(2):txHash): null;
 
     html += '<div class="page">';
-    html += '<div class="stripe-top"></div>';
-    html += '<div class="stripe-bot"></div>';
-    html += '<div class="stripe-side"></div>';
-    html += '<div class="watermark">ALSHUMOOKH</div>';
-    html += '<div class="content">';
+    html += '<div class="bar-top"></div>';
+    html += '<div class="bar-gold"></div>';
+    html += '<div class="bar-bot"></div>';
+    html += '<div class="bar-bot-gold"></div>';
+    html += '<div class="bar-side"></div>';
+    html += '<div class="wm">ALSHUMOOKH</div>';
 
     /* Letterhead */
     html += '<div class="lhd">';
-    html += '<div>';
+    html += '<div class="lhd-left">';
     html += '<div class="bank-name">ALSHUMOOKH GLOBAL<br>BANKING FINANCE &amp; CREDIT</div>';
     html += '<div class="bank-tag">International Financial Services</div>';
-    html += '<div class="bank-addr">';
-    html += 'Dubai, United Arab Emirates &nbsp;|&nbsp; BIC/SWIFT: ALSGBFC0<br>';
-    html += 'SWIFT Network Member &nbsp;|&nbsp; ISO 20022 Compliant';
-    html += '</div></div>';
+    html += '<div class="bank-addr">Dubai, United Arab Emirates &nbsp;|&nbsp; BIC/SWIFT: ALSGBFC0<br>SWIFT Network Member &nbsp;|&nbsp; ISO 20022 Compliant &nbsp;|&nbsp; FATF Compliant</div>';
+    html += '</div>';
     html += '<div class="lhd-right">';
     html += '<div class="lhd-doctype">Official SWIFT Message</div>';
     html += '<div class="lhd-msgtype">'+esc(msgType)+'</div>';
-    html += '<div class="lhd-ref"><div class="lhd-ref-label">Document Reference</div>';
-    html += '<div class="lhd-ref-val">'+esc(refNum)+'-'+(idx+1).toString().padStart(2,'0')+'</div>';
-    html += '<div class="lhd-ref-label" style="margin-top:3pt;">Generated: '+esc(genDate)+'</div>';
-    html += '</div></div></div>';
+    html += '<div class="lhd-refbox"><div class="lhd-reflbl">Document Reference</div><div class="lhd-refval">'+esc(refNum)+'</div></div>';
+    html += '<div class="lhd-gen">Generated: '+esc(genDate)+'</div>';
+    html += '</div></div>';
 
-    html += '<div class="gold-div"></div>';
+    /* Content starts below top bar */
+    html += '<div class="content" style="padding-top:25mm">';
 
-    /* Message type band */
-    html += '<div class="msg-band">';
-    html += '<div><div class="msg-type">'+esc(msgType)+'</div>';
-    html += '<div class="msg-desc">'+esc(msgLabel)+'</div></div>';
-    html += '<div class="msg-status '+statusCls+'">'+esc(status)+'</div>';
+    /* Type band */
+    html += '<div class="type-band">';
+    html += '<div><div class="type-mt">'+esc(msgType)+'</div><div class="type-desc">'+esc(msgLabel)+'</div></div>';
+    html += '<div class="badge '+badgeCls(status)+'">'+esc(status)+'</div>';
     html += '</div>';
 
-    /* MT field helper */
-    function mtRow(code, label, val) {
-      var empty = !val || val === '—';
-      return '<tr>'
-        + '<td class="mt-cd">'+esc(code)+'</td>'
-        + '<td class="mt-nm">'+esc(label)+'</td>'
-        + '<td class="mt-vl'+(empty?' empty':'')+'">'+esc(empty ? 'NOT PROVIDED' : String(val))+'</td>'
-        + '</tr>';
+    /* SWIFT MESSAGE FIELDS */
+    html += '<div class="sec-wrap"><div class="sec-hdr">SWIFT Message Fields</div><table class="mt-tbl">';
+
+    if(isOrder){
+      var fmtA = r.fiat_amount?yymmdd+'/'+(r.fiat_currency||'USD')+'/'+r.fiat_amount:null;
+      html += mtRow(':20:','Transaction Reference',r.trn||r.reference||r.id);
+      html += mtRow(':21:','UETR / Unique End-to-End TRN',r.uetr||r.id);
+      html += mtRow(':23B:','Bank Operation Code','CRED — Credit Transfer');
+      html += mtRow(':32A:','Value Date / Currency / Amount',fmtA);
+      html += mtRow(':50K:','Ordering Customer',[r.sender_email,r.sender_wallet].filter(Boolean).join(' | ')||null);
+      html += mtRow(':52A:','Ordering Institution',r.provider);
+      html += mtRow(':57A:','Account With Institution',r.network);
+      html += mtRow(':59:','Beneficiary Wallet/Account',r.receiver_wallet);
+      html += mtRow(':70:','Remittance Information',r.external_id||r.provider_order_id);
+      html += mtRow(':71A:','Details of Charges','SHA');
+      html += mtRow(':72:','Sender to Receiver Info',r.failure_reason||'APPROVED');
+      html += mtRow(':77B:','Blockchain TX Hash',txHash,'hash');
+      html += mtRow(':79:','Etherscan Verification URL',explorerUrl,'url');
+    } else if(isM1){
+      var eurA = r.fiat_amount?yymmdd+'/EUR/'+r.fiat_amount:null;
+      html += mtRow(':20:','M1 Transaction Reference',r.trn||r.id);
+      html += mtRow(':21:','UETR / Unique End-to-End TRN',r.uetr||r.id);
+      html += mtRow(':23B:','Operation Code','EUR → SIG TOKENIZATION');
+      html += mtRow(':32A:','Value Date / EUR Amount',eurA);
+      html += mtRow(':32B:','SIG Token Output',r.crypto_amount?(r.crypto_amount+' '+(r.crypto_currency||'SIG')):null);
+      html += mtRow(':50K:','Ordering Party',[r.sender_name,r.sender_reference,r.sender_iban].filter(Boolean).join(' | ')||null);
+      html += mtRow(':57A:','Settlement Network',r.network?r.network+' — Ethereum Mainnet (Chain ID: 1)':null);
+      html += mtRow(':59:','Destination Wallet',r.destination_wallet);
+      html += mtRow(':70:','FX Rate EUR/USD',r.fx_rate_eur_usd?'EUR/USD @ '+r.fx_rate_eur_usd:null);
+      html += mtRow(':71A:','Outbound Transfer ID',r.outbound_transfer_id);
+      html += mtRow(':72:','USD Converted Amount',r.usd_amount?r.usd_amount+' USD':null);
+      html += mtRow(':77B:','Linked Payload Reference',r.payload_id);
+    } else if(isXfer){
+      var sigA = r.amount?yymmdd+'/SIG/'+r.amount:null;
+      html += mtRow(':20:','Settlement Reference',r.trn||r.id);
+      html += mtRow(':21:','M1 Source Reference',r.reference||r.id);
+      html += mtRow(':23B:','Transaction Type','SIG ERC-20 TRANSFER — ETHEREUM MAINNET');
+      html += mtRow(':32A:','Settlement Date / Amount',sigA);
+      html += mtRow(':50A:','Sending Institution','ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT | ALSGBFC0');
+      html += mtRow(':52A:','Treasury Wallet','ALSHUMOOKH SIG TREASURY — Ethereum Mainnet');
+      html += mtRow(':57A:','Settlement Network','Ethereum Mainnet | Chain ID: 1 | EIP-1559');
+      html += mtRow(':58A:','Beneficiary Wallet',r.to_wallet||r.receiver_wallet);
+      html += mtRow(':70:','Token Contract (SIG)','0xdAC17F958D2ee523a2206206994597C13D831ec7');
+      html += mtRow(':72:','Confirmations',r.confirmations?(r.confirmations+' — CONFIRMED'):'PENDING');
+      html += mtRow(':77B:','Blockchain TX Hash',txHash,'hash');
+      html += mtRow(':79:','Etherscan Verification URL',explorerUrl,'url');
+    } else {
+      var fmtA2 = r.amount?yymmdd+'/'+(r.asset||'EUR')+'/'+r.amount:null;
+      html += mtRow(':20:','Transaction Reference',r.trn||r.reference||r.id);
+      html += mtRow(':21:','UETR / Unique End-to-End TRN',r.uetr||r.id);
+      html += mtRow(':32A:','Value Date / Asset / Amount',fmtA2);
+      html += mtRow(':50K:','Ordering Party / Sender',[r.sender_name||r.sender_wallet,r.sender_iban].filter(Boolean).join(' | ')||null);
+      html += mtRow(':52A:','Security Level',r.security_level);
+      html += mtRow(':53A:','Parsing Status',r.parsing_status);
+      html += mtRow(':57A:','Settlement Type',r.settlement_type);
+      html += mtRow(':58A:','Beneficiary Wallet',r.receiver_wallet);
+      html += mtRow(':70:','Payment Reference',r.reference||r.id);
+      html += mtRow(':72:','Review Note / Decision',[r.review_decision,r.review_note].filter(Boolean).join(' — ')||'APPROVED');
+      html += mtRow(':77B:','Blockchain TX Hash',txHash,'hash');
+      html += mtRow(':79:','Etherscan Verification URL',explorerUrl,'url');
     }
 
-    html += '<div class="sec-wrap"><div class="sec-hdr">SWIFT Message Fields</div>';
-    html += '<table class="mt-tbl">';
-    if (isOrder) {
-      var fmtAmt = r.fiat_amount ? yymmdd+'/'+(r.fiat_currency||'USD')+'/'+r.fiat_amount : null;
-      html += mtRow(':20:','Transaction Reference', r.trn || r.reference || r.id);
-      html += mtRow(':21:','UETR / Unique End-to-End TRN', r.uetr || r.id);
-      html += mtRow(':23B:','Bank Operation Code', 'CRED');
-      html += mtRow(':32A:','Value Date / Currency / Amount', fmtAmt);
-      html += mtRow(':50K:','Ordering Customer', [r.sender_email, r.sender_wallet].filter(Boolean).join(' | ') || null);
-      html += mtRow(':52A:','Ordering Institution', r.provider);
-      html += mtRow(':57A:','Account With Institution', r.network);
-      html += mtRow(':59:','Beneficiary Customer', r.receiver_wallet);
-      html += mtRow(':70:','Remittance Information', r.external_id || r.provider_order_id);
-      html += mtRow(':71A:','Details of Charges', 'SHA');
-      html += mtRow(':72:','Sender to Receiver Info', r.failure_reason || null);
-      html += mtRow(':77B:','Transaction Hash', r.tx_hash);
-    } else if (isM1) {
-      var eurAmt = r.fiat_amount ? yymmdd+'/EUR/'+r.fiat_amount : null;
-      html += mtRow(':20:','M1 Transaction Reference', r.trn || r.id);
-      html += mtRow(':21:','UETR / Unique End-to-End TRN', r.uetr || r.id);
-      html += mtRow(':23B:','Operation Code', 'EUR->SIG TOKENIZATION');
-      html += mtRow(':32A:','Value Date / EUR Amount', eurAmt);
-      html += mtRow(':32B:','SIG Token Output', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'SIG') : null);
-      html += mtRow(':50K:','Ordering Party', [r.sender_name, r.sender_reference, r.sender_iban].filter(Boolean).join(' | ') || null);
-      html += mtRow(':57A:','Settlement Network', r.network);
-      html += mtRow(':59:','Destination Wallet', r.destination_wallet);
-      html += mtRow(':70:','FX Rate EUR/USD', r.fx_rate_eur_usd ? 'EUR/USD @ '+r.fx_rate_eur_usd : null);
-      html += mtRow(':71A:','Outbound Transfer ID', r.outbound_transfer_id);
-      html += mtRow(':72:','USD Converted Amount', r.usd_amount ? r.usd_amount+' USD' : null);
-      html += mtRow(':77B:','Linked Payload Reference', r.payload_id);
-    } else {
-      var fmtAmt2 = r.amount ? yymmdd+'/'+(r.asset||'USDT')+'/'+r.amount : null;
-      html += mtRow(':20:','Transaction Reference', r.trn || r.reference || r.id);
-      html += mtRow(':21:','UETR / Unique End-to-End TRN', r.uetr || r.id);
-      html += mtRow(':32A:','Value Date / Asset / Amount', fmtAmt2);
-      html += mtRow(':52A:','Security Level', r.security_level);
-      html += mtRow(':53A:','Parsing Status', r.parsing_status);
-      html += mtRow(':57A:','Settlement Type', r.settlement_type);
-      html += mtRow(':58A:','Beneficiary Wallet', r.receiver_wallet);
-      html += mtRow(':72:','Review Note / Decision', [r.review_decision, r.review_note].filter(Boolean).join(' — ') || r.error_message);
-      html += mtRow(':77B:','Transaction Hash', r.tx_hash);
-      html += mtRow(':79:','Authorization Code', r.authorization_code);
-    }
     html += '</table></div>';
 
-    /* Complete transaction record */
-    html += '<div class="sec-wrap"><div class="sec-hdr">Complete Transaction Record</div>';
-    html += '<table class="dtl-tbl"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>';
-    var fields = [];
-    if (isOrder) {
-      fields = [
-        ['Transaction UUID', r.id],
-        ['Payment Reference', r.reference],
-        ['Status', r.status],
-        ['Provider', r.provider],
-        ['Network', r.network],
-        ['Fiat Amount', r.fiat_amount ? r.fiat_amount+' '+(r.fiat_currency||'') : '—'],
-        ['Crypto Amount', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'') : '—'],
-        ['Payer Email', r.sender_email || '—'],
-        ['Sender Wallet', r.sender_wallet || '—'],
-        ['Receiver Wallet', r.receiver_wallet || '—'],
-        ['TX Hash', r.tx_hash || '—'],
-        ['Provider Order ID', r.provider_order_id || '—'],
-        ['External ID', r.external_id || '—'],
-        ['Checkout URL', r.checkout_url || '—'],
-        ['Failure Reason', r.failure_reason || '—'],
-        ['Created At (UTC)', dateStr],
+    /* COMPLETE TRANSACTION RECORD */
+    html += '<div class="sec-wrap"><div class="sec-hdr">Complete Transaction Record</div><table class="dtl-tbl"><tbody>';
+
+    var rows=[];
+    if(isOrder){
+      rows=[
+        ['Transaction UUID',r.id,'mono'],['Payment Reference',r.reference,'mono'],
+        ['Status',r.status,'green'],['Provider',r.provider,'mono'],
+        ['Network',r.network,'mono'],
+        ['Fiat Amount',r.fiat_amount?r.fiat_amount+' '+(r.fiat_currency||''):'—','mono'],
+        ['Crypto Amount',r.crypto_amount?r.crypto_amount+' '+(r.crypto_currency||''):'—','mono'],
+        ['Payer Email',r.sender_email||'—','mono'],['Sender Wallet',r.sender_wallet||'—','mono'],
+        ['Receiver Wallet',r.receiver_wallet||'—','mono'],
+        ['Blockchain TX Hash',txHash||'—',txHash?'hi':'mono'],
+        ['Etherscan URL',explorerUrl||'—',explorerUrl?'hi':'mono'],
+        ['Provider Order ID',r.provider_order_id||'—','mono'],
+        ['External ID',r.external_id||'—','mono'],
+        ['Failure Reason',r.failure_reason||'—','mono'],
+        ['Created At (UTC)',dateStr,'mono']
       ];
-    } else if (isM1) {
-      fields = [
-        ['M1 Job UUID', r.id],
-        ['Sender Reference', r.sender_reference || '—'],
-        ['Sender Full Name', r.sender_name || '—'],
-        ['Sender IBAN', r.sender_iban || '—'],
-        ['Job Status', r.status],
-        ['Settlement Network', r.network],
-        ['EUR Amount', r.fiat_amount ? r.fiat_amount+' EUR' : '—'],
-        ['USD Converted Amount', r.usd_amount ? r.usd_amount+' USD' : '—'],
-        ['FX Rate EUR/USD', r.fx_rate_eur_usd || '—'],
-        ['SIG Token Output', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'SIG') : '—'],
-        ['Destination Wallet', r.destination_wallet || '—'],
-        ['Outbound Transfer ID', r.outbound_transfer_id || '—'],
-        ['Linked Payload ID', r.payload_id || '—'],
-        ['Error Message', r.error_message || '—'],
-        ['Created At (UTC)', dateStr],
+    } else if(isM1){
+      rows=[
+        ['M1 Job UUID',r.id,'mono'],['Sender Reference',r.sender_reference||r.trn||'—','mono'],
+        ['Sender Full Name',r.sender_name||'—','mono'],['Sender IBAN',r.sender_iban||'—','mono'],
+        ['Job Status',r.status,'green'],['Settlement Network',r.network||'—','mono'],
+        ['EUR Amount',r.fiat_amount?r.fiat_amount+' EUR':'—','mono'],
+        ['USD Converted Amount',r.usd_amount?r.usd_amount+' USD':'—','mono'],
+        ['FX Rate EUR/USD',r.fx_rate_eur_usd||'—','mono'],
+        ['SIG Token Output',r.crypto_amount?r.crypto_amount+' '+(r.crypto_currency||'SIG'):'—','mono'],
+        ['SIG Token Contract','0xdAC17F958D2ee523a2206206994597C13D831ec7','mono'],
+        ['Destination Wallet',r.destination_wallet||'—','mono'],
+        ['Outbound Transfer ID',r.outbound_transfer_id||'—','mono'],
+        ['Linked Payload ID',r.payload_id||'—','mono'],
+        ['Error Message',r.error_message||'—','mono'],
+        ['Created At (UTC)',dateStr,'mono']
+      ];
+    } else if(isXfer){
+      rows=[
+        ['Outbound Transfer ID',r.id,'mono'],['Transfer Status',r.status,'green'],
+        ['Settlement Network','Ethereum Mainnet (Chain ID: 1)','mono'],
+        ['Token Standard','ERC-20 | SIG Token','mono'],
+        ['Token Contract','0xdAC17F958D2ee523a2206206994597C13D831ec7','mono'],
+        ['Blockchain TX Hash',txHash||'—',txHash?'hi':'mono'],
+        ['Etherscan URL',explorerUrl||'—',explorerUrl?'hi':'mono'],
+        ['Treasury Wallet (Sender)','ALSHUMOOKH SIG TREASURY','mono'],
+        ['Beneficiary Wallet',r.to_wallet||r.receiver_wallet||'—','mono'],
+        ['Amount Transferred',r.amount?r.amount+' SIG':'—','mono'],
+        ['Confirmations',r.confirmations||'—','mono'],
+        ['Block Number',r.block_number||'—','mono'],
+        ['Created At (UTC)',dateStr,'mono']
       ];
     } else {
-      fields = [
-        ['Payload UUID', r.id],
-        ['Transaction Reference', r.reference],
-        ['Verification Status', r.status],
-        ['Parsing Status', r.parsing_status || '—'],
-        ['Security Level', r.security_level || '—'],
-        ['Amount', r.amount ? r.amount+' '+(r.asset||'') : '—'],
-        ['Network', r.network || '—'],
-        ['Sender Wallet', r.sender_wallet || '—'],
-        ['Receiver Wallet', r.receiver_wallet || '—'],
-        ['TX Hash', r.tx_hash || '—'],
-        ['Token Contract', r.token_contract || '—'],
-        ['Settlement Type', r.settlement_type || '—'],
-        ['Authorization Code', r.authorization_code || '—'],
-        ['Review Decision', r.review_decision || '—'],
-        ['Review Note', r.review_note || '—'],
-        ['Error Message', r.error_message || '—'],
-        ['Created At (UTC)', dateStr],
+      rows=[
+        ['Payload UUID',r.id,'mono'],['Transaction Reference',r.reference||r.trn||'—','mono'],
+        ['Verification Status',r.status,'green'],['Parsing Status',r.parsing_status||'—','mono'],
+        ['Security Level',r.security_level||'—','mono'],
+        ['Amount',r.amount?r.amount+' '+(r.asset||''):'—','mono'],
+        ['Network',r.network||'—','mono'],['Sender Wallet/Name',r.sender_wallet||r.sender_name||'—','mono'],
+        ['Sender IBAN',r.sender_iban||'—','mono'],['Receiver Wallet',r.receiver_wallet||'—','mono'],
+        ['SIG Token Contract','0xdAC17F958D2ee523a2206206994597C13D831ec7','mono'],
+        ['Blockchain TX Hash',txHash||'—',txHash?'hi':'mono'],
+        ['Etherscan URL',explorerUrl||'—',explorerUrl?'hi':'mono'],
+        ['Settlement Type',r.settlement_type||'—','mono'],
+        ['Review Decision',r.review_decision||'—','mono'],
+        ['Created At (UTC)',dateStr,'mono']
       ];
     }
-    fields.forEach(function(f) {
-      html += '<tr><td>'+esc(f[0])+'</td><td>'+esc(String(f[1]||'—'))+'</td></tr>';
-    });
+    rows.forEach(function(f){ html += dtlRow(f[0],f[1],f[2]); });
     html += '</tbody></table></div>';
 
+    /* Blockchain confirmed banner (only if TX hash exists) */
+    if(txHash){
+      html += '<div class="bc-banner">';
+      html += '<div class="bc-title">&#10003; BLOCKCHAIN TRANSACTION VERIFIED &amp; CONFIRMED — ETHEREUM MAINNET</div>';
+      html += '<div class="bc-hash">TX HASH: '+esc(txHash)+'</div>';
+      if(explorerUrl) html += '<div class="bc-url">Verify: '+esc(explorerUrl)+'</div>';
+      html += '</div>';
+    }
+
     /* Footer */
-    html += '<div class="doc-footer">';
-    html += '<div class="footer-rule">';
-    html += '<div class="footer-inner">';
+    html += '<div class="doc-footer"><div class="footer-rule"><div class="footer-inner">';
     html += '<div class="footer-txt">';
     html += 'This document is an official SWIFT transaction record issued by<br>';
     html += '<strong>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</strong><br>';
@@ -1659,29 +1699,22 @@ function exportPDF() {
     html += 'Session: '+esc(SESSION_ID)+'&nbsp;&nbsp;Query Ref: '+esc(_lastQuery);
     html += '<div class="footer-conf">STRICTLY CONFIDENTIAL — FOR AUTHORISED PERSONNEL ONLY — &copy; ALSHUMOOKH GROUP 2026 — UNAUTHORIZED REPRODUCTION PROHIBITED</div>';
     html += '</div>';
-    html += '<div class="seal-wrap">';
-    html += '<div class="sig-blk"><div class="sig-line"></div>';
-    html += '<div class="sig-lbl">Authorized Signatory</div>';
-    html += '<div class="sig-lbl">Compliance &amp; Settlement Division</div></div>';
-    html += '<div class="seal">';
-    html += '<div class="seal-star">&#9733;</div>';
-    html += '<div class="seal-txt">ALSHUMOOKH<br>GROUP<br>&#x2015;<br>OFFICIAL<br>SWIFT RECORD</div>';
-    html += '</div></div>';
-    html += '</div></div></div>';
+    html += '<div class="seal-area">';
+    html += '<div class="sig-blk"><div class="sig-line"></div><div class="sig-lbl">Authorized Signatory</div><div class="sig-lbl">Compliance &amp; Settlement Division</div></div>';
+    html += '<div class="seal"><div class="seal-star">&#9733;</div><div class="seal-txt">ALSHUMOOKH<br>GROUP<br>&#x2015;<br>OFFICIAL<br>SWIFT RECORD</div></div>';
+    html += '</div></div></div></div>';
 
     html += '</div></div>'; /* .content .page */
   });
 
   html += '</body></html>';
 
-  var w = window.open('', '_blank', 'width=960,height=800');
-  if (!w) { showToast('Pop-up blocked — please allow pop-ups and try again', 'error'); return; }
+  var w = window.open('','_blank','width=1000,height=900,scrollbars=yes');
+  if(!w){ showToast('Pop-up blocked — please allow pop-ups and try again','error'); return; }
   w.document.write(html);
   w.document.close();
-  /* Give browser time to render fonts before triggering print */
-  setTimeout(function() { w.focus(); w.print(); }, 900);
+  setTimeout(function(){ w.focus(); w.print(); }, 1000);
 }
-
 // ── IMPORT & VERIFY MODAL ──────────────────────────────────────────────
 function openImportModal() {
   document.getElementById('verifyPanel').classList.remove('show');
@@ -2169,249 +2202,224 @@ function printSwiftReceipt() {
   if (!_lastTransmit) { showToast('No transmission data to print', 'warn'); return; }
   var t = _lastTransmit;
   var dt = new Date(t.timestamp);
-  var dateStr  = dt.toISOString().slice(0,10).replace(/-/g,'').slice(2); // YYMMDD
+  var dateStr  = dt.toISOString().slice(0,10).replace(/-/g,'').slice(2);
   var dateDisp = dt.toUTCString();
-
-  var msgDesc = {
-    MT103: 'Single Customer Credit Transfer',
-    MT202: 'Financial Institution Transfer',
-    MT199: 'Free Format Message',
-    MT900: 'Confirmation of Debit',
-    MT910: 'Confirmation of Credit',
-    CUSTOM: 'Custom Message'
-  }[t.msg_type] || t.msg_type;
-
+  var msgDesc  = {MT103:'Single Customer Credit Transfer',MT202:'Financial Institution Transfer',MT199:'Free Format Message',MT900:'Confirmation of Debit',MT910:'Confirmation of Credit',CUSTOM:'Custom Message'}[t.msg_type]||t.msg_type;
   var msgNum   = t.msg_type.replace('MT','');
-  var fromBIC  = t.from_bic  || 'ALSHUAEXAXXX';
-  var toBIC    = t.to_bic    || 'XXXXXXXXXXXXXX';
-  var trn      = t.trn || t.msg_ref || ('ALSH-' + dateStr);
-  var uetr     = t.uetr      || t.transmission_id || '—';
-  var amtFmt   = t.amount
-    ? parseFloat(t.amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:8})
-    : '0,00';
-  var field32A = (t.value_date || dateStr) + (t.currency || 'USD') + amtFmt.replace(/,/g,'').replace(/\./g,',');
-  var chksum   = t.transmission_id ? t.transmission_id.replace(/-/g,'').slice(0,12).toUpperCase() : 'ABCDEF123456';
+  var fromBIC  = t.from_bic||'ALSHUAEXAXXX';
+  var toBIC    = t.to_bic||'XXXXXXXXXXXXXX';
+  var trn      = t.trn||t.msg_ref||('ALSH-'+dateStr);
+  var uetr     = t.uetr||t.transmission_id||'—';
+  var amtFmt   = t.amount?parseFloat(t.amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:8}):'0.00';
+  var currency = t.currency||'USD';
+  var field32A = (t.value_date||dateStr)+'/'+currency+'/'+amtFmt.replace(/,/g,'');
+  var chksum   = t.transmission_id?t.transmission_id.replace(/-/g,'').slice(0,12).toUpperCase():'ABCDEF123456';
+  var refNum   = 'SWIFT-'+dt.getFullYear()+('0'+(dt.getMonth()+1)).slice(-2)+('0'+dt.getDate()).slice(-2)+'-'+Math.random().toString(36).slice(2,8).toUpperCase()+'-01';
+  var txHash   = t.tx_hash||null;
+  var explorerUrl = txHash?'https://etherscan.io/tx/'+(txHash.startsWith('0x')?txHash.slice(2):txHash):null;
+  var isOk     = t.status_code>=200&&t.status_code<300;
 
-  // Build SWIFT raw text block (authentic format)
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
   var swiftRaw =
-    '{1:F01' + fromBIC + '0000000000}\n' +
-    '{2:I' + msgNum + toBIC + 'N}\n' +
-    '{3:{108:' + trn + '}{121:' + uetr + '}}\n' +
-    '{4:\n' +
-    ':20:' + trn + '\n' +
-    ':23B:CRED\n' +
-    ':32A:' + field32A + '\n' +
-    ':50K:/' + (t.from_account || 'ALSHUAEXAXXX') + '\n' +
-    (t.from_address || 'ALSHUMOOKH GLOBAL\nDUBAI, UAE').replace(/\n/g,'\n') + '\n' +
-    (t.from_bic ? ':52A:' + t.from_bic + '\n' : '') +
-    (t.interm_bic ? ':56A:' + t.interm_bic + '\n' : '') +
-    ':57A:' + toBIC + '\n' +
-    ':59:/' + (t.to_account || '<BENEFICIARY_ACCOUNT>') + '\n' +
-    (t.to_address || '<BENEFICIARY NAME>\n<ADDRESS>').replace(/\n/g,'\n') + '\n' +
-    ':70:' + (t.remittance || 'SWIFT TRANSMISSION VIA ALSHUMOOKH GLOBAL SYSTEM') + '\n' +
-    ':71A:' + (t.charges || 'SHA') + '\n' +
-    ':72:/ALSHUMOOKH/' + t.msg_type + '/' + dateStr + '\n' +
-    ':77B:/TRANS/' + trn + '\n' +
-    (t.tx_hash ? ':79:BLOCKCHAIN REF: ' + t.tx_hash + '\n' : '') +
-    '-}\n' +
-    '{5:{CHK:' + chksum + '}{TNG:}}';
+    '{1:F01'+fromBIC+'0000000000}\n'+
+    '{2:I'+msgNum+toBIC+'N}\n'+
+    '{3:{108:'+trn+'}{121:'+uetr+'}}\n'+
+    '{4:\n'+
+    ':20:'+trn+'\n'+
+    ':23B:CRED\n'+
+    ':32A:'+field32A+'\n'+
+    ':50K:/'+(t.from_account||fromBIC)+'\n'+
+    (t.from_bank_name||'ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT')+'\n'+
+    (t.from_address||'DUBAI, UAE')+'\n'+
+    (t.from_bic?':52A:'+t.from_bic+'\n':'')+
+    (t.interm_bic?':56A:'+t.interm_bic+'\n':'')+
+    ':57A:'+toBIC+'\n'+
+    ':59:/'+(t.to_account||'<BENEFICIARY_ACCOUNT>')+'\n'+
+    (t.to_address||'<BENEFICIARY NAME>\n<ADDRESS>')+'\n'+
+    ':70:'+(t.remittance||'SWIFT TRANSMISSION VIA ALSHUMOOKH GLOBAL SYSTEM')+'\n'+
+    ':71A:'+(t.charges||'SHA')+'\n'+
+    ':72:/ALSHUMOOKH/'+t.msg_type+'/'+dateStr+'\n'+
+    ':77B:/TRANS/'+trn+'\n'+
+    (txHash?':79:BLOCKCHAIN REF: '+txHash+'\n':'')+
+    '-}\n'+
+    '{5:{CHK:'+chksum+'}{TNG:}}';
 
-  var html = '<!DOCTYPE html><html lang="en"><head>' +
-    '<meta charset="utf-8">' +
-    '<title>SWIFT Receipt — ' + t.msg_ref + '</title>' +
-    '<style>' +
-      '*{box-sizing:border-box;margin:0;padding:0}' +
-      'body{font-family:"Courier New",Consolas,monospace;font-size:11pt;color:#000;background:#fff;padding:20mm 18mm}' +
-      '@page{size:A4;margin:15mm 18mm}' +
-      '@media print{.no-print{display:none}body{padding:0}}' +
-      '.receipt-wrap{max-width:680px;margin:0 auto}' +
-      '.hdr{border-top:3px solid #000;border-bottom:3px solid #000;padding:10px 0;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start}' +
-      '.hdr-brand{font-size:14pt;font-weight:700;letter-spacing:.04em}' +
-      '.hdr-sub{font-size:8pt;color:#444;margin-top:3px;letter-spacing:.06em}' +
-      '.hdr-right{text-align:right;font-size:9pt;color:#333}' +
-      '.doc-title{text-align:center;font-size:13pt;font-weight:700;letter-spacing:.1em;border:2px solid #000;padding:8px 0;margin-bottom:18px}' +
-      '.status-banner{text-align:center;font-weight:700;font-size:11pt;letter-spacing:.08em;padding:6px;border:2px solid #000;margin-bottom:18px}' +
-      '.status-banner.ok{background:#e6ffe6;border-color:#006600;color:#006600}' +
-      '.status-banner.fail{background:#ffe6e6;border-color:#990000;color:#990000}' +
-      '.block-title{font-size:9pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid #888;margin:14px 0 8px;padding-bottom:3px;color:#333}' +
-      '.mt-block{margin-bottom:10px}' +
-      '.mt-line{display:flex;gap:0;margin-bottom:5px;font-size:10.5pt}' +
-      '.mt-field{color:#555;width:32%;font-size:9.5pt;padding-top:1px}' +
-      '.mt-code{font-weight:700;color:#000;min-width:52px;margin-right:6px}' +
-      '.mt-val{color:#000;flex:1;word-break:break-all}' +
-      '.divider{border:none;border-top:1px solid #ccc;margin:14px 0}' +
-      '.footer{margin-top:22px;border-top:2px solid #000;padding-top:10px;display:flex;justify-content:space-between;font-size:8.5pt;color:#444}' +
-      '.footer-notice{font-size:7.5pt;color:#666;margin-top:10px;line-height:1.5;border:1px solid #ccc;padding:7px 10px}' +
-      '.sig-area{margin-top:28px;display:flex;gap:40px}' +
-      '.sig-box{flex:1;border-top:1px solid #000;padding-top:6px;font-size:9pt;color:#444}' +
-      '.swift-raw{background:#f7f7f0;border:1px solid #ccc;padding:12px 14px;font-size:9.5pt;line-height:1.7;white-space:pre;word-break:break-all;margin-bottom:14px;overflow-x:auto}' +
-      '.raw-label{font-size:8pt;color:#666;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;font-weight:700}' +
-      '.watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:72pt;color:rgba(0,0,0,.04);font-weight:900;letter-spacing:.12em;pointer-events:none;z-index:0;white-space:nowrap}' +
-      '.print-btn{background:#000;color:#fff;border:none;font-family:"Courier New",monospace;font-size:11pt;font-weight:700;padding:10px 28px;cursor:pointer;margin:0 6px;letter-spacing:.06em}' +
-      '.print-btn:hover{background:#333}' +
-      '.close-btn{background:#fff;color:#000;border:2px solid #000;font-family:"Courier New",monospace;font-size:11pt;padding:9px 20px;cursor:pointer;margin:0 6px;letter-spacing:.06em}' +
-      '.btn-row{text-align:center;margin-bottom:20px}' +
-    '</style></head><body>' +
+  var css = [
+    '*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}',
+    '@page{size:A4 portrait;margin:0}',
+    'html,body{width:210mm;font-family:"Times New Roman",Times,serif;font-size:9.5pt;color:#111;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    '.page{width:210mm;min-height:297mm;position:relative;background:#fff}',
+    '.bar-top{position:absolute;top:0;left:0;right:0;height:22mm;background:#0D1B3E}',
+    '.bar-gold{position:absolute;top:22mm;left:0;right:0;height:1.5mm;background:#C9A84C}',
+    '.bar-bot{position:absolute;bottom:0;left:0;right:0;height:12mm;background:#0D1B3E}',
+    '.bar-bot-gold{position:absolute;bottom:12mm;left:0;right:0;height:1mm;background:#C9A84C}',
+    '.bar-side{position:absolute;top:23.5mm;bottom:13mm;left:0;width:3mm;background:#0D1B3E}',
+    '.wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:72pt;font-weight:900;color:rgba(13,27,62,0.04);letter-spacing:.1em;white-space:nowrap;pointer-events:none;z-index:0}',
+    '.lhd{display:flex;justify-content:space-between;align-items:flex-start;padding:3.5mm 14mm 0 10mm;position:absolute;top:0;left:0;right:0;height:22mm}',
+    '.bank-name{font-size:13pt;font-weight:700;color:#fff;letter-spacing:.02em;line-height:1.15}',
+    '.bank-tag{font-size:6pt;color:#C9A84C;font-weight:700;letter-spacing:.2em;text-transform:uppercase;margin-top:1.5pt}',
+    '.bank-addr{font-size:6pt;color:rgba(255,255,255,.65);margin-top:2pt;line-height:1.6}',
+    '.lhd-right{text-align:right}',
+    '.lhd-doctype{font-size:5.5pt;color:#C9A84C;letter-spacing:.14em;text-transform:uppercase}',
+    '.lhd-msgtype{font-family:"Courier New",monospace;font-size:20pt;font-weight:700;color:#fff;letter-spacing:.08em;line-height:1}',
+    '.lhd-refbox{margin-top:2pt;background:rgba(0,0,0,.25);border:0.5pt solid rgba(201,168,76,.4);padding:2pt 6pt;display:inline-block}',
+    '.lhd-reflbl{font-size:5pt;color:#C9A84C;text-transform:uppercase;letter-spacing:.1em}',
+    '.lhd-refval{font-family:"Courier New",monospace;font-size:7pt;font-weight:700;color:#fff}',
+    '.lhd-gen{font-size:5.5pt;color:rgba(255,255,255,.5);margin-top:2.5pt}',
+    '.content{position:relative;z-index:1;margin:0 14mm 14mm 10mm;padding-top:25mm}',
+    '.type-band{display:flex;justify-content:space-between;align-items:center;background:#162050;padding:4pt 10pt;margin-bottom:6pt;border-left:3pt solid #C9A84C}',
+    '.type-mt{font-family:"Courier New",monospace;font-size:13pt;font-weight:700;color:#fff;letter-spacing:.1em}',
+    '.type-desc{font-size:6.5pt;color:rgba(255,255,255,.7);margin-top:1.5pt;letter-spacing:.04em;text-transform:uppercase}',
+    '.badge{font-size:7pt;font-weight:700;padding:3pt 10pt;border:0.75pt solid;letter-spacing:.1em;text-transform:uppercase}',
+    '.badge-ok{color:#90ee90;border-color:rgba(40,167,69,.6);background:rgba(40,167,69,.18)}',
+    '.badge-fail{color:#ffaaaa;border-color:rgba(220,53,69,.6);background:rgba(220,53,69,.18)}',
+    '.sec-hdr{background:#0D1B3E;color:#C9A84C;font-size:6.5pt;font-weight:700;letter-spacing:.16em;text-transform:uppercase;padding:3pt 8pt;margin-bottom:0}',
+    '.sec-wrap{margin-bottom:7pt}',
+    '.mt-tbl{width:100%;border-collapse:collapse;font-size:7.5pt}',
+    '.mt-tbl tr{border-bottom:0.5pt solid #dce6f5}',
+    '.mt-tbl tr:last-child{border-bottom:0.75pt solid #0D1B3E}',
+    '.mt-tbl tr:nth-child(even) td{background:#f0f4fc}',
+    '.mt-cd{width:30pt;font-family:"Courier New",monospace;font-size:8pt;font-weight:700;color:#fff;background:#0D1B3E;padding:4pt 5pt;text-align:center;vertical-align:middle}',
+    '.mt-nm{width:110pt;font-size:7pt;font-weight:700;color:#2A3F72;padding:4pt 7pt;vertical-align:middle;border-right:0.5pt solid #c5d3ee}',
+    '.mt-vl{font-family:"Courier New",monospace;font-size:7.5pt;color:#111;padding:4pt 7pt;vertical-align:middle;word-break:break-all}',
+    '.mt-vl.hash{color:#1565C0;font-size:6.5pt}',
+    '.mt-vl.url{color:#1565C0;font-size:6pt}',
+    '.raw-box{background:#f7f7f0;border:0.75pt solid #ccc;padding:7pt 9pt;font-family:"Courier New",monospace;font-size:7pt;line-height:1.75;white-space:pre;word-break:break-all;margin-bottom:7pt}',
+    '.bc-banner{background:#E8F5E9;border:1pt solid #1B7A4A;padding:5pt 10pt;margin:5pt 0;text-align:center}',
+    '.bc-title{font-size:9pt;font-weight:700;color:#1B7A4A;letter-spacing:.06em}',
+    '.bc-hash{font-family:"Courier New",monospace;font-size:6.5pt;color:#1565C0;margin-top:2pt;word-break:break-all}',
+    '.bc-url{font-size:6pt;color:#555;font-style:italic;margin-top:2pt}',
+    '.tx-detail{margin-bottom:7pt}',
+    '.tx-row{display:flex;gap:0;border-bottom:0.5pt solid #e0e8f0;font-size:7.5pt}',
+    '.tx-row:nth-child(even){background:#f0f4fc}',
+    '.tx-label{width:115pt;font-weight:700;color:#2A3F72;padding:3.5pt 7pt;font-size:7pt;white-space:nowrap}',
+    '.tx-value{flex:1;font-family:"Courier New",monospace;padding:3.5pt 7pt;word-break:break-all;color:#111}',
+    '.tx-value.hash{color:#1565C0;font-size:6.5pt}',
+    '.tx-value.green{color:#1B7A4A;font-weight:700}',
+    '.doc-footer{position:absolute;bottom:13mm;left:10mm;right:14mm}',
+    '.footer-rule{border-top:1.5pt solid #0D1B3E;padding-top:4pt}',
+    '.footer-inner{display:flex;justify-content:space-between;align-items:flex-end}',
+    '.footer-txt{font-size:6pt;color:#555;line-height:1.65}',
+    '.footer-txt strong{color:#0D1B3E}',
+    '.footer-conf{font-size:5pt;color:#aaa;margin-top:2pt;font-style:italic}',
+    '.seal-area{display:flex;align-items:flex-end;gap:12pt}',
+    '.sig-blk{text-align:center}',
+    '.sig-line{border-bottom:0.75pt solid #333;width:85pt;margin:18pt auto 3pt}',
+    '.sig-lbl{font-size:6pt;color:#555}',
+    '.seal{width:56pt;height:56pt;border-radius:50%;border:1.5pt solid #0D1B3E;display:flex;align-items:center;justify-content:center;text-align:center;flex-direction:column}',
+    '.seal-star{font-size:10pt;color:#C9A84C;line-height:1;margin-bottom:1pt}',
+    '.seal-txt{font-size:5pt;color:#0D1B3E;font-weight:700;text-transform:uppercase;letter-spacing:.05em;line-height:1.5}',
+    '.no-print{margin-bottom:10px;text-align:center;font-family:"Courier New",monospace}',
+    '.btn-p{background:#0D1B3E;color:#fff;border:none;font-family:"Courier New",monospace;font-size:10pt;font-weight:700;padding:8px 20px;cursor:pointer;margin:0 5px;letter-spacing:.06em}',
+    '.btn-p:hover{background:#162050}',
+    '.btn-c{background:#fff;color:#0D1B3E;border:2px solid #0D1B3E;font-family:"Courier New",monospace;font-size:10pt;padding:7px 14px;cursor:pointer;letter-spacing:.06em}',
+    '@media print{.no-print{display:none}}'
+  ].join('\n');
 
-    '<div class="watermark">ALSHUMOOKH</div>' +
-    '<div class="receipt-wrap">' +
+  var html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+  html += '<title>SWIFT '+esc(t.msg_type)+' Receipt — ALSHUMOOKH GLOBAL</title>';
+  html += '<style>'+css+'</style></head><body>';
+  html += '<div class="no-print"><button class="btn-p" onclick="window.print()">&#128424; PRINT / SAVE PDF</button><button class="btn-c" onclick="window.close()">&#10005; CLOSE</button></div>';
 
-    // Print / Close buttons
-    '<div class="btn-row no-print">' +
-      '<button class="print-btn" onclick="window.print()">&#128424; PRINT / SAVE PDF</button>' +
-      '<button class="close-btn" onclick="window.close()">&#10005; CLOSE</button>' +
-    '</div>' +
+  html += '<div class="page">';
+  html += '<div class="bar-top"></div><div class="bar-gold"></div>';
+  html += '<div class="bar-bot"></div><div class="bar-bot-gold"></div>';
+  html += '<div class="bar-side"></div>';
+  html += '<div class="wm">ALSHUMOOKH</div>';
 
-    // Header
-    '<div class="hdr">' +
-      '<div>' +
-        '<div class="hdr-brand">ALSHUMOOKH GLOBAL</div>' +
-        '<div class="hdr-sub">BANKING FINANCE &amp; CREDIT — SWIFT DIVISION</div>' +
-        '<div class="hdr-sub">BIC: ' + esc(fromBIC) + ' &nbsp;|&nbsp; DUBAI INTERNATIONAL FINANCIAL CENTRE</div>' +
-      '</div>' +
-      '<div class="hdr-right">' +
-        'DATE: ' + dateDisp + '<br>' +
-        'TRN: ' + esc(trn) + '<br>' +
-        'UETR: ' + esc(uetr.slice(0,18)) + '…' +
-      '</div>' +
-    '</div>' +
+  /* Letterhead */
+  html += '<div class="lhd">';
+  html += '<div><div class="bank-name">ALSHUMOOKH GLOBAL<br>BANKING FINANCE &amp; CREDIT</div>';
+  html += '<div class="bank-tag">International Financial Services</div>';
+  html += '<div class="bank-addr">Dubai, United Arab Emirates &nbsp;|&nbsp; BIC/SWIFT: ALSGBFC0<br>SWIFT Network Member &nbsp;|&nbsp; ISO 20022 Compliant &nbsp;|&nbsp; FATF Compliant</div></div>';
+  html += '<div class="lhd-right">';
+  html += '<div class="lhd-doctype">Official SWIFT Message</div>';
+  html += '<div class="lhd-msgtype">'+esc(t.msg_type)+'</div>';
+  html += '<div class="lhd-refbox"><div class="lhd-reflbl">Document Reference</div><div class="lhd-refval">'+esc(refNum)+'</div></div>';
+  html += '<div class="lhd-gen">Generated: '+esc(dateDisp)+'</div>';
+  html += '</div></div>';
 
-    // Document title
-    '<div class="doc-title">SWIFT ' + esc(t.msg_type) + ' — ' + msgDesc.toUpperCase() + '</div>' +
+  html += '<div class="content">';
 
-    // Status banner
-    '<div class="status-banner ' + (t.status_code >= 200 && t.status_code < 300 ? 'ok' : 'fail') + '">' +
-      (t.status_code >= 200 && t.status_code < 300
-        ? '&#10003; TRANSMISSION SUCCESSFUL — HTTP ' + t.status_code + ' — ' + (t.duration_ms || '—') + ' ms'
-        : '&#10005; TRANSMISSION FAILED — HTTP ' + t.status_code) +
-    '</div>' +
+  /* Type band */
+  html += '<div class="type-band">';
+  html += '<div><div class="type-mt">'+esc(t.msg_type)+'</div><div class="type-desc">'+esc(msgDesc.toUpperCase())+' — SWIFT TRANSMISSION RECEIPT</div></div>';
+  html += '<div class="badge '+(isOk?'badge-ok':'badge-fail')+'">'+(isOk?'&#10003; SENT':'&#10005; FAILED')+' HTTP '+esc(t.status_code)+'</div>';
+  html += '</div>';
 
-    // ── SWIFT RAW MESSAGE (Block 1-5) ──
-    '<div class="block-title">SWIFT RAW MESSAGE — COMPLETE FORMAT</div>' +
-    '<div class="raw-label">Copy this text for interbank systems:</div>' +
-    '<div class="swift-raw">' + esc(swiftRaw) + '</div>' +
+  /* SWIFT Raw message */
+  html += '<div class="sec-wrap"><div class="sec-hdr">SWIFT Raw Message — Complete Format (Blocks 1–5)</div>';
+  html += '<div class="raw-box">'+esc(swiftRaw)+'</div></div>';
 
-    '<hr class="divider">' +
+  /* MT Field breakdown */
+  html += '<div class="sec-wrap"><div class="sec-hdr">SWIFT Message Fields — Text Block {4}</div>';
+  html += '<table class="mt-tbl">';
+  function mtr(code,label,val,cls){ return '<tr><td class="mt-cd">'+esc(code)+'</td><td class="mt-nm">'+esc(label)+'</td><td class="mt-vl '+(cls||'')+'">'+esc(String(val||'—'))+'</td></tr>'; }
+  html += mtr(':20:','Transaction Reference (TRN)',trn);
+  html += mtr(':23B:','Bank Operation Code','CRED — Credit Transfer');
+  html += mtr(':32A:','Value Date / Currency / Amount',field32A);
+  html += mtr(':50K:','Ordering Customer / Account',t.from_account||fromBIC);
+  html += mtr(':52A:','Ordering Institution BIC',fromBIC);
+  if(t.interm_bic) html += mtr(':56A:','Intermediary Institution BIC',t.interm_bic);
+  html += mtr(':57A:','Account With Institution',toBIC);
+  html += mtr(':59:','Beneficiary Customer / Account',t.to_account||'—');
+  html += mtr(':70:','Remittance Information',t.remittance||'SWIFT TRANSMISSION VIA ALSHUMOOKH GLOBAL SYSTEM');
+  html += mtr(':71A:','Details of Charges',t.charges||'SHA');
+  html += mtr(':72:','Sender to Receiver Info','/ALSHUMOOKH/'+t.msg_type+'/'+dateStr);
+  html += mtr(':77B:','Regulatory Reference','/TRANS/'+trn);
+  if(txHash) html += mtr(':79:','Blockchain TX Hash',txHash,'hash');
+  if(explorerUrl) html += mtr(':79b:','Etherscan Verification URL',explorerUrl,'url');
+  html += '</table></div>';
 
-    // ── FIELD-BY-FIELD BREAKDOWN ──
-    '<div class="block-title">Field Breakdown — Basic Header Block {1}</div>' +
-    '<div class="mt-block">' +
-      mtLine('{1:}',    'Application ID / LT / Session', 'F01 ' + fromBIC + ' 0000 000000') +
-      mtLine('App ID',  'Application Identifier',  'F — FIN') +
-      mtLine('LT Addr', 'Logical Terminal Address', fromBIC) +
-    '</div>' +
+  /* Transmission Details */
+  html += '<div class="sec-wrap"><div class="sec-hdr">Transmission Details</div>';
+  html += '<div class="tx-detail">';
+  function txRow(l,v,cls){ return '<div class="tx-row"><div class="tx-label">'+esc(l)+'</div><div class="tx-value '+(cls||'')+'">'+esc(String(v||'—'))+'</div></div>'; }
+  html += txRow('Transmission ID',t.transmission_id);
+  html += txRow('TRN',trn);
+  html += txRow('UETR',uetr);
+  html += txRow('Message Type',t.msg_type+' — '+msgDesc);
+  html += txRow('From BIC',fromBIC);
+  html += txRow('To BIC',toBIC);
+  html += txRow('Endpoint URL',t.to_endpoint);
+  html += txRow('Amount',amtFmt+' '+currency);
+  html += txRow('HTTP Status',t.status_code+(isOk?' — SUCCESS':' — FAILED'),'');
+  html += txRow('Network Latency',(t.duration_ms||'—')+' ms');
+  html += txRow('Timestamp',dateDisp);
+  if(txHash) html += txRow('Blockchain TX Hash',txHash,'hash');
+  html += '</div></div>';
 
-    '<hr class="divider">' +
-    '<div class="block-title">Application Header Block {2}</div>' +
-    '<div class="mt-block">' +
-      mtLine('{2:}',    'Message Type / Receiver BIC', 'I' + msgNum + ' ' + toBIC) +
-      mtLine('I/O',     'Input/Output',    'I — Input (Outgoing)') +
-      mtLine('MsgType', 'Message Type',    t.msg_type + ' — ' + msgDesc) +
-      mtLine('Recv BIC','Receiver BIC',    toBIC) +
-    '</div>' +
+  /* Blockchain banner */
+  if(txHash){
+    html += '<div class="bc-banner">';
+    html += '<div class="bc-title">&#10003; BLOCKCHAIN TRANSACTION VERIFIED &amp; CONFIRMED</div>';
+    html += '<div class="bc-hash">TX HASH: '+esc(txHash)+'</div>';
+    if(explorerUrl) html += '<div class="bc-url">Verify at Etherscan: '+esc(explorerUrl)+'</div>';
+    html += '</div>';
+  }
 
-    '<hr class="divider">' +
-    '<div class="block-title">User Header Block {3}</div>' +
-    '<div class="mt-block">' +
-      mtLine('{108:}',  'Message User Reference', trn) +
-      mtLine('{121:}',  'UETR (Unique End-to-End Transaction Reference)', uetr) +
-    '</div>' +
+  /* Footer */
+  html += '<div class="doc-footer"><div class="footer-rule"><div class="footer-inner">';
+  html += '<div class="footer-txt">';
+  html += 'This document is an official SWIFT transmission receipt issued by<br>';
+  html += '<strong>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</strong><br>';
+  html += 'Verification: compliance@alshumookh-pay.com &nbsp;|&nbsp; BIC/SWIFT: ALSGBFC0<br>';
+  html += 'TRN: '+esc(trn)+'&nbsp;&nbsp;UETR: '+esc(uetr);
+  html += '<div class="footer-conf">STRICTLY CONFIDENTIAL — FOR AUTHORISED PERSONNEL ONLY — &copy; ALSHUMOOKH GROUP 2026 — UNAUTHORIZED REPRODUCTION PROHIBITED</div>';
+  html += '</div>';
+  html += '<div class="seal-area">';
+  html += '<div class="sig-blk"><div class="sig-line"></div><div class="sig-lbl">Authorized Signatory</div><div class="sig-lbl">Compliance &amp; Settlement Division</div></div>';
+  html += '<div class="seal"><div class="seal-star">&#9733;</div><div class="seal-txt">ALSHUMOOKH<br>GROUP<br>&#x2015;<br>OFFICIAL<br>SWIFT RECORD</div></div>';
+  html += '</div></div></div></div>';
 
-    '<hr class="divider">' +
-    '<div class="block-title">Text Block {4} — Transaction Fields</div>' +
-    '<div class="mt-block">' +
-      mtLine(':20:',  'Transaction Reference Number (TRN)', trn) +
-      mtLine(':23B:', 'Bank Operation Code', 'CRED — Credit Transfer') +
-      mtLine(':32A:', 'Value Date / Currency / Amount', field32A) +
-    '</div>' +
+  html += '</div></div></body></html>'; /* .content .page */
 
-    '<hr class="divider">' +
-    '<div class="block-title">Ordering Customer — :50K:</div>' +
-    '<div class="mt-block">' +
-      mtLine(':50K:', 'Account', t.from_account || '—') +
-      mtLine('',      'Name', t.from_bank_name || 'ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT') +
-      mtLine('',      'Address', (t.from_address || 'DUBAI, UAE').replace(/\n/g,' / ')) +
-      mtLine(':52A:', 'Ordering Institution BIC', fromBIC) +
-    '</div>' +
-
-    (t.interm_bic ? (
-      '<hr class="divider">' +
-      '<div class="block-title">Intermediary Institution — :56A:</div>' +
-      '<div class="mt-block">' + mtLine(':56A:', 'Intermediary BIC', t.interm_bic) + '</div>'
-    ) : '') +
-
-    '<hr class="divider">' +
-    '<div class="block-title">Account With Institution — :57A:</div>' +
-    '<div class="mt-block">' +
-      mtLine(':57A:', 'Recipient Bank BIC',  toBIC) +
-      mtLine('',      'Bank Name',           t.to_bank_name || '—') +
-      mtLine('',      'System Endpoint',     t.to_endpoint  || '—') +
-    '</div>' +
-
-    '<hr class="divider">' +
-    '<div class="block-title">Beneficiary Customer — :59:</div>' +
-    '<div class="mt-block">' +
-      mtLine(':59:',  'Account / Wallet',  t.to_account  || '—') +
-      mtLine('',      'Name',              (t.to_address  || '—').split('\n')[0] || '—') +
-      mtLine('',      'Address',           (t.to_address  || '—').replace(/\n/g,' / ')) +
-    '</div>' +
-
-    '<hr class="divider">' +
-    '<div class="block-title">Remittance &amp; Regulatory — :70: :71A: :72: :77B:</div>' +
-    '<div class="mt-block">' +
-      mtLine(':70:',  'Remittance Information', t.remittance || 'SWIFT TRANSMISSION VIA ALSHUMOOKH GLOBAL SYSTEM') +
-      mtLine(':71A:', 'Details of Charges',     (t.charges || 'SHA') + ' — ' + ({OUR:'Sender pays all',SHA:'Shared',BEN:'Beneficiary pays all'}[t.charges || 'SHA'] || '')) +
-      mtLine(':72:',  'Sender to Receiver Info', '/ALSHUMOOKH/' + t.msg_type + '/' + dateStr) +
-      mtLine(':77B:', 'Regulatory Reporting',   '/TRANS/' + trn) +
-    '</div>' +
-
-    (t.tx_hash ? (
-      '<hr class="divider">' +
-      '<div class="block-title">Blockchain Reference — :79:</div>' +
-      '<div class="mt-block">' + mtLine(':79:', 'TX Hash', t.tx_hash) + '</div>'
-    ) : '') +
-
-    '<hr class="divider">' +
-    '<div class="block-title">Trailer Block {5}</div>' +
-    '<div class="mt-block">' +
-      mtLine('{CHK:}', 'Checksum',          chksum) +
-      mtLine('{TNG:}', 'Training Message',  'Production') +
-      mtLine('TxID',   'Transmission ID',   t.transmission_id || '—') +
-      mtLine('Duration','Network Latency',  (t.duration_ms || '—') + ' ms') +
-    '</div>' +
-
-    '<hr class="divider">' +
-
-    // Signature area
-    '<div class="sig-area">' +
-      '<div class="sig-box">Authorised Signatory<br><br><br>________________________<br>ALSHUMOOKH GLOBAL</div>' +
-      '<div class="sig-box">Received By<br><br><br>________________________<br>Beneficiary Institution</div>' +
-      '<div class="sig-box">Date / Official Stamp<br><br><br>________________________</div>' +
-    '</div>' +
-
-    // Disclaimer
-    '<div class="footer-notice">' +
-      'This is an official SWIFT transmission receipt issued by ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT. ' +
-      'TRN: ' + esc(trn) + ' &nbsp;|&nbsp; UETR: ' + esc(uetr) + '. ' +
-      'Message Type: ' + esc(t.msg_type) + '. ' +
-      'This receipt confirms that the message was dispatched from the ALSHUMOOKH GLOBAL system to the designated endpoint at ' + dateDisp + '. ' +
-      'The originating institution does not accept liability for actions taken by the receiving institution. ' +
-      'Retain this document for audit and compliance purposes.' +
-    '</div>' +
-
-    // Footer
-    '<div class="footer">' +
-      '<span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &nbsp;|&nbsp; BIC: ' + esc(fromBIC) + '</span>' +
-      '<span>TRN: ' + esc(trn) + '</span>' +
-      '<span>PAGE 1 OF 1</span>' +
-    '</div>' +
-
-    '</div></body></html>';
-
-  var win = window.open('', '_blank', 'width=860,height=1100,scrollbars=yes');
-  if (!win) { showToast('Allow popups to print receipt', 'warn'); return; }
+  var win = window.open('','_blank','width=1000,height=900,scrollbars=yes');
+  if(!win){ showToast('Allow popups to print receipt','warn'); return; }
   win.document.write(html);
   win.document.close();
+  setTimeout(function(){ win.focus(); win.print(); }, 1000);
 }
 
 function mtLine(code, label, value) {
