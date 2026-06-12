@@ -856,32 +856,211 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
     }}
 
     @media print {{
+      /* Zero margin suppresses browser date/URL headers and footers */
       @page {{
-        size: A4;
-        margin: 14mm 16mm;
+        size: A4 portrait;
+        margin: 0;
       }}
 
       * {{
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }}
 
       body {{
-        background: white;
-        padding: 0;
+        background: white !important;
+        padding: 0 !important;
+        margin: 0 !important;
       }}
 
       .sheet {{
-        border: 1px solid var(--line);
-        box-shadow: none;
+        max-width: 100% !important;
+        width: 100% !important;
+        border: none !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+      }}
+
+      .sheet-inner {{
+        padding: 16px 26px 18px !important;
+      }}
+
+      /* Prevent cert-band from wrapping across two lines */
+      .cert-band {{
+        padding: 5px 26px !important;
+        font-size: 8px !important;
+        letter-spacing: .07em !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+      }}
+
+      .gold-bar {{
+        height: 5px !important;
       }}
 
       .actions {{
         display: none !important;
       }}
 
-      .gold-bar {{
-        height: 5px;
+      h1 {{
+        font-size: 24px !important;
+        margin: 6px 0 2px !important;
+      }}
+
+      h2 {{
+        font-size: 13px !important;
+        margin: 10px 0 5px !important;
+      }}
+
+      p {{
+        font-size: 11px !important;
+        line-height: 1.5 !important;
+      }}
+
+      .head {{
+        padding-bottom: 12px !important;
+        margin-bottom: 3px !important;
+        gap: 14px !important;
+      }}
+
+      .brand {{
+        font-size: 10px !important;
+      }}
+
+      .brand-tagline {{
+        font-size: 9px !important;
+      }}
+
+      .logo {{
+        width: 80px !important;
+        height: 60px !important;
+      }}
+
+      .doc-number .num {{
+        font-size: 11px !important;
+        padding: 3px 8px !important;
+      }}
+
+      .doc-number .issued {{
+        font-size: 9.5px !important;
+      }}
+
+      .summary {{
+        margin-top: 10px !important;
+        gap: 16px !important;
+      }}
+
+      .methods {{
+        gap: 7px !important;
+        margin-top: 7px !important;
+      }}
+
+      .method {{
+        padding: 8px 10px !important;
+      }}
+
+      .method strong {{
+        font-size: 10.5px !important;
+        margin-bottom: 3px !important;
+      }}
+
+      .method span {{
+        font-size: 10px !important;
+        line-height: 1.4 !important;
+      }}
+
+      .qr-box {{
+        padding: 8px !important;
+      }}
+
+      .qr-box img {{
+        width: 120px !important;
+        height: 120px !important;
+      }}
+
+      .qr-box strong {{
+        font-size: 9px !important;
+        margin-top: 5px !important;
+      }}
+
+      .amount-due {{
+        margin-top: 12px !important;
+      }}
+
+      .amount-due .left,
+      .amount-due .right {{
+        padding: 11px 16px !important;
+      }}
+
+      .amount-due .total {{
+        font-size: 22px !important;
+        margin-top: 5px !important;
+      }}
+
+      .amount-due .label {{
+        font-size: 9px !important;
+      }}
+
+      .gas-panel {{
+        margin-top: 12px !important;
+        padding: 12px 16px !important;
+      }}
+
+      .gas-panel p {{
+        font-size: 10.5px !important;
+      }}
+
+      table {{
+        font-size: 11px !important;
+        margin-top: 8px !important;
+      }}
+
+      th {{
+        width: 175px !important;
+        padding: 6px 10px !important;
+        font-size: 10px !important;
+      }}
+
+      td {{
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+        word-break: break-all !important;
+      }}
+
+      .seal-row {{
+        margin-top: 14px !important;
+        padding-top: 10px !important;
+        gap: 14px !important;
+      }}
+
+      .auth-block .auth-line {{
+        width: 160px !important;
+        margin-top: 20px !important;
+      }}
+
+      .auth-block .auth-label {{
+        font-size: 9px !important;
+      }}
+
+      .legal-seal {{
+        width: 72px !important;
+        height: 72px !important;
+        font-size: 6px !important;
+      }}
+
+      .footer {{
+        margin-top: 12px !important;
+        padding: 9px 12px !important;
+      }}
+
+      .footer p {{
+        font-size: 9.5px !important;
+        line-height: 1.5 !important;
+      }}
+
+      .footer .disclaimer {{
+        font-size: 8.5px !important;
+        margin-top: 5px !important;
       }}
     }}
   </style>

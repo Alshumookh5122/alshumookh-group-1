@@ -1369,54 +1369,117 @@ function exportPDF() {
   var genDate = now.toUTCString();
   var refNum = 'SWIFT-' + now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2) + '-' + Math.random().toString(36).slice(2,8).toUpperCase();
 
+  var css = [
+    '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }',
+    '@page { size: A4 portrait; margin: 0; }',
+    'html { width: 210mm; }',
+    'body { font-family: "Times New Roman", Times, serif; font-size: 10pt; color: #111; background: #fff;',
+    '  -webkit-print-color-adjust: exact; print-color-adjust: exact; }',
+
+    /* Full A4 page wrapper */
+    '.page { width: 210mm; min-height: 297mm; background: #fff; position: relative;',
+    '  padding: 0; page-break-after: always; overflow: hidden; }',
+    '.page:last-child { page-break-after: auto; }',
+
+    /* Top stripe */
+    '.stripe-top { position: absolute; top: 0; left: 0; right: 0; height: 9mm;',
+    '  background: linear-gradient(90deg, #0a1f4d 0%, #1a3a8b 55%, #c9a227 80%, #f0d060 100%); }',
+
+    /* Bottom stripe */
+    '.stripe-bot { position: absolute; bottom: 0; left: 0; right: 0; height: 5mm;',
+    '  background: linear-gradient(90deg, #c9a227 0%, #f0d060 35%, #1a3a8b 100%); }',
+
+    /* Side accent */
+    '.stripe-side { position: absolute; top: 9mm; bottom: 5mm; left: 0; width: 4mm;',
+    '  background: #0a1f4d; }',
+
+    /* Watermark */
+    '.watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-35deg);',
+    '  font-size: 78pt; font-weight: 900; color: rgba(26,58,139,0.045); letter-spacing: .08em;',
+    '  white-space: nowrap; pointer-events: none; z-index: 0; font-family: "Times New Roman", Times, serif; }',
+
+    /* Inner content area */
+    '.content { position: relative; z-index: 1; margin: 10mm 14mm 8mm 12mm; padding-top: 4mm; }',
+
+    /* Bank letterhead */
+    '.lhd { display: flex; justify-content: space-between; align-items: flex-start;',
+    '  border-bottom: 2.5pt solid #0a1f4d; padding-bottom: 7pt; margin-bottom: 7pt; }',
+    '.bank-name { font-size: 15pt; font-weight: bold; color: #0a1f4d; letter-spacing: .02em; line-height: 1.15; }',
+    '.bank-tag { font-size: 7pt; color: #c9a227; font-weight: bold; letter-spacing: .18em;',
+    '  text-transform: uppercase; margin-top: 2pt; }',
+    '.bank-addr { font-size: 7pt; color: #666; margin-top: 3pt; line-height: 1.6; }',
+    '.lhd-right { text-align: right; }',
+    '.lhd-doctype { font-size: 6.5pt; color: #888; text-transform: uppercase; letter-spacing: .1em; }',
+    '.lhd-msgtype { font-family: "Courier New", monospace; font-size: 18pt; font-weight: bold; color: #0a1f4d;',
+    '  letter-spacing: .06em; line-height: 1; }',
+    '.lhd-ref { margin-top: 3pt; }',
+    '.lhd-ref-label { font-size: 6.5pt; color: #888; }',
+    '.lhd-ref-val { font-family: "Courier New", monospace; font-size: 7.5pt; color: #0a1f4d; font-weight: bold;',
+    '  border: .75pt solid #0a1f4d; padding: 1.5pt 5pt; display: inline-block; margin-top: 1pt; }',
+
+    /* Gold divider */
+    '.gold-div { height: 3pt; background: linear-gradient(90deg,#0a1f4d,#c9a227,#0a1f4d); margin: 6pt 0; }',
+
+    /* Message band */
+    '.msg-band { background: #0a1f4d; color: #fff; padding: 6pt 10pt;',
+    '  display: flex; justify-content: space-between; align-items: center; margin-bottom: 9pt; }',
+    '.msg-type { font-size: 14pt; font-weight: bold; font-family: "Courier New",monospace; letter-spacing: .12em; }',
+    '.msg-desc { font-size: 7pt; opacity: .8; margin-top: 1.5pt; letter-spacing: .04em; }',
+    '.msg-status { font-size: 7.5pt; font-weight: bold; padding: 3pt 10pt; border-radius: 2pt;',
+    '  letter-spacing: .08em; background: rgba(201,162,39,.22); color: #ffd966;',
+    '  border: .75pt solid rgba(201,162,39,.45); }',
+    '.msg-status.COMPLETED { background: rgba(40,167,69,.22); color: #90ee90; border-color: rgba(40,167,69,.45); }',
+    '.msg-status.FAILED { background: rgba(220,53,69,.25); color: #ffaaaa; border-color: rgba(220,53,69,.45); }',
+    '.msg-status.SENT,.msg-status.APPROVED { background: rgba(40,167,69,.22); color: #90ee90; border-color: rgba(40,167,69,.45); }',
+
+    /* Section heading */
+    '.sec-hdr { font-size: 6.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .14em;',
+    '  color: #fff; background: #0a1f4d; padding: 3pt 8pt; border-left: none; margin-bottom: 0; }',
+    '.sec-wrap { margin-bottom: 9pt; }',
+
+    /* MT field table */
+    '.mt-tbl { width: 100%; border-collapse: collapse; }',
+    '.mt-tbl tr { border-bottom: .5pt solid #dce6f5; }',
+    '.mt-tbl tr:last-child { border-bottom: .75pt solid #0a1f4d; }',
+    '.mt-cd { width: 36pt; font-family: "Courier New",monospace; font-size: 9pt; font-weight: bold;',
+    '  color: #fff; background: #1a3a8b; padding: 3.5pt 5pt; text-align: center; vertical-align: top; }',
+    '.mt-nm { width: 125pt; font-size: 7.5pt; font-weight: bold; color: #333; background: #f0f4ff;',
+    '  padding: 3.5pt 7pt; vertical-align: top; border-right: .75pt solid #c5d3ee; }',
+    '.mt-vl { font-family: "Courier New",monospace; font-size: 8pt; color: #111; padding: 3.5pt 7pt;',
+    '  vertical-align: top; word-break: break-all; }',
+    '.mt-vl.empty { color: #bbb; font-family: "Times New Roman",Times,serif; font-style: italic; font-size: 7.5pt; }',
+
+    /* Detail table */
+    '.dtl-tbl { width: 100%; border-collapse: collapse; font-size: 7.5pt; }',
+    '.dtl-tbl th { background: #1a3a8b; color: #fff; padding: 3.5pt 7pt; text-align: left;',
+    '  font-size: 6.5pt; text-transform: uppercase; letter-spacing: .1em; }',
+    '.dtl-tbl td { padding: 3pt 7pt; border-bottom: .5pt solid #dce6f5; vertical-align: top; }',
+    '.dtl-tbl tr:nth-child(even) td { background: #f5f8fc; }',
+    '.dtl-tbl td:first-child { font-weight: bold; color: #333; width: 138pt; font-size: 7pt; }',
+    '.dtl-tbl td:last-child { font-family: "Courier New",monospace; word-break: break-all; color: #111; font-size: 7.5pt; }',
+
+    /* Footer */
+    '.doc-footer { position: absolute; bottom: 9mm; left: 12mm; right: 14mm; }',
+    '.footer-rule { border-top: 1.5pt solid #0a1f4d; padding-top: 5pt; }',
+    '.footer-inner { display: flex; justify-content: space-between; align-items: flex-end; }',
+    '.footer-txt { font-size: 6.5pt; color: #555; line-height: 1.65; }',
+    '.footer-txt strong { color: #0a1f4d; }',
+    '.footer-conf { font-size: 5.5pt; color: #aaa; margin-top: 3pt; font-style: italic; }',
+    '.seal-wrap { display: flex; align-items: flex-end; gap: 16pt; }',
+    '.sig-blk { text-align: center; }',
+    '.sig-line { border-bottom: .75pt solid #333; width: 100pt; margin: 22pt auto 3pt; }',
+    '.sig-lbl { font-size: 6pt; color: #555; }',
+    '.seal { width: 68pt; height: 68pt; border-radius: 50%; border: 2pt solid #0a1f4d;',
+    '  display: flex; align-items: center; justify-content: center; text-align: center;',
+    '  flex-direction: column; }',
+    '.seal-star { font-size: 10pt; color: #c9a227; line-height: 1; margin-bottom: 1pt; }',
+    '.seal-txt { font-size: 5.5pt; color: #0a1f4d; font-weight: bold; text-transform: uppercase;',
+    '  letter-spacing: .07em; line-height: 1.45; }',
+  ].join('\n');
+
   var html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
   html += '<title>SWIFT Message — ALSHUMOOKH GLOBAL</title>';
-  html += '<style>';
-  html += '*{box-sizing:border-box;margin:0;padding:0}';
-  html += 'body{font-family:"Times New Roman",Times,serif;font-size:11pt;color:#111;background:#fff;padding:0}';
-  html += '@page{size:A4;margin:18mm 20mm}';
-  html += '.page{max-width:210mm;margin:0 auto;padding:10mm 12mm;background:#fff}';
-  // Header
-  html += '.hdr{border-bottom:3px solid #1a3a6b;padding-bottom:10px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-start}';
-  html += '.hdr-left{}';
-  html += '.bank-name{font-size:14pt;font-weight:bold;color:#1a3a6b;letter-spacing:.03em}';
-  html += '.bank-sub{font-size:8.5pt;color:#555;margin-top:2px}';
-  html += '.hdr-right{text-align:right}';
-  html += '.ref-box{border:1px solid #1a3a6b;padding:5px 10px;font-size:8.5pt;font-family:"Courier New",monospace;color:#1a3a6b}';
-  html += '.ref-label{font-size:7.5pt;color:#888;margin-bottom:2px}';
-  // Gold bar
-  html += '.gold-bar{height:4px;background:linear-gradient(90deg,#1a3a6b,#c9a227,#1a3a6b);margin-bottom:14px}';
-  // Msg header band
-  html += '.msg-band{background:#1a3a6b;color:#fff;padding:6px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}';
-  html += '.msg-type{font-size:13pt;font-weight:bold;font-family:"Courier New",monospace;letter-spacing:.08em}';
-  html += '.msg-label{font-size:8.5pt;opacity:.85}';
-  html += '.msg-status{font-size:8pt;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:2px}';
-  // MT fields
-  html += '.mt-section{margin-bottom:14px}';
-  html += '.mt-section-title{font-size:8pt;font-weight:bold;text-transform:uppercase;letter-spacing:.1em;color:#1a3a6b;border-bottom:1px solid #c5d3ee;padding-bottom:3px;margin-bottom:6px}';
-  html += '.mt-row{display:flex;gap:0;border-bottom:1px solid #e8e8e8;min-height:22px}';
-  html += '.mt-row:last-child{border-bottom:none}';
-  html += '.mt-code{width:48px;font-family:"Courier New",monospace;font-size:9pt;font-weight:bold;color:#1a3a6b;padding:4px 6px;flex-shrink:0;border-right:2px solid #1a3a6b;background:#f0f4ff}';
-  html += '.mt-field{width:160px;font-size:8pt;font-weight:bold;color:#555;padding:4px 8px;flex-shrink:0;background:#fafbff;border-right:1px solid #e0e8f8}';
-  html += '.mt-val{flex:1;font-family:"Courier New",monospace;font-size:9pt;padding:4px 8px;word-break:break-all;color:#111}';
-  html += '.mt-val.empty{color:#bbb;font-style:italic;font-family:inherit;font-size:8.5pt}';
-  // Detail table
-  html += '.detail-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-top:6px}';
-  html += '.detail-table th{background:#1a3a6b;color:#fff;padding:4px 8px;text-align:left;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em}';
-  html += '.detail-table td{padding:3px 8px;border-bottom:1px solid #e8e8e8;vertical-align:top}';
-  html += '.detail-table tr:nth-child(even) td{background:#f7f9fc}';
-  html += '.detail-table td:first-child{font-weight:bold;color:#444;width:200px;font-size:8pt}';
-  html += '.detail-table td:last-child{font-family:"Courier New",monospace;word-break:break-all}';
-  // Footer / seal
-  html += '.footer{margin-top:18px;padding-top:10px;border-top:2px solid #1a3a6b;display:flex;justify-content:space-between;align-items:flex-end}';
-  html += '.footer-left{font-size:7.5pt;color:#777;line-height:1.5}';
-  html += '.seal{width:80px;height:80px;border-radius:50%;border:2px solid #1a3a6b;display:flex;align-items:center;justify-content:center;text-align:center;font-size:6.5pt;color:#1a3a6b;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;line-height:1.3}';
-  html += '.auth-block{text-align:center}';
-  html += '.sig-line{border-bottom:1px solid #333;width:160px;margin:28px auto 4px}';
-  html += '.sig-label{font-size:7.5pt;color:#555}';
-  html += '.separator{height:20px}';
-  html += '.page-break{page-break-before:always}';
-  html += '</style></head><body>';
+  html += '<style>' + css + '</style></head><body>';
 
   _results.forEach(function(r, idx) {
     var isOrder = r.record_type === 'PAYMENT_ORDER';
@@ -1425,86 +1488,110 @@ function exportPDF() {
     var msgLabel = isOrder ? 'SINGLE CUSTOMER CREDIT TRANSFER'
                  : isM1   ? 'M1 TOKENIZATION — EUR TO SIG SETTLEMENT'
                            : 'GENERAL FINANCIAL INSTITUTION TRANSFER';
-    var status = (r.status||'UNKNOWN').toUpperCase();
+    var status  = (r.status || 'UNKNOWN').toUpperCase();
     var dateStr = r.created_at ? new Date(r.created_at).toISOString().replace('T',' ').slice(0,19)+' UTC' : '—';
-    var yymmdd = r.created_at ? new Date(r.created_at).toISOString().slice(2,10).replace(/-/g,'') : '——————';
+    var yymmdd  = r.created_at ? new Date(r.created_at).toISOString().slice(2,10).replace(/-/g,'') : '——————';
+    var statusCls = ['COMPLETED','SENT','APPROVED','FAILED'].indexOf(status) >= 0 ? status : '';
 
-    if (idx > 0) html += '<div class="page-break"></div>';
     html += '<div class="page">';
+    html += '<div class="stripe-top"></div>';
+    html += '<div class="stripe-bot"></div>';
+    html += '<div class="stripe-side"></div>';
+    html += '<div class="watermark">ALSHUMOOKH</div>';
+    html += '<div class="content">';
 
-    // Header
-    html += '<div class="hdr">';
-    html += '<div class="hdr-left"><div class="bank-name">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>';
-    html += '<div class="bank-sub">Dubai — United Arab Emirates &nbsp;|&nbsp; BIC/SWIFT: ALSGBFC0 &nbsp;|&nbsp; SWIFT Network Member</div></div>';
-    html += '<div class="hdr-right"><div class="ref-label">Document Reference</div>';
-    html += '<div class="ref-box">'+esc(refNum)+'-'+(idx+1).toString().padStart(2,'0')+'</div>';
-    html += '<div class="ref-label" style="margin-top:4px;">Generated: '+esc(genDate)+'</div></div>';
-    html += '</div>';
+    /* Letterhead */
+    html += '<div class="lhd">';
+    html += '<div>';
+    html += '<div class="bank-name">ALSHUMOOKH GLOBAL<br>BANKING FINANCE &amp; CREDIT</div>';
+    html += '<div class="bank-tag">International Financial Services</div>';
+    html += '<div class="bank-addr">';
+    html += 'Dubai, United Arab Emirates &nbsp;|&nbsp; BIC/SWIFT: ALSGBFC0<br>';
+    html += 'SWIFT Network Member &nbsp;|&nbsp; ISO 20022 Compliant';
+    html += '</div></div>';
+    html += '<div class="lhd-right">';
+    html += '<div class="lhd-doctype">Official SWIFT Message</div>';
+    html += '<div class="lhd-msgtype">'+esc(msgType)+'</div>';
+    html += '<div class="lhd-ref"><div class="lhd-ref-label">Document Reference</div>';
+    html += '<div class="lhd-ref-val">'+esc(refNum)+'-'+(idx+1).toString().padStart(2,'0')+'</div>';
+    html += '<div class="lhd-ref-label" style="margin-top:3pt;">Generated: '+esc(genDate)+'</div>';
+    html += '</div></div></div>';
 
-    html += '<div class="gold-bar"></div>';
+    html += '<div class="gold-div"></div>';
 
-    // Message type band
+    /* Message type band */
     html += '<div class="msg-band">';
-    html += '<div><div class="msg-type">'+esc(msgType)+'</div><div class="msg-label">'+esc(msgLabel)+'</div></div>';
-    html += '<div class="msg-status">'+esc(status)+'</div>';
+    html += '<div><div class="msg-type">'+esc(msgType)+'</div>';
+    html += '<div class="msg-desc">'+esc(msgLabel)+'</div></div>';
+    html += '<div class="msg-status '+statusCls+'">'+esc(status)+'</div>';
     html += '</div>';
 
-    // MT Field blocks
+    /* MT field helper */
     function mtRow(code, label, val) {
       var empty = !val || val === '—';
-      return '<div class="mt-row"><div class="mt-code">'+esc(code)+'</div>'
-        +'<div class="mt-field">'+esc(label)+'</div>'
-        +'<div class="mt-val'+(empty?' empty':'')+'">'+esc(empty?'NOT PROVIDED':String(val))+'</div></div>';
+      return '<tr>'
+        + '<td class="mt-cd">'+esc(code)+'</td>'
+        + '<td class="mt-nm">'+esc(label)+'</td>'
+        + '<td class="mt-vl'+(empty?' empty':'')+'">'+esc(empty ? 'NOT PROVIDED' : String(val))+'</td>'
+        + '</tr>';
     }
 
-    html += '<div class="mt-section"><div class="mt-section-title">SWIFT Message Fields</div>';
+    html += '<div class="sec-wrap"><div class="sec-hdr">SWIFT Message Fields</div>';
+    html += '<table class="mt-tbl">';
     if (isOrder) {
-      var fmtAmt = r.fiat_amount ? yymmdd+'/'+( r.fiat_currency||'USD')+'/'+r.fiat_amount : null;
-      html += mtRow(':20:','TRN', r.trn || r.reference || r.id);
-      html += mtRow(':21:','UETR', r.uetr || r.id);
-      html += mtRow(':23B:','BANK OP CODE','CRED');
-      html += mtRow(':32A:','VALUE DATE/CCY/AMOUNT', fmtAmt);
-      html += mtRow(':50K:','ORDERING CUSTOMER', [r.sender_email, r.sender_wallet].filter(Boolean).join(' | ') || null);
-      html += mtRow(':52A:','ORDERING INSTITUTION', r.provider);
-      html += mtRow(':57A:','ACCOUNT WITH INSTITUTION', r.network);
-      html += mtRow(':59:','BENEFICIARY', r.receiver_wallet);
-      html += mtRow(':70:','REMITTANCE INFO', r.external_id || r.provider_order_id);
-      html += mtRow(':71A:','CHARGES','SHA');
-      html += mtRow(':77B:','TX HASH', r.tx_hash);
+      var fmtAmt = r.fiat_amount ? yymmdd+'/'+(r.fiat_currency||'USD')+'/'+r.fiat_amount : null;
+      html += mtRow(':20:','Transaction Reference', r.trn || r.reference || r.id);
+      html += mtRow(':21:','UETR / Unique End-to-End TRN', r.uetr || r.id);
+      html += mtRow(':23B:','Bank Operation Code', 'CRED');
+      html += mtRow(':32A:','Value Date / Currency / Amount', fmtAmt);
+      html += mtRow(':50K:','Ordering Customer', [r.sender_email, r.sender_wallet].filter(Boolean).join(' | ') || null);
+      html += mtRow(':52A:','Ordering Institution', r.provider);
+      html += mtRow(':57A:','Account With Institution', r.network);
+      html += mtRow(':59:','Beneficiary Customer', r.receiver_wallet);
+      html += mtRow(':70:','Remittance Information', r.external_id || r.provider_order_id);
+      html += mtRow(':71A:','Details of Charges', 'SHA');
+      html += mtRow(':72:','Sender to Receiver Info', r.failure_reason || null);
+      html += mtRow(':77B:','Transaction Hash', r.tx_hash);
     } else if (isM1) {
       var eurAmt = r.fiat_amount ? yymmdd+'/EUR/'+r.fiat_amount : null;
-      html += mtRow(':20:','M1 TRN', r.trn || r.id);
-      html += mtRow(':21:','UETR', r.uetr || r.id);
-      html += mtRow(':23B:','OPERATION','EUR→SIG TOKENIZATION');
-      html += mtRow(':32A:','VALUE DATE/EUR AMOUNT', eurAmt);
-      html += mtRow(':32B:','SIG OUTPUT', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'SIG') : null);
-      html += mtRow(':50K:','ORDERING PARTY', [r.sender_name, r.sender_reference, r.sender_iban].filter(Boolean).join(' | ') || null);
-      html += mtRow(':57A:','SETTLEMENT NETWORK', r.network);
-      html += mtRow(':59:','DESTINATION WALLET', r.destination_wallet);
-      html += mtRow(':70:','FX RATE EUR/USD', r.fx_rate_eur_usd ? 'EUR/USD @ '+r.fx_rate_eur_usd : null);
-      html += mtRow(':71A:','TRANSFER ID', r.outbound_transfer_id);
-      html += mtRow(':77B:','PAYLOAD REF', r.payload_id);
+      html += mtRow(':20:','M1 Transaction Reference', r.trn || r.id);
+      html += mtRow(':21:','UETR / Unique End-to-End TRN', r.uetr || r.id);
+      html += mtRow(':23B:','Operation Code', 'EUR->SIG TOKENIZATION');
+      html += mtRow(':32A:','Value Date / EUR Amount', eurAmt);
+      html += mtRow(':32B:','SIG Token Output', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'SIG') : null);
+      html += mtRow(':50K:','Ordering Party', [r.sender_name, r.sender_reference, r.sender_iban].filter(Boolean).join(' | ') || null);
+      html += mtRow(':57A:','Settlement Network', r.network);
+      html += mtRow(':59:','Destination Wallet', r.destination_wallet);
+      html += mtRow(':70:','FX Rate EUR/USD', r.fx_rate_eur_usd ? 'EUR/USD @ '+r.fx_rate_eur_usd : null);
+      html += mtRow(':71A:','Outbound Transfer ID', r.outbound_transfer_id);
+      html += mtRow(':72:','USD Converted Amount', r.usd_amount ? r.usd_amount+' USD' : null);
+      html += mtRow(':77B:','Linked Payload Reference', r.payload_id);
     } else {
       var fmtAmt2 = r.amount ? yymmdd+'/'+(r.asset||'USDT')+'/'+r.amount : null;
-      html += mtRow(':20:','TRN', r.trn || r.reference || r.id);
-      html += mtRow(':21:','UETR', r.uetr || r.id);
-      html += mtRow(':32A:','VALUE DATE/ASSET/AMOUNT', fmtAmt2);
-      html += mtRow(':52A:','SECURITY LEVEL', r.security_level);
-      html += mtRow(':57A:','SETTLEMENT TYPE', r.settlement_type);
-      html += mtRow(':58A:','BENEFICIARY WALLET', r.receiver_wallet);
-      html += mtRow(':72:','REVIEW NOTE', r.review_note || r.error_message);
-      html += mtRow(':77B:','TX HASH', r.tx_hash);
+      html += mtRow(':20:','Transaction Reference', r.trn || r.reference || r.id);
+      html += mtRow(':21:','UETR / Unique End-to-End TRN', r.uetr || r.id);
+      html += mtRow(':32A:','Value Date / Asset / Amount', fmtAmt2);
+      html += mtRow(':52A:','Security Level', r.security_level);
+      html += mtRow(':53A:','Parsing Status', r.parsing_status);
+      html += mtRow(':57A:','Settlement Type', r.settlement_type);
+      html += mtRow(':58A:','Beneficiary Wallet', r.receiver_wallet);
+      html += mtRow(':72:','Review Note / Decision', [r.review_decision, r.review_note].filter(Boolean).join(' — ') || r.error_message);
+      html += mtRow(':77B:','Transaction Hash', r.tx_hash);
+      html += mtRow(':79:','Authorization Code', r.authorization_code);
     }
-    html += '</div>';
+    html += '</table></div>';
 
-    // Full detail table
-    html += '<div class="mt-section"><div class="mt-section-title">Complete Transaction Record</div>';
-    html += '<table class="detail-table"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>';
+    /* Complete transaction record */
+    html += '<div class="sec-wrap"><div class="sec-hdr">Complete Transaction Record</div>';
+    html += '<table class="dtl-tbl"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>';
     var fields = [];
     if (isOrder) {
       fields = [
-        ['Transaction UUID', r.id],['Payment Reference', r.reference],
-        ['Status', r.status],['Provider', r.provider],['Network', r.network],
+        ['Transaction UUID', r.id],
+        ['Payment Reference', r.reference],
+        ['Status', r.status],
+        ['Provider', r.provider],
+        ['Network', r.network],
         ['Fiat Amount', r.fiat_amount ? r.fiat_amount+' '+(r.fiat_currency||'') : '—'],
         ['Crypto Amount', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'') : '—'],
         ['Payer Email', r.sender_email || '—'],
@@ -1515,34 +1602,45 @@ function exportPDF() {
         ['External ID', r.external_id || '—'],
         ['Checkout URL', r.checkout_url || '—'],
         ['Failure Reason', r.failure_reason || '—'],
-        ['Created At', dateStr],
+        ['Created At (UTC)', dateStr],
       ];
     } else if (isM1) {
       fields = [
-        ['M1 Job UUID', r.id],['Sender Reference', r.sender_reference || '—'],
-        ['Sender Name', r.sender_name || '—'],['Sender IBAN', r.sender_iban || '—'],
-        ['Status', r.status],['Network', r.network],
+        ['M1 Job UUID', r.id],
+        ['Sender Reference', r.sender_reference || '—'],
+        ['Sender Full Name', r.sender_name || '—'],
+        ['Sender IBAN', r.sender_iban || '—'],
+        ['Job Status', r.status],
+        ['Settlement Network', r.network],
         ['EUR Amount', r.fiat_amount ? r.fiat_amount+' EUR' : '—'],
-        ['USD Converted', r.usd_amount ? r.usd_amount+' USD' : '—'],
-        ['SIG Output', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'SIG') : '—'],
+        ['USD Converted Amount', r.usd_amount ? r.usd_amount+' USD' : '—'],
         ['FX Rate EUR/USD', r.fx_rate_eur_usd || '—'],
+        ['SIG Token Output', r.crypto_amount ? r.crypto_amount+' '+(r.crypto_currency||'SIG') : '—'],
         ['Destination Wallet', r.destination_wallet || '—'],
         ['Outbound Transfer ID', r.outbound_transfer_id || '—'],
         ['Linked Payload ID', r.payload_id || '—'],
         ['Error Message', r.error_message || '—'],
-        ['Created At', dateStr],
+        ['Created At (UTC)', dateStr],
       ];
     } else {
       fields = [
-        ['Payload UUID', r.id],['Transaction Reference', r.reference],
-        ['Verification Status', r.status],['Parsing Status', r.parsing_status || '—'],
-        ['Security Level', r.security_level || '—'],['Amount', r.amount ? r.amount+' '+(r.asset||'') : '—'],
-        ['Network', r.network || '—'],['Sender Wallet', r.sender_wallet || '—'],
-        ['Receiver Wallet', r.receiver_wallet || '—'],['TX Hash', r.tx_hash || '—'],
-        ['Token Contract', r.token_contract || '—'],['Settlement Type', r.settlement_type || '—'],
+        ['Payload UUID', r.id],
+        ['Transaction Reference', r.reference],
+        ['Verification Status', r.status],
+        ['Parsing Status', r.parsing_status || '—'],
+        ['Security Level', r.security_level || '—'],
+        ['Amount', r.amount ? r.amount+' '+(r.asset||'') : '—'],
+        ['Network', r.network || '—'],
+        ['Sender Wallet', r.sender_wallet || '—'],
+        ['Receiver Wallet', r.receiver_wallet || '—'],
+        ['TX Hash', r.tx_hash || '—'],
+        ['Token Contract', r.token_contract || '—'],
+        ['Settlement Type', r.settlement_type || '—'],
         ['Authorization Code', r.authorization_code || '—'],
-        ['Review Decision', r.review_decision || '—'],['Review Note', r.review_note || '—'],
-        ['Error Message', r.error_message || '—'],['Created At', dateStr],
+        ['Review Decision', r.review_decision || '—'],
+        ['Review Note', r.review_note || '—'],
+        ['Error Message', r.error_message || '—'],
+        ['Created At (UTC)', dateStr],
       ];
     }
     fields.forEach(function(f) {
@@ -1550,28 +1648,38 @@ function exportPDF() {
     });
     html += '</tbody></table></div>';
 
-    // Footer with seal
-    html += '<div class="footer">';
-    html += '<div class="footer-left">';
-    html += 'This document is an official SWIFT message record issued by<br>';
+    /* Footer */
+    html += '<div class="doc-footer">';
+    html += '<div class="footer-rule">';
+    html += '<div class="footer-inner">';
+    html += '<div class="footer-txt">';
+    html += 'This document is an official SWIFT transaction record issued by<br>';
     html += '<strong>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</strong><br>';
-    html += 'For verification: compliance@alshumookh-pay.com<br>';
-    html += 'Session: '+esc(SESSION_ID)+' &nbsp;|&nbsp; Query: '+esc(_lastQuery)+'<br>';
-    html += '<em style="color:#aaa;font-size:7pt;">CONFIDENTIAL — FOR AUTHORIZED PERSONNEL ONLY — © ALSHUMOOKH GROUP 2026</em>';
+    html += 'Verification: compliance@alshumookh-pay.com &nbsp;|&nbsp; BIC/SWIFT: ALSGBFC0<br>';
+    html += 'Session: '+esc(SESSION_ID)+'&nbsp;&nbsp;Query Ref: '+esc(_lastQuery);
+    html += '<div class="footer-conf">STRICTLY CONFIDENTIAL — FOR AUTHORISED PERSONNEL ONLY — &copy; ALSHUMOOKH GROUP 2026 — UNAUTHORIZED REPRODUCTION PROHIBITED</div>';
     html += '</div>';
-    html += '<div class="auth-block"><div class="sig-line"></div><div class="sig-label">Authorized Signatory</div><div class="sig-label">Compliance &amp; Settlement Division</div></div>';
-    html += '<div class="seal">ALSHUMOOKH<br>GROUP<br>OFFICIAL<br>SWIFT<br>RECORD</div>';
-    html += '</div>';
+    html += '<div class="seal-wrap">';
+    html += '<div class="sig-blk"><div class="sig-line"></div>';
+    html += '<div class="sig-lbl">Authorized Signatory</div>';
+    html += '<div class="sig-lbl">Compliance &amp; Settlement Division</div></div>';
+    html += '<div class="seal">';
+    html += '<div class="seal-star">&#9733;</div>';
+    html += '<div class="seal-txt">ALSHUMOOKH<br>GROUP<br>&#x2015;<br>OFFICIAL<br>SWIFT RECORD</div>';
+    html += '</div></div>';
+    html += '</div></div></div>';
 
-    html += '</div>'; // .page
+    html += '</div></div>'; /* .content .page */
   });
 
   html += '</body></html>';
 
-  var w = window.open('','_blank','width=900,height=750');
+  var w = window.open('', '_blank', 'width=960,height=800');
+  if (!w) { showToast('Pop-up blocked — please allow pop-ups and try again', 'error'); return; }
   w.document.write(html);
   w.document.close();
-  setTimeout(function(){ w.print(); }, 600);
+  /* Give browser time to render fonts before triggering print */
+  setTimeout(function() { w.focus(); w.print(); }, 900);
 }
 
 // ── IMPORT & VERIFY MODAL ──────────────────────────────────────────────
