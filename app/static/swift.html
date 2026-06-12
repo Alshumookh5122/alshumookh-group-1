@@ -639,7 +639,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 
 var API_BASE        = '/api/v1';
 var LS_KEY_HIST     = 'swt_query_history_v2';
-var LS_KEY_AKEY     = 'adminApiKey';
+var LS_KEY_AKEY     = 'als_admin_key';
 var MAX_HIST        = 20;
 var SESSION_ID      = 'SESS-' + Math.random().toString(36).slice(2,7).toUpperCase();
 
@@ -651,7 +651,11 @@ var _lastQuery    = '';
 var _stats        = { q:0, res:0, files:0, notes:0, status:0 };
 
 function authHdr() {
-  var k = localStorage.getItem(LS_KEY_AKEY) || '';
+  // Read key same way as dashboard: sessionStorage → localStorage → cookie
+  var k = '';
+  try { k = sessionStorage.getItem('als_admin_key') || ''; } catch(e){}
+  if (!k) { try { k = localStorage.getItem('als_admin_key') || ''; } catch(e){} }
+  if (!k) { try { var m = document.cookie.match(/als_ak=([^;]+)/); k = m ? decodeURIComponent(m[1]) : ''; } catch(e){} }
   return { 'X-Admin-API-Key': k };
 }
 
