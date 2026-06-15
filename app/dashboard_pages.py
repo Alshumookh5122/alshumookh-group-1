@@ -1207,8 +1207,8 @@ function viewPayload(id) {
     // Route to Provider section
     var eurAmt = p.amount ? parseFloat(p.amount).toFixed(2) : '0.00';
     var routeHtml = '<div style="margin-top:16px;padding:16px;background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:10px;">'
-      +'<div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:12px;">🔀 Route Payload to Provider — تمويل SIG</div>'
-      +'<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">المبلغ: <strong style="color:var(--ink);">'+eurAmt+' '+(p.asset||'USDT')+'</strong> → اختر الوجهة لتحويل السيولة</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:12px;">🔀 Route Payload to Provider — SIG Funding</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Amount: <strong style="color:var(--ink);">'+eurAmt+' '+(p.asset||'USDT')+'</strong> → Select destination to route liquidity</div>'
       +'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">'
       +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1px solid var(--glass-border);border-radius:8px;font-size:12px;"><input type="radio" name="plProvider_'+id+'" value="moonpay" style="accent-color:var(--brand);"> MoonPay</label>'
       +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1px solid var(--glass-border);border-radius:8px;font-size:12px;"><input type="radio" name="plProvider_'+id+'" value="circle" style="accent-color:var(--brand);"> Circle USDC</label>'
@@ -1225,13 +1225,13 @@ function viewPayload(id) {
 }
 function routePayload(id){
   var sel=document.querySelector('input[name="plProvider_'+id+'"]:checked');
-  if(!sel){showToast('اختر Provider أولاً','error');return;}
+  if(!sel){showToast('Select a provider first','error');return;}
   var provider=sel.value;
   var res=document.getElementById('routeResult_'+id);
-  if(res) res.innerHTML='<span style="color:var(--muted);">جاري التوجيه إلى '+provider+'...</span>';
+  if(res) res.innerHTML='<span style="color:var(--muted);">Routing to '+provider+'...</span>';
   api('/api/v1/admin/payloads/'+id+'/route-provider',{method:'POST',body:JSON.stringify({provider:provider})})
     .then(function(r){
-      if(res) res.innerHTML='<span style="color:#22c55e;">✅ تم التوجيه إلى '+provider+' | '+JSON.stringify(r)+'</span>';
+      if(res) res.innerHTML='<span style="color:#22c55e;">✅ Routed to '+provider+' | '+JSON.stringify(r)+'</span>';
       showToast('Payload routed to '+provider,'ok');
     })
     .catch(function(e){
@@ -1661,13 +1661,13 @@ function toggleM1RouteBox(id){
 }
 function routeJobPayload(id){
   var sel=document.querySelector('input[name="jobProvider_'+id+'"]:checked');
-  if(!sel){showToast('اختر Provider أولاً','error');return;}
+  if(!sel){showToast('Select a provider first','error');return;}
   var provider=sel.value;
   var res=document.getElementById('jobRouteResult_'+id);
-  if(res) res.innerHTML='<span style="color:var(--muted);">جاري التوجيه إلى '+provider+'...</span>';
+  if(res) res.innerHTML='<span style="color:var(--muted);">Routing to '+provider+'...</span>';
   api('/api/v1/admin/tokenization-jobs/'+id+'/route-provider',{method:'POST',body:JSON.stringify({provider:provider})})
     .then(function(r){
-      if(res) res.innerHTML='<span style="color:#22c55e;">✅ تم التوجيه إلى '+provider.toUpperCase()+' — '+esc(r.message||'')+'</span>';
+      if(res) res.innerHTML='<span style="color:#22c55e;">✅ Routed to '+provider.toUpperCase()+' — '+esc(r.message||'')+'</span>';
       showToast('Routed to '+provider,'ok');
     })
     .catch(function(e){
@@ -3841,20 +3841,20 @@ _DISTRIBUTOR_BODY = """
 
 <!-- Deploy New Contract -->
 <div class="dist-card" style="border-color:rgba(124,58,237,.5);background:rgba(124,58,237,.06);">
-  <h3>🚀 نشر عقد جديد على البلوكشين</h3>
-  <p style="font-size:12px;color:var(--muted);margin:0 0 14px;">انشر عقد SIGProfitDistributor مباشرة من هنا عبر MetaMask — بدون Terminal وبدون Private Key.</p>
-  <label style="font-size:11px;color:var(--muted);">عنوان المالك (INITIAL_OWNER) — سيكون المالك الحقيقي للعقد</label>
-  <input class="dist-input" id="deployOwner" placeholder="0x... عنوان محفظتك الرئيسية" style="margin:6px 0 10px;" />
+  <h3>🚀 Deploy New Contract</h3>
+  <p style="font-size:12px;color:var(--muted);margin:0 0 14px;">Deploy SIGProfitDistributor directly from here via MetaMask — no Terminal, no Private Key needed.</p>
+  <label style="font-size:11px;color:var(--muted);">Owner Address (INITIAL_OWNER) — will be the true owner of the contract</label>
+  <input class="dist-input" id="deployOwner" placeholder="0x... your main wallet address" style="margin:6px 0 10px;" />
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-    <button class="dist-btn primary" onclick="deployContract()" id="deployBtn">🚀 نشر العقد الآن</button>
+    <button class="dist-btn primary" onclick="deployContract()" id="deployBtn">🚀 Deploy Contract Now</button>
     <span id="deployStatus" style="font-size:12px;color:var(--muted);"></span>
   </div>
   <div id="deployResult" style="display:none;margin-top:14px;padding:12px 16px;background:rgba(5,150,105,.1);border:1px solid rgba(5,150,105,.3);border-radius:8px;">
-    <p style="font-size:12px;color:#34d399;margin:0 0 6px;font-weight:700;">✅ تم نشر العقد بنجاح!</p>
-    <label style="font-size:11px;color:var(--muted);">عنوان العقد:</label>
+    <p style="font-size:12px;color:#34d399;margin:0 0 6px;font-weight:700;">✅ Contract deployed successfully!</p>
+    <label style="font-size:11px;color:var(--muted);">Contract Address:</label>
     <div style="display:flex;gap:8px;margin-top:4px;">
       <input class="dist-input" id="deployedAddr" readonly style="margin:0;background:rgba(5,150,105,.1);border-color:#34d399;color:#34d399;font-family:monospace;" />
-      <button class="dist-btn ghost" onclick="useDeployedContract()" style="white-space:nowrap;">⬇️ استخدم هذا العقد</button>
+      <button class="dist-btn ghost" onclick="useDeployedContract()" style="white-space:nowrap;">⬇️ Use This Contract</button>
     </div>
     <div id="deployExplorerLink" style="margin-top:8px;font-size:12px;"></div>
   </div>
