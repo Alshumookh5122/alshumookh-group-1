@@ -4035,15 +4035,26 @@ function distContract() {
 }
 
 function getMetaMaskProvider() {
-  // Multiple wallets installed — find MetaMask specifically
+  // Strict MetaMask check: must have isMetaMask=true, must NOT be Trust/Coinbase/Rabby
+  const isRealMetaMask = (p) => {
+    if (!p || !p.isMetaMask) return false;
+    if (p.isTrustWallet || p.isTrust || p.isCoinbaseWallet || p.isRabby) return false;
+    // MetaMask always exposes a _metamask object; fake wallets usually don't
+    if (p._metamask && typeof p._metamask === 'object') return true;
+    // Fallback: no Trust/Coinbase flags + isMetaMask
+    return !p.isTrustWallet && !p.isTrust;
+  };
+
+  // EIP-1193 multi-wallet providers array
   if (window.ethereum?.providers?.length) {
-    const mm = window.ethereum.providers.find(p => p.isMetaMask && !p.isTrust && !p.isTrustWallet);
+    const mm = window.ethereum.providers.find(isRealMetaMask);
     if (mm) return mm;
   }
-  // Single provider — check it's MetaMask (not Trust Wallet)
-  if (window.ethereum?.isMetaMask && !window.ethereum?.isTrust && !window.ethereum?.isTrustWallet) {
-    return window.ethereum;
-  }
+
+  // Single provider — check strictly
+  if (isRealMetaMask(window.ethereum)) return window.ethereum;
+
+  // Last resort: user has Trust Wallet only, no MetaMask
   return null;
 }
 
