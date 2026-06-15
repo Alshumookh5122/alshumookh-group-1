@@ -3833,9 +3833,9 @@ _DISTRIBUTOR_BODY = """
   <code id="walletAddr">Not connected</code>
   <button class="dist-btn primary" onclick="connectWallet()" id="connectBtn">Connect MetaMask</button>
   <select id="networkSelect" class="dist-input" style="width:160px;margin:0;" onchange="switchNetwork()">
+    <option value="1" selected>Ethereum Mainnet</option>
     <option value="97">BSC Testnet</option>
     <option value="56">BSC Mainnet</option>
-    <option value="1">Ethereum</option>
   </select>
 </div>
 
@@ -3877,8 +3877,8 @@ _DISTRIBUTOR_BODY = """
     <div class="dist-stat"><label>Payee Count</label><span id="stPayeeCount">—</span></div>
   </div>
   <div class="dist-grid" style="margin-bottom:12px;">
-    <div class="dist-stat"><label>BNB Received (total)</label><span id="stNativeReceived">—</span></div>
-    <div class="dist-stat"><label>BNB Tracked Balance</label><span id="stNativeTracked">—</span></div>
+    <div class="dist-stat"><label>ETH Received (total)</label><span id="stNativeReceived">—</span></div>
+    <div class="dist-stat"><label>ETH Tracked Balance</label><span id="stNativeTracked">—</span></div>
   </div>
   <div id="payeesList"></div>
 </div>
@@ -3922,15 +3922,15 @@ _DISTRIBUTOR_BODY = """
   <h3>💰 Deposit Funds</h3>
   <div class="dist-grid">
     <div>
-      <label style="font-size:11px;color:var(--muted);">Deposit Native BNB/ETH</label>
-      <input class="dist-input" id="nativeAmount" placeholder="Amount in BNB (e.g. 0.1)" />
-      <button class="dist-btn success" onclick="doDepositNative()">⬇️ Deposit BNB</button>
+      <label style="font-size:11px;color:var(--muted);">Deposit Native ETH</label>
+      <input class="dist-input" id="nativeAmount" placeholder="Amount in ETH (e.g. 0.1)" />
+      <button class="dist-btn success" onclick="doDepositNative()">⬇️ Deposit ETH</button>
     </div>
     <div>
-      <label style="font-size:11px;color:var(--muted);">Deposit ERC20/BEP20 Token</label>
-      <input class="dist-input" id="tokenAddr" placeholder="Token address (0x...)" />
+      <label style="font-size:11px;color:var(--muted);">Deposit SIG Token (ERC20)</label>
+      <input class="dist-input" id="tokenAddr" placeholder="SIG Token address (0x...)" value="0xc2ac880e474c3576cc3afb7c560e402ce24d5b37" />
       <input class="dist-input" id="tokenAmount" placeholder="Amount (in token units, e.g. 1000)" />
-      <button class="dist-btn success" onclick="doDepositToken()">⬇️ Approve & Deposit Token</button>
+      <button class="dist-btn success" onclick="doDepositToken()">⬇️ Approve & Deposit SIG</button>
     </div>
   </div>
 </div>
@@ -3940,13 +3940,13 @@ _DISTRIBUTOR_BODY = """
   <h3>🏦 Claim Your Share</h3>
   <div class="dist-grid">
     <div>
-      <label style="font-size:11px;color:var(--muted);">Claimable BNB for connected wallet</label>
-      <div class="dist-stat" style="margin-bottom:10px;"><span id="claimableNative">—</span> <span style="font-size:11px;color:var(--muted);">BNB</span></div>
-      <button class="dist-btn primary" onclick="doClaimNative()">💎 Claim BNB</button>
+      <label style="font-size:11px;color:var(--muted);">Claimable ETH for connected wallet</label>
+      <div class="dist-stat" style="margin-bottom:10px;"><span id="claimableNative">—</span> <span style="font-size:11px;color:var(--muted);">ETH</span></div>
+      <button class="dist-btn primary" onclick="doClaimNative()">💎 Claim ETH</button>
     </div>
     <div>
-      <label style="font-size:11px;color:var(--muted);">Claim Token</label>
-      <input class="dist-input" id="claimTokenAddr" placeholder="Token address (0x...)" />
+      <label style="font-size:11px;color:var(--muted);">Claim SIG Token</label>
+      <input class="dist-input" id="claimTokenAddr" placeholder="Token address (0x...)" value="0xc2ac880e474c3576cc3afb7c560e402ce24d5b37" />
       <div class="dist-stat" style="margin-bottom:10px;"><span id="claimableToken">—</span> <span style="font-size:11px;color:var(--muted);">tokens</span></div>
       <button class="dist-btn primary" onclick="checkClaimableToken()">🔍 Check</button>
       <button class="dist-btn success" onclick="doClaimToken()" style="margin-left:6px;">💎 Claim Token</button>
@@ -3960,9 +3960,9 @@ _DISTRIBUTOR_BODY = """
   <p style="font-size:11px;color:var(--muted);margin:0 0 10px;">Only for funds sent by mistake — cannot rescue tracked investor funds.</p>
   <div class="dist-grid">
     <div>
-      <input class="dist-input" id="rescueNativeAmt" placeholder="BNB amount to rescue" />
+      <input class="dist-input" id="rescueNativeAmt" placeholder="ETH amount to rescue" />
       <input class="dist-input" id="rescueNativeTo" placeholder="Recipient address (0x...)" />
-      <button class="dist-btn ghost" onclick="doRescueNative()">🛟 Rescue BNB</button>
+      <button class="dist-btn ghost" onclick="doRescueNative()">🛟 Rescue ETH</button>
     </div>
     <div>
       <input class="dist-input" id="rescueTokenAddr" placeholder="Token address (0x...)" />
@@ -3985,9 +3985,9 @@ _DISTRIBUTOR_BODY = """
     <div style="flex:1;">
       <label style="font-size:11px;color:var(--muted);">Network</label>
       <select class="dist-input" id="proofNetwork" style="margin:4px 0 0;">
-        <option value="bscTestnet">BSC Testnet</option>
+        <option value="ethereum" selected>Ethereum Mainnet</option>
         <option value="bscMainnet">BSC Mainnet</option>
-        <option value="ethereum">Ethereum</option>
+        <option value="bscTestnet">BSC Testnet</option>
       </select>
     </div>
     <button class="dist-btn primary" onclick="generateProofLink()" style="margin-bottom:8px;">🔗 Generate Link</button>
@@ -4090,8 +4090,8 @@ async function deployContract() {
     const _signer = await _provider.getSigner();
     const network = await _provider.getNetwork();
     const chainId = Number(network.chainId);
-    const explorerMap = { 56: 'https://bscscan.com', 97: 'https://testnet.bscscan.com', 1: 'https://etherscan.io' };
-    const explorer = explorerMap[chainId] || 'https://bscscan.com';
+    const explorerMap = { 1: 'https://etherscan.io', 56: 'https://bscscan.com', 97: 'https://testnet.bscscan.com' };
+    const explorer = explorerMap[chainId] || 'https://etherscan.io';
 
     status.textContent = 'Sending deployment transaction...';
     log('Deploying SIGProfitDistributor with owner: ' + ownerAddr);
@@ -4201,8 +4201,8 @@ async function loadContractState() {
     document.getElementById('stDepositsClosed').innerHTML = closed
       ? '<span class="dist-tag red">YES</span>' : '<span class="dist-tag green">NO</span>';
     document.getElementById('stPayeeCount').textContent = count.toString();
-    document.getElementById('stNativeReceived').textContent = ethers.formatEther(nativeReceived) + ' BNB';
-    document.getElementById('stNativeTracked').textContent = ethers.formatEther(nativeTracked) + ' BNB';
+    document.getElementById('stNativeReceived').textContent = ethers.formatEther(nativeReceived) + ' ETH';
+    document.getElementById('stNativeTracked').textContent = ethers.formatEther(nativeTracked) + ' ETH';
 
     // Load payees
     const payeeAddrs = await c.payees();
@@ -4481,7 +4481,7 @@ function generateProofLink() {
   const link = base + '/verify/distributor?contract=' + contract + '&wallet=' + investor + '&network=' + network;
   document.getElementById('proofLinkOut').value = link;
 
-  const explorer = EXPLORERS[network] || EXPLORERS.bscTestnet;
+  const explorer = EXPLORERS[network] || EXPLORERS.ethereum;
   document.getElementById('bscscanLinkBox').innerHTML =
     '<a href="' + explorer + '/address/' + contract + '" target="_blank" style="color:#7c3aed;font-size:12px;">🔍 View Contract on Explorer (' + network + ')</a>';
   document.getElementById('proofLinkBox').style.display = 'block';
@@ -4511,20 +4511,20 @@ async def investor_verify(request: Request):
     """Public investor verification page — no auth needed."""
     contract = request.query_params.get("contract", "")
     wallet   = request.query_params.get("wallet", "")
-    network  = request.query_params.get("network", "bscTestnet")
+    network  = request.query_params.get("network", "ethereum")
 
     rpc_map = {
-        "bscTestnet": "https://data-seed-prebsc-1-s1.binance.org:8545/",
-        "bscMainnet": "https://bsc-dataseed.binance.org/",
         "ethereum":   "https://cloudflare-eth.com",
+        "bscMainnet": "https://bsc-dataseed.binance.org/",
+        "bscTestnet": "https://data-seed-prebsc-1-s1.binance.org:8545/",
     }
     explorer_map = {
-        "bscTestnet": "https://testnet.bscscan.com",
-        "bscMainnet": "https://bscscan.com",
         "ethereum":   "https://etherscan.io",
+        "bscMainnet": "https://bscscan.com",
+        "bscTestnet": "https://testnet.bscscan.com",
     }
-    rpc      = rpc_map.get(network, rpc_map["bscTestnet"])
-    explorer = explorer_map.get(network, explorer_map["bscTestnet"])
+    rpc      = rpc_map.get(network, rpc_map["ethereum"])
+    explorer = explorer_map.get(network, explorer_map["ethereum"])
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
