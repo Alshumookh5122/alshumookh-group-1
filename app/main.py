@@ -1383,24 +1383,13 @@ async def dashboard_login_submit(request: Request, admin_key: str = Form(...)):
     clear_security_state(ip)
     logger.info("Admin login SUCCESS — IP: %s", ip)
 
-    token = create_admin_session_token(request)
-    secure = _is_secure_cookie_context()
-
-    # Use HTML+JS redirect instead of HTTP 303 to ensure the browser stores
-    # the session cookie before navigating away (some proxies/browsers drop
-    # Set-Cookie on 3xx responses).
-    html = """<!doctype html>
-<html><head><meta charset="utf-8"><title>Redirecting...</title></head>
-<body><script>window.location.replace("/dashboard");</script>
-<p>Redirecting...</p></body></html>"""
-
-    response = HTMLResponse(content=html, status_code=200)
+    response = RedirectResponse("/dashboard", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         ADMIN_SESSION_COOKIE,
-        token,
+        create_admin_session_token(request),
         max_age=ADMIN_SESSION_MAX_AGE,
         httponly=True,
-        secure=secure,
+        secure=_is_secure_cookie_context(),
         samesite="lax",
         path="/",
     )
