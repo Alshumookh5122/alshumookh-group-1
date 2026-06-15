@@ -4050,7 +4050,7 @@ function getMetaMaskProvider() {
 async function connectWallet() {
   const mm = getMetaMaskProvider();
   if (!mm) {
-    alert('MetaMask not found.\n\nIf you have Trust Wallet installed, please disable it temporarily or open MetaMask directly from the extensions bar.');
+    alert('MetaMask not found. If you have Trust Wallet installed, please disable it temporarily or open MetaMask directly from the extensions bar.');
     return;
   }
   try {
