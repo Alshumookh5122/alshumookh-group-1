@@ -3865,9 +3865,25 @@ _DISTRIBUTOR_BODY = """
 <!-- Set Payees -->
 <div class="dist-card">
   <h3>👥 Set Payees</h3>
-  <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">One address per line. Format: <code style="color:#a78bfa;">0xAddress,BPS</code> (BPS must sum to 10000)</p>
-  <textarea class="dist-input" id="payeesInput" rows="4" placeholder="0xProjectWallet,7000&#10;0xInvestorWallet,3000"></textarea>
-  <button class="dist-btn primary" onclick="doSetPayees()">✅ Set Payees</button>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+    <label style="font-size:12px;color:var(--muted);white-space:nowrap;">Number of wallets:</label>
+    <select class="dist-input" id="payeeCount" style="width:100px;margin:0;" onchange="buildPayeeRows()">
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+      <option value="8">8</option>
+      <option value="10">10</option>
+    </select>
+    <span id="bpsSumLabel" style="font-size:12px;font-weight:700;color:#fbbf24;">Total: 0 / 10000 BPS</span>
+  </div>
+  <div id="payeeRows" style="display:flex;flex-direction:column;gap:10px;"></div>
+  <div style="margin-top:14px;padding:10px 14px;background:rgba(124,58,237,.1);border-radius:8px;font-size:12px;color:var(--muted);">
+    BPS = Basis Points &nbsp;|&nbsp; 10000 BPS = 100% &nbsp;|&nbsp; 7000 = 70% &nbsp;|&nbsp; 3000 = 30%
+  </div>
+  <button class="dist-btn primary" onclick="doSetPayees()" style="margin-top:14px;">✅ Set Payees on Contract</button>
 </div>
 
 <!-- Freeze / Close -->
@@ -4008,7 +4024,7 @@ let provider, signer, walletAddress;
 function log(msg) {
   const el = document.getElementById('distLog');
   const ts = new Date().toLocaleTimeString();
-  el.textContent += '[' + ts + '] ' + msg + '\n';
+  el.textContent += '[' + ts + '] ' + msg + '\\n';
   el.scrollTop = el.scrollHeight;
 }
 
@@ -4089,20 +4105,94 @@ async function loadContractState() {
   } catch(e) { log('Load error: ' + e.message); }
 }
 
+// ── Build dynamic payee rows ─────────────────────────────────────────────────
+const BPS_PRESETS = [
+  {label:'100% — All', v:10000},
+  {label:'90%',  v:9000}, {label:'80%', v:8000}, {label:'75%', v:7500},
+  {label:'70%',  v:7000}, {label:'60%', v:6000}, {label:'50%', v:5000},
+  {label:'40%',  v:4000}, {label:'30%', v:3000}, {label:'25%', v:2500},
+  {label:'20%',  v:2000}, {label:'15%', v:1500}, {label:'10%', v:1000},
+  {label:'7.5%', v:750},  {label:'5%',  v:500},  {label:'2.5%',v:250},
+  {label:'1%',   v:100},  {label:'Custom', v:'custom'},
+];
+
+function bpsOptions(selected) {
+  return BPS_PRESETS.map(p =>
+    '<option value="' + p.v + '"' + (p.v == selected ? ' selected' : '') + '>' + p.label + '</option>'
+  ).join('');
+}
+
+function buildPayeeRows() {
+  const count = parseInt(document.getElementById('payeeCount').value);
+  const container = document.getElementById('payeeRows');
+  const existing = container.querySelectorAll('.payee-builder-row');
+  // keep existing values when rebuilding
+  const oldAddrs = [], oldBps = [], oldCustom = [];
+  existing.forEach((row, i) => {
+    oldAddrs[i] = row.querySelector('.pb-addr').value;
+    oldBps[i]   = row.querySelector('.pb-bps-sel').value;
+    oldCustom[i]= row.querySelector('.pb-bps-custom').value;
+  });
+
+  let html = '';
+  for (let i = 0; i < count; i++) {
+    const prevBps = oldBps[i] || (i === 0 ? 7000 : (i === 1 ? 3000 : 0));
+    const prevAddr = oldAddrs[i] || '';
+    const prevCustom = oldCustom[i] || '';
+    html += `
+<div class="payee-builder-row" style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;">
+  <input class="dist-input pb-addr" placeholder="Wallet #${i+1} address (0x...)" value="${prevAddr}" style="margin:0;" oninput="updateBpsSum()" />
+  <select class="dist-input pb-bps-sel" style="width:150px;margin:0;" onchange="onBpsChange(this)">
+    ${bpsOptions(prevBps)}
+  </select>
+  <input class="dist-input pb-bps-custom" type="number" min="1" max="10000" placeholder="BPS"
+         value="${prevCustom}" style="width:90px;margin:0;display:${prevBps==='custom'?'block':'none'};"
+         oninput="updateBpsSum()" />
+</div>`;
+  }
+  container.innerHTML = html;
+  updateBpsSum();
+}
+
+function onBpsChange(sel) {
+  const customInp = sel.closest('.payee-builder-row').querySelector('.pb-bps-custom');
+  customInp.style.display = sel.value === 'custom' ? 'block' : 'none';
+  updateBpsSum();
+}
+
+function updateBpsSum() {
+  let total = 0;
+  document.querySelectorAll('.payee-builder-row').forEach(row => {
+    const sel = row.querySelector('.pb-bps-sel');
+    const bps = sel.value === 'custom'
+      ? (parseInt(row.querySelector('.pb-bps-custom').value) || 0)
+      : parseInt(sel.value) || 0;
+    total += bps;
+  });
+  const lbl = document.getElementById('bpsSumLabel');
+  lbl.textContent = 'Total: ' + total + ' / 10000 BPS';
+  lbl.style.color = total === 10000 ? '#34d399' : (total > 10000 ? '#f87171' : '#fbbf24');
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', buildPayeeRows);
+
 async function doSetPayees() {
   if (!signer) { alert('Connect wallet first'); return; }
   const c = distContract(); if (!c) return;
-  const raw = document.getElementById('payeesInput').value.trim();
-  if (!raw) { alert('Enter payees'); return; }
-  const lines = raw.split('\n').filter(l => l.trim());
+  const rows = document.querySelectorAll('.payee-builder-row');
   const addrs = [], shares = [];
-  for (const line of lines) {
-    const [addr, bps] = line.split(',').map(s => s.trim());
-    if (!addr || !bps) { alert('Invalid line: ' + line); return; }
-    addrs.push(addr); shares.push(parseInt(bps));
+  for (const row of rows) {
+    const addr = row.querySelector('.pb-addr').value.trim();
+    const sel  = row.querySelector('.pb-bps-sel');
+    const bps  = sel.value === 'custom'
+      ? (parseInt(row.querySelector('.pb-bps-custom').value) || 0)
+      : parseInt(sel.value) || 0;
+    if (!addr) { alert('Enter all wallet addresses'); return; }
+    addrs.push(addr); shares.push(bps);
   }
   const sum = shares.reduce((a,b)=>a+b,0);
-  if (sum !== 10000) { alert('Shares sum is ' + sum + ', must be 10000'); return; }
+  if (sum !== 10000) { alert('BPS sum is ' + sum + ' — must be exactly 10000 (100%)'); return; }
   try {
     log('Sending setPayees transaction...');
     const tx = await c.setPayees(addrs, shares);
