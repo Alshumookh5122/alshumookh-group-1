@@ -4034,36 +4034,59 @@ function distContract() {
   return new ethers.Contract(addr, ABI, signer);
 }
 
+function getMetaMaskProvider() {
+  // Multiple wallets installed — find MetaMask specifically
+  if (window.ethereum?.providers?.length) {
+    const mm = window.ethereum.providers.find(p => p.isMetaMask && !p.isTrust && !p.isTrustWallet);
+    if (mm) return mm;
+  }
+  // Single provider — check it's MetaMask (not Trust Wallet)
+  if (window.ethereum?.isMetaMask && !window.ethereum?.isTrust && !window.ethereum?.isTrustWallet) {
+    return window.ethereum;
+  }
+  return null;
+}
+
 async function connectWallet() {
-  if (typeof window.ethereum === 'undefined') {
-    alert('MetaMask not found. Please install MetaMask extension.');
+  const mm = getMetaMaskProvider();
+  if (!mm) {
+    alert('MetaMask not found.\n\nIf you have Trust Wallet installed, please disable it temporarily or open MetaMask directly from the extensions bar.');
     return;
   }
   try {
-    provider = new ethers.BrowserProvider(window.ethereum);
+    provider = new ethers.BrowserProvider(mm);
     await provider.send('eth_requestAccounts', []);
     signer = await provider.getSigner();
     walletAddress = await signer.getAddress();
     document.getElementById('walletAddr').textContent = walletAddress;
     document.getElementById('connectBtn').textContent = 'Connected ✓';
     document.getElementById('connectBtn').style.background = '#059669';
-    log('Wallet connected: ' + walletAddress);
+    log('MetaMask connected: ' + walletAddress);
   } catch(e) { log('Connect error: ' + e.message); }
 }
 
 async function switchNetwork() {
+  const mm = getMetaMaskProvider();
+  if (!mm) { alert('MetaMask not found'); return; }
   const chainId = parseInt(document.getElementById('networkSelect').value);
   const hexId = '0x' + chainId.toString(16);
   try {
-    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hexId }] });
+    await mm.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hexId }] });
     log('Switched to chain ' + chainId);
   } catch(e) {
     if (e.code === 4902 && chainId === 97) {
-      await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{
+      await mm.request({ method: 'wallet_addEthereumChain', params: [{
         chainId: '0x61', chainName: 'BSC Testnet',
         nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
         rpcUrls: ['https://data-seed-prebsc-1-s1.binance.org:8545/'],
         blockExplorerUrls: ['https://testnet.bscscan.com']
+      }]});
+    } else if (e.code === 4902 && chainId === 56) {
+      await mm.request({ method: 'wallet_addEthereumChain', params: [{
+        chainId: '0x38', chainName: 'BNB Smart Chain',
+        nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+        rpcUrls: ['https://bsc-dataseed.binance.org/'],
+        blockExplorerUrls: ['https://bscscan.com']
       }]});
     }
   }
