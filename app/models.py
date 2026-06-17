@@ -1071,3 +1071,113 @@ class WebhookEvent(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# ─── Top-Up Engine ────────────────────────────────────────────────────────────
+
+class TopUpWalletStatus(str, enum.Enum):
+    ACTIVE   = "active"
+    INACTIVE = "inactive"
+
+class TopUpCardStatus(str, enum.Enum):
+    ACTIVE    = "active"
+    SUSPENDED = "suspended"
+    CLOSED    = "closed"
+
+class TopUpTransactionStatus(str, enum.Enum):
+    PENDING   = "pending"
+    SUCCESS   = "success"
+    FAILED    = "failed"
+    REJECTED  = "rejected"
+
+
+class TopUpWallet(Base):
+    """Internal wallet that holds balance for top-up cards."""
+    __tablename__ = "topup_wallets"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    currency: Mapped[str] = mapped_column(String(16), default="USDT", nullable=False)
+    balance: Mapped[Decimal] = mapped_column(
+        Numeric(30, 6), default=Decimal("0"), nullable=False
+    )
+    blockchain_address: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    network: Mapped[str] = mapped_column(String(32), default="ethereum", nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), default=TopUpWalletStatus.ACTIVE.value, nullable=False, index=True
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    cards: Mapped[list["TopUpCard"]] = relationship(back_populates="wallet", cascade="all,delete-orphan")
+
+
+class TopUpCard(Base):
+    """Prepaid card linked to a TopUpWallet."""
+    __tablename__ = "topup_cards"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    card_number: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    wallet_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("topup_wallets.id"), nullable=False, index=True
+    )
+    holder_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    provider_name: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(
+        String(16), default=TopUpCardStatus.ACTIVE.value, nullable=False, index=True
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    wallet: Mapped["TopUpWallet"] = relationship(back_populates="cards")
+    transactions: Mapped[list["TopUpTransaction"]] = relationship(
+        back_populates="card", cascade="all,delete-orphan"
+    )
+
+
+class TopUpTransaction(Base):
+    """Records every top-up request from a provider."""
+    __tablename__ = "topup_transactions"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    reference: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True,
+        default=lambda: f"TUP-{str(uuid.uuid4())[:8].upper()}"
+    )
+    card_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("topup_cards.id"), nullable=False, index=True
+    )
+    card_number: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    provider_name: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(30, 6), nullable=False)
+    currency: Mapped[str] = mapped_column(String(16), default="USDT", nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), default=TopUpTransactionStatus.PENDING.value, nullable=False, index=True
+    )
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provider_ref: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    raw_request: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    card: Mapped["TopUpCard"] = relationship(back_populates="transactions")

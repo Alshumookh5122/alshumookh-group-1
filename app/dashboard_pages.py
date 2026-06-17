@@ -69,6 +69,7 @@ _SIDEBAR_LINKS = [
     ("/dashboard/reports",       "📊", "Reports"),
     ("/dashboard/logs",          "📝", "Audit Logs"),
     ("/dashboard/distributor",   "⛓", "Profit Distributor"),
+    ("/dashboard/topup",         "💳", "Top-Up Engine"),
     ("/swift",                   "⬡", "SWIFT Terminal"),
 ]
 
@@ -3795,6 +3796,276 @@ async def dashboard_logout():
     response = Response(content="OK")
     response.delete_cookie(ADMIN_SESSION_COOKIE, path="/")
     return response
+
+
+# ─── TOP-UP ENGINE PAGE ───────────────────────────────────────────────────────
+
+_TOPUP_BODY = """
+<div class="page-body">
+<style>
+.tu-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px;}
+@media(max-width:900px){.tu-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:600px){.tu-grid{grid-template-columns:1fr;}}
+.tu-stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.tu-stat label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px;}
+.tu-stat span{font-size:22px;font-weight:700;color:#f0f0f0;}
+.tu-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:0;}
+.tu-tab{padding:10px 20px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);background:none;border:none;border-bottom:2px solid transparent;transition:.2s;text-transform:uppercase;letter-spacing:.05em;}
+.tu-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.tu-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+@media(max-width:600px){.tu-form{grid-template-columns:1fr;}}
+.tu-label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px;}
+.tu-input{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:#f0f0f0;font-size:12px;box-sizing:border-box;}
+.tu-input:focus{outline:none;border-color:var(--gold);}
+.tu-full{grid-column:1/-1;}
+</style>
+
+<!-- Stats Row -->
+<div class="tu-grid" id="tuStats">
+  <div class="tu-stat"><label>Total Wallets</label><span id="tuStatWallets">—</span></div>
+  <div class="tu-stat"><label>Total Cards</label><span id="tuStatCards">—</span></div>
+  <div class="tu-stat"><label>Total Top-Ups</label><span id="tuStatTxns">—</span></div>
+</div>
+
+<!-- Panel with Tabs -->
+<div class="panel" style="padding:0;overflow:hidden;">
+  <div class="tu-tabs">
+    <button class="tu-tab active" id="tuTab_wallets" onclick="tuSwitch('wallets')">💼 Wallets</button>
+    <button class="tu-tab" id="tuTab_cards" onclick="tuSwitch('cards')">💳 Cards</button>
+    <button class="tu-tab" id="tuTab_txns" onclick="tuSwitch('txns')">📋 Transactions</button>
+    <button class="tu-tab" id="tuTab_request" onclick="tuSwitch('request')">⚡ Top-Up Request</button>
+  </div>
+
+  <!-- Wallets Tab -->
+  <div id="tuPane_wallets" style="padding:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <strong style="font-size:13px;">Wallets</strong>
+      <button class="btn btn-primary" style="font-size:11px;" onclick="tuShowWalletForm()">+ Add Wallet</button>
+    </div>
+    <div id="tuWalletForm" style="display:none;background:rgba(255,255,255,.04);border-radius:9px;padding:14px;margin-bottom:14px;">
+      <div class="tu-form">
+        <div><label class="tu-label">Wallet Name *</label><input class="tu-input" id="tuWName" placeholder="e.g. Client Wallet A"></div>
+        <div><label class="tu-label">Currency</label><input class="tu-input" id="tuWCurrency" value="USDT"></div>
+        <div><label class="tu-label">Network</label><input class="tu-input" id="tuWNetwork" value="ethereum"></div>
+        <div><label class="tu-label">Blockchain Address</label><input class="tu-input" id="tuWAddress" placeholder="0x..."></div>
+        <div class="tu-full"><label class="tu-label">Notes</label><input class="tu-input" id="tuWNotes" placeholder="Optional notes"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-success" style="font-size:11px;" onclick="tuCreateWallet()">Save Wallet</button>
+        <button class="btn btn-ghost" style="font-size:11px;" onclick="document.getElementById('tuWalletForm').style.display='none'">Cancel</button>
+      </div>
+    </div>
+    <div id="tuWalletBody"><div class="empty-state"><div class="icon">💼</div>Loading wallets…</div></div>
+  </div>
+
+  <!-- Cards Tab -->
+  <div id="tuPane_cards" style="display:none;padding:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <strong style="font-size:13px;">Cards</strong>
+      <button class="btn btn-primary" style="font-size:11px;" onclick="tuShowCardForm()">+ Add Card</button>
+    </div>
+    <div id="tuCardForm" style="display:none;background:rgba(255,255,255,.04);border-radius:9px;padding:14px;margin-bottom:14px;">
+      <div class="tu-form">
+        <div><label class="tu-label">Card Number *</label><input class="tu-input" id="tuCNumber" placeholder="e.g. 4111111111111111"></div>
+        <div><label class="tu-label">Wallet ID *</label><input class="tu-input" id="tuCWalletId" placeholder="Wallet UUID"></div>
+        <div><label class="tu-label">Holder Name</label><input class="tu-input" id="tuCHolder" placeholder="Optional"></div>
+        <div><label class="tu-label">Provider Name</label><input class="tu-input" id="tuCProvider" placeholder="Optional"></div>
+        <div class="tu-full"><label class="tu-label">Notes</label><input class="tu-input" id="tuCNotes" placeholder="Optional"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-success" style="font-size:11px;" onclick="tuCreateCard()">Save Card</button>
+        <button class="btn btn-ghost" style="font-size:11px;" onclick="document.getElementById('tuCardForm').style.display='none'">Cancel</button>
+      </div>
+    </div>
+    <div id="tuCardBody"><div class="empty-state"><div class="icon">💳</div>Loading cards…</div></div>
+  </div>
+
+  <!-- Transactions Tab -->
+  <div id="tuPane_txns" style="display:none;padding:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <strong style="font-size:13px;">Top-Up Transactions</strong>
+      <button class="btn btn-ghost" style="font-size:11px;" onclick="tuLoadTxns()">⟳ Refresh</button>
+    </div>
+    <div id="tuTxnBody"><div class="empty-state"><div class="icon">📋</div>Loading transactions…</div></div>
+  </div>
+
+  <!-- Top-Up Request Tab -->
+  <div id="tuPane_request" style="display:none;padding:16px;">
+    <div style="max-width:480px;">
+      <strong style="font-size:13px;display:block;margin-bottom:14px;">⚡ Process Top-Up Request</strong>
+      <div class="tu-form" style="grid-template-columns:1fr;">
+        <div><label class="tu-label">Card Number *</label><input class="tu-input" id="tuRCard" placeholder="Card number"></div>
+        <div><label class="tu-label">Amount *</label><input class="tu-input" id="tuRAmount" type="number" step="0.000001" placeholder="e.g. 1000"></div>
+        <div><label class="tu-label">Currency</label><input class="tu-input" id="tuRCurrency" value="USDT"></div>
+        <div><label class="tu-label">Provider Name</label><input class="tu-input" id="tuRProvider" placeholder="Optional"></div>
+        <div><label class="tu-label">Provider Reference</label><input class="tu-input" id="tuRRef" placeholder="Optional"></div>
+      </div>
+      <button class="btn btn-success" style="width:100%;font-size:13px;padding:12px;" onclick="tuSubmitRequest()">Process Top-Up</button>
+      <div id="tuRequestResult" style="margin-top:14px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var tuActive='wallets';
+function tuSwitch(tab){
+  ['wallets','cards','txns','request'].forEach(function(t){
+    document.getElementById('tuPane_'+t).style.display=t===tab?'block':'none';
+    var btn=document.getElementById('tuTab_'+t);
+    if(btn){btn.className='tu-tab'+(t===tab?' active':'');}
+  });
+  tuActive=tab;
+  if(tab==='wallets')tuLoadWallets();
+  else if(tab==='cards')tuLoadCards();
+  else if(tab==='txns')tuLoadTxns();
+}
+function tuVal(id){return (document.getElementById(id)||{}).value||'';}
+function tuApi(path,opts){
+  return fetch(path,Object.assign({headers:{'Content-Type':'application/json','X-Admin-Key':window._adminKey||''}},opts||{}))
+    .then(function(r){return r.ok?r.json():r.json().then(function(e){throw new Error(e.detail||'Error');});});
+}
+function tuBadge(s){
+  var c={active:'#34d399',success:'#34d399',pending:'#fbbf24',inactive:'#6b7280',rejected:'#f87171',failed:'#f87171',suspended:'#f87171',closed:'#6b7280'};
+  var col=c[String(s||'').toLowerCase()]||'#9ca3af';
+  return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;background:'+col+'22;color:'+col+';">'+esc(String(s||'').toUpperCase())+'</span>';
+}
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function fmtDate(s){if(!s)return '—';return new Date(s).toLocaleString();}
+
+// ── Wallets ──────────────────────────────────────────────────────
+function tuShowWalletForm(){document.getElementById('tuWalletForm').style.display='block';}
+function tuLoadWallets(){
+  tuApi('/admin/topup/wallets').then(function(data){
+    if(!data.length){document.getElementById('tuWalletBody').innerHTML='<div class="empty-state"><div class="icon">💼</div>No wallets yet. Add one above.</div>';return;}
+    var h='<div class="table-wrap"><table><thead><tr><th>Name</th><th>Currency</th><th>Balance</th><th>Network</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
+    data.forEach(function(w){
+      h+='<tr>'
+        +'<td><strong>'+esc(w.name)+'</strong></td>'
+        +'<td>'+esc(w.currency)+'</td>'
+        +'<td style="font-weight:700;color:#34d399;">'+esc(w.balance)+'</td>'
+        +'<td>'+esc(w.network)+'</td>'
+        +'<td>'+tuBadge(w.status)+'</td>'
+        +'<td style="font-size:11px;">'+fmtDate(w.created_at)+'</td>'
+        +'<td><button class="btn btn-ghost" style="font-size:10px;padding:3px 8px;" data-id="'+esc(w.id)+'" onclick="tuCopyWalletId(this.dataset.id)">Copy ID</button></td>'
+        +'</tr>';
+    });
+    h+='</tbody></table></div>';
+    document.getElementById('tuWalletBody').innerHTML=h;
+    document.getElementById('tuStatWallets').textContent=data.length;
+  }).catch(function(e){document.getElementById('tuWalletBody').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+esc(e.message)+'</div>';});
+}
+function tuCopyWalletId(id){
+  navigator.clipboard.writeText(id).then(function(){showToast('Wallet ID copied','ok');}).catch(function(){});
+}
+function tuCreateWallet(){
+  var body={name:tuVal('tuWName'),currency:tuVal('tuWCurrency')||'USDT',network:tuVal('tuWNetwork')||'ethereum',blockchain_address:tuVal('tuWAddress')||null,notes:tuVal('tuWNotes')||null};
+  if(!body.name){showToast('Wallet name is required','error');return;}
+  tuApi('/admin/topup/wallets',{method:'POST',body:JSON.stringify(body)}).then(function(){
+    showToast('Wallet created','ok');
+    document.getElementById('tuWalletForm').style.display='none';
+    tuLoadWallets();
+  }).catch(function(e){showToast('Error: '+e.message,'error');});
+}
+
+// ── Cards ─────────────────────────────────────────────────────────
+function tuShowCardForm(){document.getElementById('tuCardForm').style.display='block';}
+function tuLoadCards(){
+  tuApi('/admin/topup/cards').then(function(data){
+    if(!data.length){document.getElementById('tuCardBody').innerHTML='<div class="empty-state"><div class="icon">💳</div>No cards yet. Add one above.</div>';return;}
+    var h='<div class="table-wrap"><table><thead><tr><th>Card Number</th><th>Holder</th><th>Provider</th><th>Status</th><th>Wallet ID</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
+    data.forEach(function(c){
+      h+='<tr>'
+        +'<td><code style="font-size:11px;">'+esc(c.card_number)+'</code></td>'
+        +'<td>'+esc(c.holder_name||'—')+'</td>'
+        +'<td>'+esc(c.provider_name||'—')+'</td>'
+        +'<td>'+tuBadge(c.status)+'</td>'
+        +'<td><code style="font-size:10px;">'+esc(c.wallet_id.slice(0,8))+'...</code></td>'
+        +'<td style="font-size:11px;">'+fmtDate(c.created_at)+'</td>'
+        +'<td style="display:flex;gap:4px;">'
+          +'<button class="btn btn-warning" style="font-size:10px;padding:3px 7px;" data-id="'+esc(c.id)+'" onclick="tuSuspendCard(this.dataset.id)">Suspend</button>'
+          +'<button class="btn btn-ghost" style="font-size:10px;padding:3px 7px;" data-id="'+esc(c.id)+'" onclick="tuActivateCard(this.dataset.id)">Activate</button>'
+        +'</td>'
+        +'</tr>';
+    });
+    h+='</tbody></table></div>';
+    document.getElementById('tuCardBody').innerHTML=h;
+    document.getElementById('tuStatCards').textContent=data.length;
+  }).catch(function(e){document.getElementById('tuCardBody').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+esc(e.message)+'</div>';});
+}
+function tuCreateCard(){
+  var body={card_number:tuVal('tuCNumber'),wallet_id:tuVal('tuCWalletId'),holder_name:tuVal('tuCHolder')||null,provider_name:tuVal('tuCProvider')||null,notes:tuVal('tuCNotes')||null};
+  if(!body.card_number||!body.wallet_id){showToast('Card number and wallet ID are required','error');return;}
+  tuApi('/admin/topup/cards',{method:'POST',body:JSON.stringify(body)}).then(function(){
+    showToast('Card created','ok');
+    document.getElementById('tuCardForm').style.display='none';
+    tuLoadCards();
+  }).catch(function(e){showToast('Error: '+e.message,'error');});
+}
+function tuSuspendCard(id){
+  tuApi('/admin/topup/cards/'+encodeURIComponent(id)+'/status',{method:'PATCH',body:JSON.stringify({status:'suspended'})})
+    .then(function(){showToast('Card suspended','ok');tuLoadCards();}).catch(function(e){showToast(e.message,'error');});
+}
+function tuActivateCard(id){
+  tuApi('/admin/topup/cards/'+encodeURIComponent(id)+'/status',{method:'PATCH',body:JSON.stringify({status:'active'})})
+    .then(function(){showToast('Card activated','ok');tuLoadCards();}).catch(function(e){showToast(e.message,'error');});
+}
+
+// ── Transactions ──────────────────────────────────────────────────
+function tuLoadTxns(){
+  tuApi('/admin/topup/transactions?limit=200').then(function(data){
+    if(!data.length){document.getElementById('tuTxnBody').innerHTML='<div class="empty-state"><div class="icon">📋</div>No transactions yet.</div>';return;}
+    var h='<div class="table-wrap"><table><thead><tr><th>Reference</th><th>Card</th><th>Provider</th><th>Amount</th><th>Currency</th><th>Status</th><th>Reason</th><th>Date</th></tr></thead><tbody>';
+    data.forEach(function(t){
+      h+='<tr>'
+        +'<td><code style="font-size:10px;">'+esc(t.reference||'—')+'</code></td>'
+        +'<td><code style="font-size:11px;">'+esc(t.card_number||'—')+'</code></td>'
+        +'<td>'+esc(t.provider_name||'—')+'</td>'
+        +'<td style="font-weight:700;color:#34d399;">'+esc(t.amount)+'</td>'
+        +'<td>'+esc(t.currency)+'</td>'
+        +'<td>'+tuBadge(t.status)+'</td>'
+        +'<td style="font-size:10px;color:#f87171;">'+esc(t.failure_reason||'')+'</td>'
+        +'<td style="font-size:11px;">'+fmtDate(t.created_at)+'</td>'
+        +'</tr>';
+    });
+    h+='</tbody></table></div>';
+    document.getElementById('tuTxnBody').innerHTML=h;
+    document.getElementById('tuStatTxns').textContent=data.length;
+  }).catch(function(e){document.getElementById('tuTxnBody').innerHTML='<div class="empty-state"><div class="icon">⚠</div>'+esc(e.message)+'</div>';});
+}
+
+// ── Top-Up Request ────────────────────────────────────────────────
+function tuSubmitRequest(){
+  var body={card_number:tuVal('tuRCard'),amount:parseFloat(tuVal('tuRAmount')),currency:tuVal('tuRCurrency')||'USDT',provider_name:tuVal('tuRProvider')||null,provider_ref:tuVal('tuRRef')||null};
+  if(!body.card_number||!body.amount){showToast('Card number and amount are required','error');return;}
+  tuApi('/admin/topup/request',{method:'POST',body:JSON.stringify(body)}).then(function(r){
+    var res=document.getElementById('tuRequestResult');
+    var ok=r.status==='success';
+    res.style.display='block';
+    res.innerHTML='<div style="background:'+(ok?'rgba(5,150,105,.15)':'rgba(220,38,38,.15)')+';border:1px solid '+(ok?'#34d399':'#f87171')+';border-radius:9px;padding:14px;">'
+      +'<div style="font-size:13px;font-weight:700;color:'+(ok?'#34d399':'#f87171')+';margin-bottom:8px;">'+(ok?'✅ Top-Up Successful':'❌ Top-Up Rejected')+'</div>'
+      +'<div style="font-size:11px;color:var(--muted);">Reference: <strong style="color:#f0f0f0;">'+esc(r.reference||'—')+'</strong></div>'
+      +'<div style="font-size:11px;color:var(--muted);">Amount: <strong style="color:#34d399;">'+esc(r.amount)+' '+esc(r.currency)+'</strong></div>'
+      +(r.failure_reason?'<div style="font-size:11px;color:#f87171;margin-top:6px;">Reason: '+esc(r.failure_reason)+'</div>':'')
+      +'</div>';
+    if(ok){showToast('Top-Up processed successfully','ok');}else{showToast('Top-Up rejected: '+r.failure_reason,'error');}
+    tuLoadTxns();
+  }).catch(function(e){showToast('Error: '+e.message,'error');});
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+tuLoadWallets();
+tuLoadTxns();
+</script>
+</div>
+"""
+
+
+@router.get("/dashboard/topup", response_class=HTMLResponse)
+async def dashboard_topup(request: Request):
+    g = _guard(request)
+    if g:
+        return g
+    return HTMLResponse(_page("Top-Up Engine", "/dashboard/topup", _TOPUP_BODY))
 
 
 _DISTRIBUTOR_BODY = """

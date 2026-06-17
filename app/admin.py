@@ -38,6 +38,9 @@ from app.models import (
     OutboundTransfer,
     OutboundTransferStatus,
     PaymentOrder,
+    TopUpCard,
+    TopUpWallet,
+    TopUpTransaction,
     Provider,
     TransactionFile,
     TreasuryWallet,
@@ -63,6 +66,18 @@ from app.tokenization_service import (
 from app.notification_service import (
     notify_transfer_failed,
     notify_m1_job_ready,
+)
+from app.topup_service import (
+    create_wallet as topup_create_wallet,
+    list_wallets as topup_list_wallets,
+    get_wallet as topup_get_wallet,
+    update_wallet_status as topup_update_wallet_status,
+    create_card as topup_create_card,
+    list_cards as topup_list_cards,
+    get_card as topup_get_card,
+    update_card_status as topup_update_card_status,
+    process_topup,
+    list_transactions as topup_list_transactions,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -1585,6 +1600,193 @@ async def order_document(
         raise HTTPException(status_code=404, detail="Order not found")
 
     return HTMLResponse(render_order_document(order, document_type))
+
+
+# ════════════════════════════════════════════════════════════════════
+#  TOP-UP ENGINE  —  Wallets, Cards, Transactions
+# ════════════════════════════════════════════════════════════════════
+
+# ── Wallets ──────────────────────────────────────────────────────────
+
+@router.post("/topup/wallets")
+async def topup_wallet_create(
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    name: str = Body(...),
+    currency: str = Body("USDT"),
+    network: str = Body("ethereum"),
+    blockchain_address: str | None = Body(None),
+    notes: str | None = Body(None),
+):
+    wallet = await topup_create_wallet(
+        db, name=name, currency=currency, network=network,
+        blockchain_address=blockchain_address, notes=notes,
+    )
+    return _topup_wallet_dict(wallet)
+
+
+@router.get("/topup/wallets")
+async def topup_wallet_list(_: AdminKey, db: AsyncSession = Depends(get_db)):
+    wallets = await topup_list_wallets(db)
+    return [_topup_wallet_dict(w) for w in wallets]
+
+
+@router.get("/topup/wallets/{wallet_id}")
+async def topup_wallet_get(wallet_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    wallet = await topup_get_wallet(db, wallet_id)
+    if not wallet:
+        raise HTTPException(status_code=404, detail="Wallet not found")
+    return _topup_wallet_dict(wallet)
+
+
+@router.patch("/topup/wallets/{wallet_id}/status")
+async def topup_wallet_status(
+    wallet_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    status: str = Body(...),
+):
+    wallet = await topup_update_wallet_status(db, wallet_id, status)
+    return _topup_wallet_dict(wallet)
+
+
+# ── Cards ─────────────────────────────────────────────────────────────
+
+@router.post("/topup/cards")
+async def topup_card_create(
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    card_number: str = Body(...),
+    wallet_id: str = Body(...),
+    holder_name: str | None = Body(None),
+    provider_name: str | None = Body(None),
+    notes: str | None = Body(None),
+):
+    try:
+        card = await topup_create_card(
+            db, card_number=card_number, wallet_id=wallet_id,
+            holder_name=holder_name, provider_name=provider_name, notes=notes,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _topup_card_dict(card)
+
+
+@router.get("/topup/cards")
+async def topup_card_list(_: AdminKey, db: AsyncSession = Depends(get_db)):
+    cards = await topup_list_cards(db)
+    return [_topup_card_dict(c) for c in cards]
+
+
+@router.get("/topup/cards/{card_id}")
+async def topup_card_get(card_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    card = await topup_get_card(db, card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    return _topup_card_dict(card)
+
+
+@router.patch("/topup/cards/{card_id}/status")
+async def topup_card_status(
+    card_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    status: str = Body(...),
+):
+    try:
+        card = await topup_update_card_status(db, card_id, status)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return _topup_card_dict(card)
+
+
+# ── Top-Up Request (Provider Endpoint) ───────────────────────────────
+
+@router.post("/topup/request")
+async def topup_request(
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    card_number: str = Body(...),
+    amount: Decimal = Body(...),
+    currency: str = Body("USDT"),
+    provider_name: str | None = Body(None),
+    provider_ref: str | None = Body(None),
+):
+    """
+    Main top-up endpoint called by the provider.
+    Body: { card_number, amount, currency, provider_name, provider_ref }
+    """
+    try:
+        txn = await process_topup(
+            db,
+            card_number=card_number,
+            amount=amount,
+            currency=currency,
+            provider_name=provider_name,
+            provider_ref=provider_ref,
+            raw_request={"card_number": card_number, "amount": str(amount), "currency": currency},
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _topup_txn_dict(txn)
+
+
+# ── Transactions ──────────────────────────────────────────────────────
+
+@router.get("/topup/transactions")
+async def topup_txn_list(
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    card_id: str | None = None,
+    limit: int = 100,
+):
+    txns = await topup_list_transactions(db, card_id=card_id, limit=limit)
+    return [_topup_txn_dict(t) for t in txns]
+
+
+# ── Serializers ───────────────────────────────────────────────────────
+
+def _topup_wallet_dict(w: TopUpWallet) -> dict:
+    return {
+        "id": w.id,
+        "name": w.name,
+        "currency": w.currency,
+        "balance": str(w.balance),
+        "network": w.network,
+        "blockchain_address": w.blockchain_address,
+        "status": w.status,
+        "notes": w.notes,
+        "created_at": w.created_at.isoformat() if w.created_at else None,
+    }
+
+
+def _topup_card_dict(c: TopUpCard) -> dict:
+    return {
+        "id": c.id,
+        "card_number": c.card_number,
+        "wallet_id": c.wallet_id,
+        "holder_name": c.holder_name,
+        "provider_name": c.provider_name,
+        "status": c.status,
+        "notes": c.notes,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+    }
+
+
+def _topup_txn_dict(t: TopUpTransaction) -> dict:
+    return {
+        "id": t.id,
+        "reference": t.reference,
+        "card_id": t.card_id,
+        "card_number": t.card_number,
+        "provider_name": t.provider_name,
+        "amount": str(t.amount),
+        "currency": t.currency,
+        "status": t.status,
+        "failure_reason": t.failure_reason,
+        "provider_ref": t.provider_ref,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
+    }
 
 
 @router.get("/reports/transactions", response_class=HTMLResponse)
