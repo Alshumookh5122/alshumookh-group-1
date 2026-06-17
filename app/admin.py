@@ -271,6 +271,17 @@ async def summary(_: AdminKey, db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.get("/settings/wallets", tags=["admin-settings"])
+async def get_treasury_wallets(_: AdminKey):
+    """Return treasury/master wallet addresses from system config."""
+    return {
+        "ethereum": (settings.eth_treasury_address or settings.treasury_wallet or "").strip(),
+        "tron":     (settings.master_wallet_tron or "").strip(),
+        "base":     (settings.master_wallet_base or "").strip(),
+        "label":    "Al Shumookh Treasury",
+    }
+
+
 @router.get("/system/readiness")
 async def system_readiness(_: AdminKey, db: AsyncSession = Depends(get_db)):
     clients_result = await db.execute(select(ApiClient).order_by(ApiClient.created_at.desc()))
@@ -3618,7 +3629,7 @@ async def list_tokenization_jobs(
             "fx_rate": str(job.fx_rate_eur_usd) if job.fx_rate_eur_usd else None,
             "usd_amount": str(job.usd_amount) if job.usd_amount else None,
             "usdt_amount": str(job.usdt_amount) if job.usdt_amount else None,
-            "target_asset": str((job.raw_data or {}).get("target_asset") or "USDT").upper(),
+            "target_asset": str((job.raw_data or {}).get("target_asset") or "SIG").upper(),
             "raw_data": job.raw_data or {},
             "network": job.network,
             "destination_wallet": job.destination_wallet,
@@ -3658,6 +3669,14 @@ async def create_manual_tokenization_job(
     eur_raw = body.get("eur_amount")
     destination = body.get("destination_wallet", "").strip()
 
+    # Allow "__treasury__" as shorthand for the configured treasury address
+    if destination == "__treasury__":
+        destination = (
+            (settings.eth_treasury_address or "").strip()
+            or (settings.treasury_wallet or "").strip()
+            or ""
+        )
+
     if not eur_raw:
         raise HTTPException(status_code=422, detail="eur_amount is required")
     if not destination:
@@ -3679,7 +3698,7 @@ async def create_manual_tokenization_job(
         destination_wallet=destination,
         network=body.get("network", "ethereum"),
         notes=body.get("notes"),
-        raw_data={"target_asset": str(body.get("target_asset") or "USDT").strip().upper()},
+        raw_data={"target_asset": str(body.get("target_asset") or "SIG").strip().upper()},
     )
     return await get_job_summary(db, job.id)
 

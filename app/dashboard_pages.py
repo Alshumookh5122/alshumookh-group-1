@@ -1516,13 +1516,34 @@ _TOKENIZATION_BODY = """
     <div style="padding:16px;">
       <div class="form-grid">
         <div class="form-field"><label>EUR Amount *</label><input id="m1Eur" type="number" step="0.01" placeholder="0.00"></div>
-        <div class="form-field"><label>Destination Wallet *</label><input id="m1Dest" placeholder="0x... or T..."></div>
         <div class="form-field"><label>Reference</label><input id="m1Ref" placeholder="Optional"></div>
         <div class="form-field"><label>Sender Name</label><input id="m1Name" placeholder="Optional"></div>
-        <div class="form-field"><label>Network</label>
-          <select id="m1Net"><option value="ethereum">Ethereum</option><option value="tron">TRON</option><option value="base">Base</option></select></div>
-        <div class="form-field"><label>Target Asset</label><select id="m1Asset"><option value="SIG" selected>SIG (Default)</option><option value="USDT">USDT</option></select></div>
         <div class="form-field"><label>IBAN</label><input id="m1Iban" placeholder="Optional"></div>
+        <div class="form-field"><label>Network</label>
+          <select id="m1Net" onchange="m1OnNetworkChange()"><option value="ethereum">Ethereum</option><option value="tron">TRON</option><option value="base">Base</option></select></div>
+        <div class="form-field"><label>Target Asset</label><select id="m1Asset"><option value="SIG" selected>SIG (Default)</option><option value="USDT">USDT</option></select></div>
+        <div class="form-field" style="grid-column:1 / -1;">
+          <label>Destination Wallet *</label>
+          <div style="display:flex;gap:8px;margin-bottom:10px;">
+            <button id="m1BtnTreasury" type="button" onclick="m1SetDestMode('treasury')"
+              style="flex:1;padding:9px 6px;border-radius:8px;border:2px solid var(--gold);background:rgba(251,191,36,.12);color:var(--gold);font-weight:700;font-size:12px;cursor:pointer;transition:all .2s;">
+              🏛 Treasury (Main Wallet)
+            </button>
+            <button id="m1BtnCustom" type="button" onclick="m1SetDestMode('custom')"
+              style="flex:1;padding:9px 6px;border-radius:8px;border:2px solid var(--border);background:transparent;color:var(--muted);font-weight:600;font-size:12px;cursor:pointer;transition:all .2s;">
+              ✏️ Custom Wallet
+            </button>
+          </div>
+          <div id="m1DestTreasuryBox" style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:10px 14px;">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Treasury Address (auto-filled)</div>
+            <div id="m1TreasuryAddr" style="font-family:monospace;font-size:12px;color:var(--gold);word-break:break-all;">Loading...</div>
+            <input type="hidden" id="m1Dest" value="__treasury__">
+          </div>
+          <div id="m1DestCustomBox" style="display:none;">
+            <input id="m1DestCustom" class="form-input" placeholder="0x... (Ethereum) or T... (TRON)" style="width:100%;box-sizing:border-box;">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">Enter the recipient wallet address manually</div>
+          </div>
+        </div>
         <div class="form-field" style="grid-column:1 / -1;">
           <button type="button" class="btn btn-ghost" onclick="toggleM1FormGas()" style="font-size:11px;padding:4px 10px;">Show Manual Gas Estimate</button>
           <div id="m1FormGasBox" style="display:none;margin-top:8px;">
@@ -1560,14 +1581,66 @@ function loadFx(){
     document.getElementById('fxBanner').innerHTML='<div style="font-size:28px;font-weight:800;color:var(--gold);">1 EUR = '+parseFloat(r.eur_usd).toFixed(4)+' USD</div><div style="color:var(--muted);font-size:12px;">Provider: '+(r.provider||'—')+'<br>'+fmtDate(r.timestamp)+'</div>';
   }).catch(function(e){document.getElementById('fxBanner').innerHTML='<span style="color:var(--muted);">Unavailable: '+e.message+'</span>';});
 }
+var _m1TreasuryWallets={ethereum:'',tron:'',base:''};
+var _m1DestMode='treasury';
+
+function m1LoadTreasuryWallets(){
+  api('/api/v1/admin/settings/wallets').then(function(r){
+    _m1TreasuryWallets=r;
+    m1UpdateTreasuryDisplay();
+  }).catch(function(){
+    document.getElementById('m1TreasuryAddr').textContent='Not configured';
+  });
+}
+
+function m1UpdateTreasuryDisplay(){
+  var net=document.getElementById('m1Net').value;
+  var addr=_m1TreasuryWallets[net]||_m1TreasuryWallets.ethereum||'Not configured';
+  document.getElementById('m1TreasuryAddr').textContent=addr||'Not configured';
+  document.getElementById('m1Dest').value='__treasury__';
+}
+
+function m1OnNetworkChange(){
+  if(_m1DestMode==='treasury') m1UpdateTreasuryDisplay();
+}
+
+function m1SetDestMode(mode){
+  _m1DestMode=mode;
+  var btnT=document.getElementById('m1BtnTreasury');
+  var btnC=document.getElementById('m1BtnCustom');
+  var boxT=document.getElementById('m1DestTreasuryBox');
+  var boxC=document.getElementById('m1DestCustomBox');
+  if(mode==='treasury'){
+    btnT.style.borderColor='var(--gold)';btnT.style.background='rgba(251,191,36,.12)';btnT.style.color='var(--gold)';
+    btnC.style.borderColor='var(--border)';btnC.style.background='transparent';btnC.style.color='var(--muted)';
+    boxT.style.display='block';boxC.style.display='none';
+    m1UpdateTreasuryDisplay();
+  } else {
+    btnC.style.borderColor='var(--accent)';btnC.style.background='rgba(99,102,241,.12)';btnC.style.color='var(--accent)';
+    btnT.style.borderColor='var(--border)';btnT.style.background='transparent';btnT.style.color='var(--muted)';
+    boxC.style.display='block';boxT.style.display='none';
+    setTimeout(function(){var i=document.getElementById('m1DestCustom');if(i)i.focus();},50);
+  }
+}
+
+function m1GetDestination(){
+  if(_m1DestMode==='treasury') return '__treasury__';
+  return (document.getElementById('m1DestCustom')||{value:''}).value.trim();
+}
+
 function toggleM1F(){
   var el=document.getElementById('m1Form');
-  el.style.display=el.style.display==='none'?'block':'none';
+  var isHidden=(el.style.display==='none'||!el.style.display);
+  el.style.display=isHidden?'block':'none';
+  if(isHidden){ m1LoadTreasuryWallets(); m1SetDestMode('treasury'); }
 }
+
 function createJob(){
-  var body={eur_amount:document.getElementById('m1Eur').value,destination_wallet:document.getElementById('m1Dest').value.trim(),sender_reference:document.getElementById('m1Ref').value.trim()||null,sender_name:document.getElementById('m1Name').value.trim()||null,sender_iban:document.getElementById('m1Iban').value.trim()||null,network:document.getElementById('m1Net').value,target_asset:document.getElementById('m1Asset').value};
+  var dest=m1GetDestination();
+  var body={eur_amount:document.getElementById('m1Eur').value,destination_wallet:dest,sender_reference:document.getElementById('m1Ref').value.trim()||null,sender_name:document.getElementById('m1Name').value.trim()||null,sender_iban:document.getElementById('m1Iban').value.trim()||null,network:document.getElementById('m1Net').value,target_asset:document.getElementById('m1Asset').value};
   if(!body.eur_amount){showToast('EUR amount is required','error');return;}
   if(!body.destination_wallet){showToast('Destination wallet is required','error');return;}
+  if(_m1DestMode==='custom'&&body.destination_wallet.length<10){showToast('Please enter a valid wallet address','error');return;}
   api('/api/v1/admin/tokenization-jobs',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('Job created','ok');toggleM1F();loadJobs();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function processJob(id){
@@ -1617,7 +1690,13 @@ function estimateM1Gas(network,wallet,amount,target,inputId){
 function estimateM1GasFromForm(){
   var eur=parseFloat(document.getElementById('m1Eur').value||'0');
   var approximateUsdt=eur>0?String(eur):'1';
-  estimateM1Gas(document.getElementById('m1Net').value,document.getElementById('m1Dest').value.trim(),approximateUsdt,'m1GasEstimate');
+  var dest=m1GetDestination();
+  // For gas estimation use treasury address if __treasury__ mode
+  if(dest==='__treasury__'){
+    var net=document.getElementById('m1Net').value;
+    dest=_m1TreasuryWallets[net]||_m1TreasuryWallets.ethereum||'0x0000000000000000000000000000000000000000';
+  }
+  estimateM1Gas(document.getElementById('m1Net').value,dest,approximateUsdt,'m1GasEstimate');
 }
 var _m1GasOrders={};
 function gasJobInvoice(id){

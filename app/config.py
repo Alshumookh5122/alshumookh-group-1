@@ -202,6 +202,9 @@ class Settings(BaseSettings):
     )
     m1_token_decimals: int = Field(default=18, alias="M1_TOKEN_DECIMALS")
     sig_token_decimals: int = Field(default=18, alias="SIG_TOKEN_DECIMALS")
+    # SIG M1 issuance price in USD — used for EUR→SIG tokenization conversion
+    # 23,085,000 EUR × 1.1537 ÷ 0.053266 = 500,000,000 SIG
+    sig_m1_price_usd: Decimal = Field(default=Decimal("0.053266"), alias="SIG_M1_PRICE_USD")
     m1_token_name: str = Field(default="Al Shumookh M1 Fund Token", alias="M1_TOKEN_NAME")
     m1_token_symbol: str = Field(default="M1", alias="M1_TOKEN_SYMBOL")
     sig_token_name: str = Field(

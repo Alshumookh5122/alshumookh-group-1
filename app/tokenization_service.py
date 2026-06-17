@@ -215,7 +215,7 @@ async def process_tokenization_job(
             None,
         )
 
-        # ── Step 2: Calculate USDT (1:1 with USD) ─────────────
+        # ── Step 2: Calculate token output ────────────────────
         job.status = M1TokenizationStatus.CONVERTING.value
         target_asset = str(
             override_asset
@@ -225,23 +225,27 @@ async def process_tokenization_job(
         if target_asset not in {"USDT", "SIG"}:
             raise ValueError("Tokenization target asset must be USDT or SIG")
         if target_asset == "SIG":
+            # SIG: divide USD amount by M1 issuance price (e.g. 0.053266 USD/SIG)
+            # This gives correct SIG output: 26,633,164.50 USD ÷ 0.053266 = 500,000,000 SIG
             token_precision = Decimal("0.000000000000000001")  # 18 decimals
+            sig_price = settings.sig_m1_price_usd
+            usdt_amount = (usd_amount / sig_price).quantize(token_precision, rounding=ROUND_DOWN)
         else:
+            # USDT: 1:1 with USD
             token_precision = Decimal("0.000001")               # 6 decimals (USDT)
-        usdt_amount = usd_amount.quantize(token_precision, rounding=ROUND_DOWN)
+            usdt_amount = usd_amount.quantize(token_precision, rounding=ROUND_DOWN)
         job.usdt_amount = usdt_amount
 
         destination = override_destination or job.destination_wallet
         network = override_network or job.network or "ethereum"
 
         if not destination:
-            destination = (
-                (settings.eth_treasury_address or "").strip()
-                or (settings.treasury_wallet or "").strip()
-                or (settings.master_wallet_ethereum or "").strip()
+            raise ValueError(
+                "destination_wallet is required for tokenization jobs. "
+                "The client's receiving wallet address must be explicitly set on the job "
+                "before processing. Falling back to treasury address is not allowed — "
+                "it would cause a self-transfer (treasury → treasury)."
             )
-        if not destination:
-            raise ValueError("ETH_TREASURY_ADDRESS is not configured.")
 
         await db.commit()
 
