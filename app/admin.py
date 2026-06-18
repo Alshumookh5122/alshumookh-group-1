@@ -3611,32 +3611,91 @@ async def list_tokenization_jobs(
     status: str | None = None,
     limit: int = 100,
 ):
-    """List M1 tokenization jobs with optional status filter."""
+    """List M1 tokenization jobs with full sender, receiver and blockchain details."""
     q = select(M1TokenizationJob).order_by(M1TokenizationJob.created_at.desc()).limit(limit)
     if status:
         q = q.where(M1TokenizationJob.status == status.upper())
     result = await db.execute(q)
     jobs = result.scalars().all()
 
+    # Bulk-fetch all linked OutboundTransfers in one query
+    ot_ids = [j.outbound_transfer_id for j in jobs if j.outbound_transfer_id]
+    ot_map: dict = {}
+    if ot_ids:
+        ot_res = await db.execute(
+            select(OutboundTransfer).where(OutboundTransfer.id.in_(ot_ids))
+        )
+        for ot in ot_res.scalars().all():
+            ot_map[ot.id] = ot
+
     output = []
     for job in jobs:
+        ot = ot_map.get(job.outbound_transfer_id) if job.outbound_transfer_id else None
+        raw = job.raw_data or {}
+        target_asset = str(raw.get("target_asset") or "SIG").upper()
+
+        # Resolve tx_hash & blockchain details from OutboundTransfer
+        tx_hash         = (ot.tx_hash        if ot else None) or raw.get("tx_hash")
+        block_number    = (ot.block_number    if ot else None)
+        confirmations   = (ot.confirmations   if ot else None)
+        explorer_url    = (ot.explorer_url    if ot else None)
+        contract_address= (ot.contract_address if ot else None)
+        gas_used        = (ot.gas_used        if ot else None)
+        approved_by     = (ot.approved_by     if ot else None)
+        from_address    = (ot.from_address    if ot else None)
+        ot_status       = (ot.status          if ot else None)
+
+        # Build Etherscan URL if missing
+        if tx_hash and not explorer_url:
+            net = (job.network or "ethereum").lower()
+            if net in ("ethereum", "eth", "erc20"):
+                explorer_url = f"https://etherscan.io/tx/{tx_hash}"
+            elif net in ("base",):
+                explorer_url = f"https://basescan.org/tx/{tx_hash}"
+            elif net in ("tron", "trx", "trc20"):
+                explorer_url = f"https://tronscan.org/#/transaction/{tx_hash}"
+
         output.append({
+            # ── Identity ──────────────────────────────────────────────────
             "id": job.id,
-            "status": job.status,
+            "payload_id": job.payload_id,
+            "outbound_transfer_id": job.outbound_transfer_id,
+            # ── Sender ────────────────────────────────────────────────────
             "sender_reference": job.sender_reference,
             "sender_name": job.sender_name,
+            "sender_iban": job.sender_iban,
+            "sender_bank": raw.get("sender_bank") or raw.get("bank_name"),
+            # ── Conversion ────────────────────────────────────────────────
             "eur_amount": str(job.eur_amount),
             "fx_rate": str(job.fx_rate_eur_usd) if job.fx_rate_eur_usd else None,
+            "fx_rate_eur_usd": str(job.fx_rate_eur_usd) if job.fx_rate_eur_usd else None,
+            "fx_provider": job.fx_provider,
             "usd_amount": str(job.usd_amount) if job.usd_amount else None,
             "usdt_amount": str(job.usdt_amount) if job.usdt_amount else None,
-            "target_asset": str((job.raw_data or {}).get("target_asset") or "SIG").upper(),
-            "raw_data": job.raw_data or {},
+            "target_asset": target_asset,
+            # ── Receiver / Blockchain ─────────────────────────────────────
             "network": job.network,
+            "receiver_wallet": job.destination_wallet,
             "destination_wallet": job.destination_wallet,
-            "outbound_transfer_id": job.outbound_transfer_id,
+            "operator_wallet": from_address,
+            "tx_hash": tx_hash,
+            "block_number": block_number,
+            "confirmations": confirmations,
+            "explorer_url": explorer_url,
+            "contract_address": contract_address,
+            "gas_used": gas_used,
+            # ── Status ────────────────────────────────────────────────────
+            "status": job.status,
+            "outbound_status": ot_status,
+            "approved_by": approved_by,
             "error_message": job.error_message,
+            "notes": job.notes,
+            # ── Timestamps ───────────────────────────────────────────────
             "created_at": job.created_at.isoformat() if job.created_at else None,
+            "updated_at": job.updated_at.isoformat() if job.updated_at else None,
             "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            # ── Raw ───────────────────────────────────────────────────────
+            "raw_data": raw,
         })
     return output
 

@@ -371,24 +371,56 @@ function _prPrint(){
       {l:'Completed At',v:pDate(data.completed_at)}
     ];
   }else if(type==='m1'){
+    var m1TxV = data.tx_hash
+      ? (data.explorer_url
+          ? '<a href="'+pEsc(data.explorer_url)+'" target="_blank" style="font-family:monospace;font-size:9px;word-break:break-all;color:#1d4ed8;">'+pEsc(data.tx_hash)+'</a>'
+          : '<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>')
+      : '—';
+    var m1WalletV = data.receiver_wallet
+      ? '<a href="https://etherscan.io/address/'+pEsc(data.receiver_wallet)+'" target="_blank" style="font-family:monospace;font-size:9px;word-break:break-all;color:#1d4ed8;">'+pEsc(data.receiver_wallet)+'</a>'
+      : '—';
+    var m1OpV = data.operator_wallet
+      ? '<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.operator_wallet)+'</span>'
+      : '—';
+    var m1ContractV = data.contract_address
+      ? '<a href="https://etherscan.io/address/'+pEsc(data.contract_address)+'" target="_blank" style="font-family:monospace;font-size:9px;word-break:break-all;color:#1d4ed8;">'+pEsc(data.contract_address)+'</a>'
+      : '—';
     rows=[{h:'IDENTITY'},
-      {l:'Job ID',v:pEsc(data.id)},{l:'Sender Reference',v:pEsc(data.sender_reference)},
+      {l:'Job ID',v:'<span style="font-family:monospace;font-size:9px;">'+pEsc(data.id)+'</span>'},
+      {l:'Sender Reference',v:pEsc(data.sender_reference)},
+      {l:'Outbound Transfer ID',v:'<span style="font-family:monospace;font-size:9px;">'+pEsc(data.outbound_transfer_id)+'</span>'},
+      {l:'Payload ID',v:'<span style="font-family:monospace;font-size:9px;">'+pEsc(data.payload_id)+'</span>'},
       {h:'SENDER'},
-      {l:'Sender Name',v:pEsc(data.sender_name)},{l:'Sender IBAN',v:'<span style="font-family:monospace;">'+pEsc(data.sender_iban)+'</span>'},
+      {l:'Sender Name',v:'<strong>'+pEsc(data.sender_name)+'</strong>'},
+      {l:'Sender IBAN',v:'<span style="font-family:monospace;">'+pEsc(data.sender_iban)+'</span>'},
       {l:'Sender Bank',v:pEsc(data.sender_bank)},
       {h:'CONVERSION'},
-      {l:'EUR Amount',v:'<strong>'+pFmt(data.eur_amount)+' EUR</strong>'},
+      {l:'EUR Amount',v:'<strong style="color:#1d4ed8;">'+pFmt(data.eur_amount)+' EUR</strong>'},
       {l:'FX Rate (EUR→USD)',v:pEsc(data.fx_rate_eur_usd||data.fx_rate)},
-      {l:'USD Amount',v:pEsc(data.usd_amount)+' USD'},
-      {l:'Output Amount',v:'<strong>'+pFmt(data.usdt_amount)+' '+pEsc(data.target_asset||'SIG')+'</strong>'},
-      {h:'BLOCKCHAIN'},
-      {l:'Network',v:pEsc((data.network||'').toUpperCase())},
-      {l:'Receiver Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.receiver_wallet)+'</span>'},
-      {l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'},
+      {l:'FX Provider',v:pEsc(data.fx_provider)},
+      {l:'USD Amount',v:'<strong>'+pEsc(data.usd_amount)+' USD</strong>'},
+      {l:'Output Amount',v:'<strong style="color:#065f46;">'+pFmt(data.usdt_amount)+' '+pEsc(data.target_asset||'SIG')+'</strong>'},
+      {h:'RECEIVER — ALSHUMOOKH GROUP'},
+      {l:'Network',v:'<strong>'+pEsc((data.network||'').toUpperCase())+'</strong>'},
+      {l:'Receiver Wallet',v:m1WalletV},
+      {l:'Operator Wallet',v:m1OpV},
+      {l:'Contract Address',v:m1ContractV},
+      {h:'TRANSACTION'},
+      {l:'TX Hash',v:m1TxV},
+      {l:'Block Number',v:pEsc(data.block_number?String(data.block_number):null)},
+      {l:'Confirmations',v:pEsc(data.confirmations?String(data.confirmations):null)},
+      {l:'Gas Used',v:pEsc(data.gas_used?String(data.gas_used):null)},
+      {l:'Explorer',v:data.explorer_url?'<a href="'+pEsc(data.explorer_url)+'" target="_blank" style="color:#1d4ed8;font-size:10px;">View on Explorer ↗</a>':'—'},
       {h:'STATUS'},
-      {l:'Status',v:pEsc(data.status)},{l:'Error',v:pEsc(data.error_message)},{l:'Notes',v:pEsc(data.notes)},
+      {l:'Job Status',v:'<strong>'+pEsc(data.status)+'</strong>'},
+      {l:'Outbound Status',v:pEsc(data.outbound_status)},
+      {l:'Approved By',v:pEsc(data.approved_by)},
+      {l:'Error',v:pEsc(data.error_message)},
+      {l:'Notes',v:pEsc(data.notes)},
       {h:'TIMESTAMPS'},
-      {l:'Created At',v:pDate(data.created_at)},{l:'Updated At',v:pDate(data.updated_at)},{l:'Completed At',v:pDate(data.completed_at)}
+      {l:'Created At',v:pDate(data.created_at)},
+      {l:'Updated At',v:pDate(data.updated_at)},
+      {l:'Completed At',v:pDate(data.completed_at)}
     ];
   }else if(type==='payload'){
     rows=[{h:'IDENTITY'},
@@ -4800,351 +4832,607 @@ async def dashboard_logs(request: Request):
 
 _PRIVATE_REPORT_BODY = """
 <div class="page-body">
-<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;flex-wrap:wrap;">
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
   <button onclick="history.back()" style="background:var(--glass);border:1px solid var(--line-strong);color:var(--ink);padding:7px 14px;border-radius:8px;font-size:12px;cursor:pointer;">&#8592; Back</button>
   <div style="flex:1;min-width:160px;">
     <div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase;">Confidential</div>
     <div style="font-size:16px;font-weight:800;color:var(--gold);">Private Report</div>
   </div>
   <button onclick="prPrintAll()" style="background:#0d2240;color:#c9a84c;border:none;padding:8px 18px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">&#128424; Print All</button>
+  <button onclick="prLoadAll()" style="background:var(--glass);border:1px solid var(--line-strong);color:var(--ink);padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;">&#8635; Refresh</button>
 </div>
 
 <div class="panel">
   <div class="panel-head" style="flex-wrap:wrap;gap:8px;">
-    <div style="display:flex;gap:6px;flex-wrap:wrap;">
-      <button id="prF_all"      onclick="prFilter('all')"      class="btn btn-primary" style="font-size:10px;padding:4px 12px;border-radius:12px;">All</button>
-      <button id="prF_order"    onclick="prFilter('order')"    class="btn btn-ghost"   style="font-size:10px;padding:4px 12px;border-radius:12px;">Orders</button>
-      <button id="prF_m1"       onclick="prFilter('m1')"       class="btn btn-ghost"   style="font-size:10px;padding:4px 12px;border-radius:12px;">M1</button>
-      <button id="prF_payload"  onclick="prFilter('payload')"  class="btn btn-ghost"   style="font-size:10px;padding:4px 12px;border-radius:12px;">Payloads</button>
-      <button id="prF_transfer" onclick="prFilter('transfer')" class="btn btn-ghost"   style="font-size:10px;padding:4px 12px;border-radius:12px;">Transfers</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;" id="prFilterBar">
+      <button id="prBtn_all"      onclick="prSetFilter(this,'all')"      class="btn btn-primary" style="font-size:10px;padding:4px 12px;border-radius:12px;">All</button>
+      <button id="prBtn_order"    onclick="prSetFilter(this,'order')"    class="btn btn-ghost"   style="font-size:10px;padding:4px 12px;border-radius:12px;">Orders</button>
+      <button id="prBtn_m1"       onclick="prSetFilter(this,'m1')"       class="btn btn-ghost"   style="font-size:10px;padding:4px 12px;border-radius:12px;">M1</button>
+      <button id="prBtn_payload"  onclick="prSetFilter(this,'payload')"  class="btn btn-ghost"   style="font-size:10px;padding:4px 12px;border-radius:12px;">Payloads</button>
+      <button id="prBtn_transfer" onclick="prSetFilter(this,'transfer')" class="btn btn-ghost"   style="font-size:10px;padding:4px 12px;border-radius:12px;">Transfers</button>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex:1;min-width:200px;">
-      <input id="prSearch" oninput="prRenderList()" placeholder="Search ID, amount, status, hash..." style="flex:1;padding:6px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--panel-solid);color:var(--ink);font-size:11px;outline:none;">
-      <span id="prTotal" style="font-size:10px;color:var(--muted);white-space:nowrap;"></span>
+      <input id="prSearchInput" oninput="prRender()" placeholder="Search ID, amount, status, hash..." style="flex:1;padding:6px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--panel-solid);color:var(--ink);font-size:11px;outline:none;">
+      <span id="prCountLabel" style="font-size:10px;color:var(--muted);white-space:nowrap;"></span>
     </div>
   </div>
-  <div id="prList" style="min-height:100px;">
-    <div style="padding:32px;text-align:center;color:var(--muted);">Loading transactions...</div>
+  <div id="prListContainer" style="min-height:120px;">
+    <div style="padding:32px;text-align:center;color:var(--muted);font-size:12px;">Loading transactions...</div>
   </div>
 </div>
 
-<div id="prAnnotPanel" style="display:none;" class="panel">
+<div id="prAnnotBox" class="panel" style="display:none;">
   <div class="panel-head">
     <h3 style="margin:0;font-size:13px;">Selected Transaction</h3>
-    <button onclick="prClearSel()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">&#10005;</button>
+    <button onclick="prClearSelection()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">&#10005;</button>
   </div>
   <div style="padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-    <div id="prSelInfo" style="grid-column:1/-1;padding:10px;background:var(--panel-solid);border-radius:8px;border:1px solid var(--line);font-size:11px;color:var(--ink);"></div>
-    <!-- Liquidation Rate -->
+    <div id="prSelDetail" style="grid-column:1/-1;padding:10px;background:var(--panel-solid);border-radius:8px;border:1px solid var(--line);font-size:11px;color:var(--ink);"></div>
     <div style="background:rgba(30,64,175,.08);border:1px solid rgba(30,64,175,.2);border-radius:8px;padding:10px;">
-      <div style="font-size:9px;font-weight:800;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">&#128197; Liquidation Rate</div>
-      <div id="prLiqDisp" style="font-size:12px;color:var(--ink);margin-bottom:8px;">Not set</div>
-      <button onclick="prOpenLiq()" style="background:#1e40af;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set %</button>
+      <div style="font-size:9px;font-weight:800;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Liquidation Rate</div>
+      <div id="prLiqLabel" style="font-size:12px;color:var(--ink);margin-bottom:8px;">Not set</div>
+      <button onclick="prAskLiq()" style="background:#1e40af;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set %</button>
     </div>
-    <!-- Post-Liq Amount -->
     <div style="background:rgba(6,95,70,.08);border:1px solid rgba(6,95,70,.2);border-radius:8px;padding:10px;">
-      <div style="font-size:9px;font-weight:800;color:#34d399;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">&#128181; Post-Liq Amount</div>
-      <div id="prAmtDisp" style="font-size:12px;color:var(--ink);margin-bottom:8px;">Not set</div>
-      <button onclick="prOpenAmt()" style="background:#065f46;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set</button>
+      <div style="font-size:9px;font-weight:800;color:#34d399;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Post-Liq Amount</div>
+      <div id="prAmtLabel" style="font-size:12px;color:var(--ink);margin-bottom:8px;">Not set</div>
+      <button onclick="prAskAmt()" style="background:#065f46;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set Amount</button>
     </div>
-    <!-- Status Stamp -->
     <div style="background:rgba(109,40,217,.08);border:1px solid rgba(109,40,217,.2);border-radius:8px;padding:10px;">
-      <div style="font-size:9px;font-weight:800;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">&#128396; Status Stamp</div>
-      <div id="prStampDisp" style="font-size:12px;color:var(--ink);margin-bottom:8px;">Not set</div>
-      <button onclick="prOpenStamp()" style="background:#6d28d9;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set</button>
+      <div style="font-size:9px;font-weight:800;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Status Stamp</div>
+      <div id="prStampLabel" style="font-size:12px;color:var(--ink);margin-bottom:8px;">Not set</div>
+      <button onclick="prAskStamp()" style="background:#6d28d9;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set Stamp</button>
     </div>
-    <!-- Print -->
     <div style="display:flex;flex-direction:column;gap:6px;">
-      <button onclick="prPrintSel()" style="background:#0d2240;color:#c9a84c;border:none;padding:10px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;flex:1;">&#128424; Print Private Report</button>
+      <button onclick="prPrintOne()" style="background:#0d2240;color:#c9a84c;border:none;padding:10px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;">&#128424; Print This Report</button>
       <button onclick="prClearAnnot()" style="background:rgba(220,38,38,.1);color:#f87171;border:1px solid rgba(220,38,38,.2);padding:8px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">&#128465; Clear Annotations</button>
     </div>
   </div>
 </div>
+
+</div>
+
+<div id="prModalOverlay" onclick="prCloseModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;"></div>
+<div id="prModalBox" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9001;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:24px 28px;width:400px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+    <strong id="prModalTitle" style="font-size:14px;color:var(--ink);"></strong>
+    <button onclick="prCloseModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);">&#10005;</button>
+  </div>
+  <div id="prModalFields"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+    <button onclick="prCloseModal()" style="background:var(--glass);color:var(--ink);border:1px solid var(--line);padding:9px 18px;border-radius:6px;font-size:12px;cursor:pointer;">Cancel</button>
+    <button id="prModalSave" style="background:var(--gold);color:#0d2240;border:none;padding:9px 22px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">Save</button>
+  </div>
 </div>
 
 <script>
-var SQ = "'";
-var PR = {
-  data: {orders:[], m1:[], payloads:[], transfers:[]},
-  meta: {},
-  idx: null, type: null,
-  filter: 'all'
-};
+/* ══ PRIVATE REPORT — CLEAN v2 ══════════════════════════════════════ */
+var PR_DATA = { orders: [], m1: [], payloads: [], transfers: [] };
+var PR_META = {};
+var PR_SEL  = { idx: null, type: null };
+var PR_FILT = 'all';
 
-function prApi(url) {
+/* ── API helper ─────────────────────────────────────────────────── */
+function prFetch(url) {
   var ak = '';
   try { ak = sessionStorage.getItem('als_admin_key') || localStorage.getItem('als_admin_key') || ''; } catch(e) {}
-  var h = {'Content-Type': 'application/json'};
-  if (ak) h['X-Admin-API-Key'] = ak;
-  return fetch(url, {headers: h, credentials: 'include'}).then(function(r) { return r.json(); });
+  var hdrs = { 'Content-Type': 'application/json' };
+  if (ak) { hdrs['X-Admin-API-Key'] = ak; }
+  return fetch(url, { headers: hdrs, credentials: 'include' })
+    .then(function(r) {
+      if (\!r.ok) { throw new Error('HTTP ' + r.status); }
+      return r.json();
+    });
 }
 
-function prEsc(v) { var d = document.createElement('div'); d.textContent = String(v || ''); return d.innerHTML; }
-function prFmt(n, dec) { if (!n && n !== 0) return '—'; var x = parseFloat(n); return isNaN(x) ? String(n) : x.toLocaleString('en-US', {maximumFractionDigits: dec || 6}); }
-function prDate(v) { return v ? new Date(v).toLocaleString() : '—'; }
-function prKey() { return PR.type + '_' + (PR.idx !== null ? PR.idx : 'x'); }
-
+/* ── Load all endpoints ─────────────────────────────────────────── */
 function prLoadAll() {
-  var listEl = document.getElementById('prList');
-  listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--muted);">Loading all transactions...</div>';
-  Promise.all([
-    prApi('/api/v1/admin/orders').catch(function() { return []; }),
-    prApi('/api/v1/admin/tokenization-jobs?limit=500').catch(function() { return []; }),
-    prApi('/api/v1/admin/payloads?limit=500').catch(function() { return []; }),
-    prApi('/api/v1/admin/outbound-transfers?limit=500').catch(function() { return []; })
-  ]).then(function(res) {
-    PR.data.orders   = Array.isArray(res[0]) ? res[0] : (res[0].orders || []);
-    PR.data.m1       = Array.isArray(res[1]) ? res[1] : [];
-    PR.data.payloads = Array.isArray(res[2]) ? res[2] : (res[2].payloads || []);
-    PR.data.transfers= Array.isArray(res[3]) ? res[3] : (res[3].transfers || []);
-    prRenderList();
-  }).catch(function(e) {
-    listEl.innerHTML = '<div style="padding:20px;color:#f87171;font-size:11px;">Error loading data: ' + prEsc(String(e)) + '</div>';
+  var el = document.getElementById('prListContainer');
+  if (\!el) { return; }
+  el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--muted);font-size:12px;">Loading transactions...</div>';
+
+  var urls = [
+    '/api/v1/admin/orders',
+    '/api/v1/admin/tokenization-jobs?limit=500',
+    '/api/v1/admin/payloads?limit=500',
+    '/api/v1/admin/outbound-transfers?limit=500'
+  ];
+
+  Promise.all(urls.map(function(u) {
+    return prFetch(u).catch(function() { return null; });
+  })).then(function(results) {
+    var r0 = results[0];
+    var r1 = results[1];
+    var r2 = results[2];
+    var r3 = results[3];
+    PR_DATA.orders    = r0 ? (Array.isArray(r0) ? r0 : (r0.orders || [])) : [];
+    PR_DATA.m1        = r1 ? (Array.isArray(r1) ? r1 : (r1.jobs || r1.items || [])) : [];
+    PR_DATA.payloads  = r2 ? (Array.isArray(r2) ? r2 : (r2.payloads || r2.items || [])) : [];
+    PR_DATA.transfers = r3 ? (Array.isArray(r3) ? r3 : (r3.transfers || r3.items || [])) : [];
+    prRender();
+  }).catch(function(err) {
+    el.innerHTML = '<div style="padding:20px;color:#f87171;font-size:12px;">Error: ' + String(err) + '</div>';
   });
 }
 
-function prFilter(f) {
-  PR.filter = f;
-  ['all','order','m1','payload','transfer'].forEach(function(k) {
-    var btn = document.getElementById('prF_' + k);
-    if (!btn) return;
-    if (k === f) { btn.className = 'btn btn-primary'; btn.style.fontSize = '10px'; btn.style.padding = '4px 12px'; btn.style.borderRadius = '12px'; }
-    else { btn.className = 'btn btn-ghost'; btn.style.fontSize = '10px'; btn.style.padding = '4px 12px'; btn.style.borderRadius = '12px'; }
+/* ── Filter control ─────────────────────────────────────────────── */
+function prSetFilter(btn, f) {
+  PR_FILT = f;
+  var ids = ['all','order','m1','payload','transfer'];
+  ids.forEach(function(k) {
+    var b = document.getElementById('prBtn_' + k);
+    if (\!b) { return; }
+    if (k === f) {
+      b.className = 'btn btn-primary';
+    } else {
+      b.className = 'btn btn-ghost';
+    }
+    b.style.fontSize = '10px';
+    b.style.padding = '4px 12px';
+    b.style.borderRadius = '12px';
   });
-  prRenderList();
+  prRender();
 }
 
-function prRenderList() {
-  var listEl = document.getElementById('prList');
-  var q = (document.getElementById('prSearch') || {}).value || '';
-  q = q.toLowerCase().trim();
-  var types = ['order', 'm1', 'payload', 'transfer'];
-  var labels = {order:'ORDER', m1:'M1', payload:'PAYLOAD', transfer:'XFER'};
-  var colors = {order:'#1e40af', m1:'#065f46', payload:'#7c3aed', transfer:'#b45309'};
+/* ── Escape helper ──────────────────────────────────────────────── */
+function prEsc(v) {
+  var d = document.createElement('div');
+  d.textContent = (v === null || v === undefined) ? '' : String(v);
+  return d.innerHTML;
+}
+
+function prFmtNum(n) {
+  if (n === null || n === undefined || n === '') { return '—'; }
+  var x = parseFloat(n);
+  return isNaN(x) ? String(n) : x.toLocaleString('en-US', { maximumFractionDigits: 6 });
+}
+
+function prFmtDate(v) {
+  if (\!v) { return '—'; }
+  try { return new Date(v).toLocaleString(); } catch(e) { return String(v); }
+}
+
+function prProgress(type, d) {
+  var st = String(d.status || d.verification_status || '').toUpperCase();
+  var pct = 0; var color = '#6b7280';
+  if (st === 'COMPLETED' || st === 'CONFIRMED' || st === 'SUCCESS') { pct = 100; color = '#10b981'; }
+  else if (st === 'PROCESSING' || st === 'SENT' || st === 'MINTING') { pct = 75; color = '#3b82f6'; }
+  else if (st === 'PENDING' || st === 'QUEUED' || st === 'CONVERTING') { pct = 30; color = '#f59e0b'; }
+  else if (st === 'FAILED' || st === 'REJECTED' || st === 'CANCELLED' || st === 'ERROR') { pct = 5; color = '#ef4444'; }
+  else if (st === 'APPROVED') { pct = 50; color = '#8b5cf6'; }
+  else if (st) { pct = 50; color = '#8b5cf6'; }
+  return { pct: pct, color: color };
+}
+
+/* ── Render list ────────────────────────────────────────────────── */
+function prRender() {
+  var el = document.getElementById('prListContainer');
+  if (\!el) { return; }
+  var q = '';
+  var si = document.getElementById('prSearchInput');
+  if (si) { q = si.value.toLowerCase().trim(); }
+
+  var types = ['order','m1','payload','transfer'];
+  var labels = { order:'ORDER', m1:'M1', payload:'PAYLOAD', transfer:'XFER' };
+  var colors = { order:'#1e40af', m1:'#065f46', payload:'#7c3aed', transfer:'#b45309' };
+
   var rows = [];
   types.forEach(function(t) {
-    if (PR.filter !== 'all' && PR.filter !== t) return;
-    (PR.data[t] || []).forEach(function(d, i) {
+    if (PR_FILT \!== 'all' && PR_FILT \!== t) { return; }
+    var arr = PR_DATA[t] || [];
+    arr.forEach(function(d, i) {
       var amt = '';
-      if (t === 'order') amt = prFmt(d.fiat_amount) + ' ' + (d.fiat_currency || '');
-      else if (t === 'm1') amt = prFmt(d.eur_amount) + ' EUR';
-      else if (t === 'payload') amt = prFmt(d.amount) + ' ' + (d.asset || '');
-      else amt = prFmt(d.amount) + ' ' + (d.asset || d.currency || 'USDT');
-      var st = d.status || d.verification_status || '';
-      var srch = (d.id||'') + amt + st + (d.tx_hash||'') + (d.external_id||d.payment_reference||d.sender_reference||'');
-      if (q && srch.toLowerCase().indexOf(q) === -1) return;
-      var sel = (PR.idx === i && PR.type === t);
-      rows.push({t:t, i:i, d:d, amt:amt, st:st, sel:sel, lbl:labels[t], color:colors[t]});
+      if (t === 'order') {
+        amt = prFmtNum(d.fiat_amount) + ' ' + (d.fiat_currency || '');
+      } else if (t === 'm1') {
+        amt = prFmtNum(d.eur_amount) + ' EUR';
+      } else if (t === 'payload') {
+        amt = prFmtNum(d.amount) + ' ' + (d.asset || '');
+      } else {
+        amt = prFmtNum(d.amount) + ' ' + (d.asset || d.currency || 'USDT');
+      }
+      var st = String(d.status || d.verification_status || '');
+      var srch = String(d.id || '') + amt + st + String(d.tx_hash || '') + String(d.external_id || d.payment_reference || d.sender_reference || '');
+      if (q && srch.toLowerCase().indexOf(q) === -1) { return; }
+      var mk = t + '_' + i;
+      var sel = (PR_SEL.idx === i && PR_SEL.type === t);
+      var hasAnnot = \!\!PR_META[mk];
+      var ref = '';
+      if (t === 'order') { ref = d.external_id || d.payment_reference || d.idempotency_key || ''; }
+      else if (t === 'm1') { ref = d.sender_reference || d.sender_name || ''; }
+      else if (t === 'payload') { ref = d.transaction_reference || d.request_id || ''; }
+      else { ref = d.id || ''; }
+      var hash = String(d.tx_hash || '');
+      var shortHash = hash.length > 16 ? hash.slice(0,8) + '...' + hash.slice(-6) : (hash || '—');
+      var prog = prProgress(t, d);
+      rows.push({ t:t, i:i, d:d, amt:amt, st:st, sel:sel, lbl:labels[t], color:colors[t], mk:mk, hasAnnot:hasAnnot, ref:ref, shortHash:shortHash, prog:prog });
     });
   });
-  var tot = document.getElementById('prTotal');
-  if (tot) tot.textContent = rows.length + ' records';
-  if (!rows.length) {
-    listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--muted);">No transactions found</div>';
+
+  var cl = document.getElementById('prCountLabel');
+  if (cl) { cl.textContent = rows.length + ' records'; }
+
+  if (\!rows.length) {
+    el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--muted);font-size:12px;">No transactions found</div>';
     return;
   }
-  var html = '<table style="width:100%;border-collapse:collapse;font-size:11px;">'
-    + '<thead><tr style="background:rgba(255,255,255,.04);">'
-    + '<th style="padding:8px 12px;text-align:left;color:var(--muted);font-size:10px;font-weight:700;border-bottom:1px solid var(--line);">Type</th>'
-    + '<th style="padding:8px 12px;text-align:left;color:var(--muted);font-size:10px;font-weight:700;border-bottom:1px solid var(--line);">ID</th>'
-    + '<th style="padding:8px 12px;text-align:left;color:var(--muted);font-size:10px;font-weight:700;border-bottom:1px solid var(--line);">Amount</th>'
-    + '<th style="padding:8px 12px;text-align:left;color:var(--muted);font-size:10px;font-weight:700;border-bottom:1px solid var(--line);">Status</th>'
-    + '<th style="padding:8px 12px;text-align:left;color:var(--muted);font-size:10px;font-weight:700;border-bottom:1px solid var(--line);">Action</th>'
-    + '</tr></thead><tbody>';
+
+  var thS = 'padding:7px 10px;text-align:left;color:var(--muted);font-size:9px;font-weight:700;border-bottom:1px solid var(--line);white-space:nowrap;';
+  var html = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">';
+  html += '<thead><tr style="background:rgba(255,255,255,.04);">';
+  html += '<th style="' + thS + '">Type</th>';
+  html += '<th style="' + thS + '">Reference / Sender</th>';
+  html += '<th style="' + thS + '">Amount</th>';
+  html += '<th style="' + thS + '">TX Hash</th>';
+  html += '<th style="' + thS + '">Status &amp; Progress</th>';
+  html += '<th style="' + thS + '">Action</th>';
+  html += '</tr></thead><tbody>';
+
   rows.forEach(function(r) {
     var bg = r.sel ? 'background:rgba(37,99,235,.08);' : '';
-    var hasAnnot = !!PR.meta[r.t + '_' + r.i];
-    html += '<tr style="border-bottom:1px solid var(--line);cursor:pointer;' + bg + '" onclick="prSelect(' + r.i + ',' + SQ + r.t + SQ + ')">'
-      + '<td style="padding:8px 12px;"><span style="background:' + r.color + ';color:#fff;border-radius:3px;padding:2px 6px;font-size:8px;font-weight:800;">' + r.lbl + '</span>'
-      + (hasAnnot ? ' <span style="background:#c9a84c;color:#fff;border-radius:3px;padding:1px 5px;font-size:7px;font-weight:800;">ANNOT</span>' : '') + '</td>'
-      + '<td style="padding:8px 12px;font-family:monospace;font-size:9px;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + prEsc(r.d.id || '—') + '</td>'
-      + '<td style="padding:8px 12px;font-weight:700;color:var(--ink);">' + prEsc(r.amt) + '</td>'
-      + '<td style="padding:8px 12px;"><span style="background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;padding:2px 8px;font-size:9px;">' + prEsc(r.st) + '</span></td>'
-      + '<td style="padding:8px 12px;"><button onclick="event.stopPropagation();prSelect(' + r.i + ',' + SQ + r.t + SQ + ');prPrintSel();" style="background:#0d2240;color:#c9a84c;border:none;padding:4px 10px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;">&#128424; Print</button></td>'
-      + '</tr>';
+    html += '<tr data-idx="' + r.i + '" data-type="' + r.t + '" onclick="prSelect(' + r.i + ',&quot;' + r.t + '&quot;)" style="border-bottom:1px solid var(--line);cursor:pointer;' + bg + '">';
+    html += '<td style="padding:7px 10px;">';
+    html += '<span style="background:' + r.color + ';color:#fff;border-radius:3px;padding:2px 6px;font-size:8px;font-weight:800;">' + r.lbl + '</span>';
+    if (r.hasAnnot) { html += ' <span style="background:#c9a84c;color:#fff;border-radius:3px;padding:1px 5px;font-size:7px;font-weight:800;">ANNOT</span>'; }
+    html += '</td>';
+    var refDisplay = r.ref ? (r.ref.length > 24 ? r.ref.slice(0,24) + '...' : r.ref) : '—';
+    html += '<td style="padding:7px 10px;font-size:9px;color:var(--ink);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + prEsc(r.ref) + '">' + prEsc(refDisplay) + '</td>';
+    html += '<td style="padding:7px 10px;font-weight:700;color:var(--gold);font-size:10px;white-space:nowrap;">' + prEsc(r.amt) + '</td>';
+    html += '<td style="padding:7px 10px;font-family:monospace;font-size:8px;color:var(--muted);white-space:nowrap;" title="' + prEsc(r.d.tx_hash||'') + '">' + prEsc(r.shortHash) + '</td>';
+    html += '<td style="padding:7px 10px;min-width:120px;">';
+    html += '<div style="font-size:8px;font-weight:700;color:var(--ink);margin-bottom:3px;">' + prEsc(r.st) + '</div>';
+    html += '<div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + r.prog.pct + '%;background:' + r.prog.color + ';border-radius:3px;"></div></div>';
+    html += '<div style="font-size:8px;color:' + r.prog.color + ';font-weight:700;margin-top:2px;">' + r.prog.pct + '%</div>';
+    html += '</td>';
+    html += '<td style="padding:7px 10px;"><button onclick="event.stopPropagation();prSelect(' + r.i + ',&quot;' + r.t + '&quot;);prPrintOne();" style="background:#0d2240;color:#c9a84c;border:none;padding:4px 10px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;">&#128424; Print</button></td>';
+    html += '</tr>';
   });
-  html += '</tbody></table>';
-  listEl.innerHTML = html;
+
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
 }
 
+/* ── Select a row ───────────────────────────────────────────────── */
 function prSelect(idx, type) {
-  PR.idx = idx; PR.type = type;
-  var d = type==='order' ? PR.data.orders[idx] : type==='m1' ? PR.data.m1[idx] : type==='payload' ? PR.data.payloads[idx] : PR.data.transfers[idx];
-  if (!d) return;
-  var lblMap = {order:'Payment Order', m1:'M1 Tokenization Job', payload:'Settlement Payload', transfer:'Outbound Transfer'};
+  PR_SEL.idx  = idx;
+  PR_SEL.type = type;
+  var d = PR_DATA[type] ? PR_DATA[type][idx] : null;
+  if (\!d) { return; }
+
+  var lblMap = { order:'Payment Order', m1:'M1 Tokenization Job', payload:'Settlement Payload', transfer:'Outbound Transfer' };
   var amt = '';
-  if (type === 'order') amt = prFmt(d.fiat_amount) + ' ' + (d.fiat_currency || '');
-  else if (type === 'm1') amt = prFmt(d.eur_amount) + ' EUR';
-  else if (type === 'payload') amt = prFmt(d.amount) + ' ' + (d.asset || '');
-  else amt = prFmt(d.amount) + ' ' + (d.asset || d.currency || 'USDT');
-  var selInfo = document.getElementById('prSelInfo');
-  if (selInfo) selInfo.innerHTML = '<strong>' + prEsc(lblMap[type]||type) + '</strong> &mdash; <span style="font-family:monospace;font-size:9px;color:var(--muted);">' + prEsc(d.id||'') + '</span><br><span style="font-size:14px;font-weight:800;color:var(--gold);">' + prEsc(amt) + '</span>';
-  document.getElementById('prAnnotPanel').style.display = 'block';
-  prRefreshAnnot();
-  prRenderList();
-  document.getElementById('prAnnotPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+  if (type === 'order')    { amt = prFmtNum(d.fiat_amount) + ' ' + (d.fiat_currency || ''); }
+  else if (type === 'm1')  { amt = prFmtNum(d.eur_amount) + ' EUR'; }
+  else if (type === 'payload') { amt = prFmtNum(d.amount) + ' ' + (d.asset || ''); }
+  else { amt = prFmtNum(d.amount) + ' ' + (d.asset || d.currency || 'USDT'); }
+
+  var sd = document.getElementById('prSelDetail');
+  if (sd) {
+    var prog = prProgress(type, d);
+    var progBar = '<div style="margin:8px 0 12px;">'
+      + '<div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:4px;">'
+      + '<span style="color:var(--muted);font-weight:600;">Completion Progress</span>'
+      + '<span style="font-weight:800;color:' + prog.color + ';">' + prog.pct + '%</span></div>'
+      + '<div style="height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;">'
+      + '<div style="height:100%;width:' + prog.pct + '%;background:' + prog.color + ';border-radius:4px;transition:width .4s;"></div></div></div>';
+    var detRows = prBuildRows(type, d);
+    var detTbody = '';
+    detRows.forEach(function(r) {
+      if (r.h) {
+        detTbody += '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:8px;font-weight:800;letter-spacing:.6px;padding:4px 8px;text-transform:uppercase;">' + r.h + '</td></tr>';
+      } else {
+        detTbody += '<tr><td style="padding:4px 8px;font-weight:600;color:var(--muted);font-size:9px;width:36%;white-space:nowrap;border-bottom:1px solid var(--line);">' + r.l + '</td>'
+          + '<td style="padding:4px 8px;font-size:9px;color:var(--ink);word-break:break-all;border-bottom:1px solid var(--line);">' + r.v + '</td></tr>';
+      }
+    });
+    var detTable = '<table style="width:100%;border-collapse:collapse;font-size:9px;border:1px solid var(--line);border-radius:6px;overflow:hidden;">' + detTbody + '</table>';
+    sd.innerHTML = '<div style="margin-bottom:6px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">'
+      + '<strong style="font-size:12px;color:var(--ink);">' + prEsc(lblMap[type] || type) + '</strong>'
+      + '<span style="font-size:15px;font-weight:800;color:var(--gold);">' + prEsc(amt) + '</span>'
+      + '<span style="font-family:monospace;font-size:9px;color:var(--muted);">' + prEsc(d.id || '') + '</span></div>'
+      + progBar + detTable;
+  }
+
+  var ab = document.getElementById('prAnnotBox');
+  if (ab) { ab.style.display = 'block'; }
+  prRefreshAnnotLabels();
+  prRender();
 }
 
-function prClearSel() { PR.idx = null; PR.type = null; document.getElementById('prAnnotPanel').style.display = 'none'; prRenderList(); }
-
-function prRefreshAnnot() {
-  if (PR.idx === null) return;
-  var m = PR.meta[prKey()] || {};
-  var sc = {APPROVED:'#34d399', CANCELLED:'#f87171', REJECTED:'#f87171', PENDING:'#fbbf24', PROCESSING:'#60a5fa'};
-  var ld = document.getElementById('prLiqDisp');
-  var ad = document.getElementById('prAmtDisp');
-  var sd = document.getElementById('prStampDisp');
-  if (ld) ld.textContent = m.liq_pct ? m.liq_pct + '%' : 'Not set';
-  if (ad) ad.textContent = m.custom_amt ? m.custom_amt + ' ' + (m.custom_cur || 'USD') : 'Not set';
-  if (sd) { sd.textContent = m.stamp || 'Not set'; sd.style.color = m.stamp ? (sc[m.stamp] || 'var(--ink)') : 'var(--muted)'; sd.style.fontWeight = m.stamp ? '700' : '400'; }
+function prClearSelection() {
+  PR_SEL.idx  = null;
+  PR_SEL.type = null;
+  var ab = document.getElementById('prAnnotBox');
+  if (ab) { ab.style.display = 'none'; }
+  prRender();
 }
 
-function prCloseModal() { var e = document.getElementById('_prMM'); if (e) e.remove(); }
+/* ── Annotation labels ──────────────────────────────────────────── */
+function prKey() {
+  if (PR_SEL.idx === null) { return ''; }
+  return PR_SEL.type + '_' + PR_SEL.idx;
+}
 
-function prModal(title, fields, cb) {
-  var key = prKey();
-  var ex = PR.meta[key] || {};
-  var fHTML = fields.map(function(f) {
-    var v = ex[f.k] || '';
-    var inp;
-    if (f.opts) {
-      var os = f.opts.map(function(o) { return '<option value="' + o + '"' + (v===o?' selected':'') + '>' + o + '</option>'; }).join('');
-      inp = '<select id="prMF_' + f.k + '" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel-solid);color:var(--ink);font-size:12px;margin-bottom:12px;"><option value="">— Select —</option>' + os + '</select>';
+function prRefreshAnnotLabels() {
+  var m   = PR_META[prKey()] || {};
+  var ll  = document.getElementById('prLiqLabel');
+  var al  = document.getElementById('prAmtLabel');
+  var sl  = document.getElementById('prStampLabel');
+  var sc  = { APPROVED:'#34d399', CANCELLED:'#f87171', REJECTED:'#f87171', PENDING:'#fbbf24', PROCESSING:'#60a5fa' };
+  if (ll) { ll.textContent = m.liq_pct ? m.liq_pct + '%' : 'Not set'; }
+  if (al) { al.textContent = m.custom_amt ? m.custom_amt + ' ' + (m.custom_cur || 'USD') : 'Not set'; }
+  if (sl) {
+    sl.textContent  = m.stamp || 'Not set';
+    sl.style.color  = m.stamp ? (sc[m.stamp] || 'var(--ink)') : 'var(--muted)';
+    sl.style.fontWeight = m.stamp ? '700' : '400';
+  }
+}
+
+function prClearAnnot() {
+  if (PR_SEL.idx === null) { return; }
+  delete PR_META[prKey()];
+  prRefreshAnnotLabels();
+  prRender();
+}
+
+/* ── Modal ──────────────────────────────────────────────────────── */
+function prOpenModal(title, fields, onSave) {
+  var mTitle  = document.getElementById('prModalTitle');
+  var mFields = document.getElementById('prModalFields');
+  var mSave   = document.getElementById('prModalSave');
+  var mOv     = document.getElementById('prModalOverlay');
+  var mBox    = document.getElementById('prModalBox');
+  if (\!mTitle || \!mFields || \!mSave || \!mOv || \!mBox) { return; }
+
+  var existing = PR_META[prKey()] || {};
+  mTitle.textContent = title;
+
+  var fHtml = '';
+  fields.forEach(function(f) {
+    var val = existing[f.k] || '';
+    fHtml += '<label style="font-size:11px;font-weight:700;color:var(--ink);display:block;margin-bottom:3px;">' + prEsc(f.label) + '</label>';
+    if (f.options) {
+      fHtml += '<select id="prMF_' + f.k + '" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel-solid);color:var(--ink);font-size:12px;margin-bottom:12px;">';
+      fHtml += '<option value="">— Select —</option>';
+      f.options.forEach(function(o) {
+        fHtml += '<option value="' + prEsc(o) + '"' + (val === o ? ' selected' : '') + '>' + prEsc(o) + '</option>';
+      });
+      fHtml += '</select>';
     } else {
-      inp = '<input id="prMF_' + f.k + '" value="' + prEsc(v) + '" placeholder="' + prEsc(f.ph||'') + '" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel-solid);color:var(--ink);font-size:12px;margin-bottom:12px;box-sizing:border-box;outline:none;">';
+      fHtml += '<input id="prMF_' + f.k + '" value="' + prEsc(val) + '" placeholder="' + prEsc(f.placeholder || '') + '" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel-solid);color:var(--ink);font-size:12px;margin-bottom:12px;box-sizing:border-box;outline:none;">';
     }
-    return '<label style="font-size:11px;font-weight:700;color:var(--ink);display:block;margin-bottom:3px;">' + f.lbl + '</label>' + inp;
-  }).join('');
-  var m = document.createElement('div');
-  m.id = '_prMM';
-  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
-  m.innerHTML = '<div style="background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:24px 28px;width:400px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.5);">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">'
-    + '<strong style="font-size:14px;color:var(--ink);">' + title + '</strong>'
-    + '<button onclick="prCloseModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);">&#10005;</button>'
-    + '</div>' + fHTML
-    + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
-    + '<button onclick="prCloseModal()" style="background:var(--glass);color:var(--ink);border:1px solid var(--line);padding:9px 18px;border-radius:6px;font-size:12px;cursor:pointer;">Cancel</button>'
-    + '<button id="_prMSv" style="background:var(--gold);color:#0d2240;border:none;padding:9px 22px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">&#10003; Save</button>'
-    + '</div></div>';
-  document.body.appendChild(m);
-  document.getElementById('_prMSv').onclick = function() {
+  });
+  mFields.innerHTML = fHtml;
+
+  mSave.onclick = function() {
     var vals = {};
-    fields.forEach(function(f) { var el = document.getElementById('prMF_' + f.k); if (el) vals[f.k] = el.value.trim(); });
-    PR.meta[key] = Object.assign(PR.meta[key] || {}, vals);
-    cb(vals);
+    fields.forEach(function(f) {
+      var el = document.getElementById('prMF_' + f.k);
+      if (el) { vals[f.k] = el.value.trim(); }
+    });
+    var mk = prKey();
+    PR_META[mk] = Object.assign(PR_META[mk] || {}, vals);
+    if (onSave) { onSave(vals); }
     prCloseModal();
-    prRefreshAnnot();
-    prRenderList();
+    prRefreshAnnotLabels();
+    prRender();
   };
-  m.addEventListener('click', function(e) { if (e.target === m) prCloseModal(); });
+
+  mOv.style.display = 'block';
+  mBox.style.display = 'block';
 }
 
-function prOpenLiq() { prModal('Liquidation Rate', [{k:'liq_pct', lbl:'Liquidation Percentage (%)', ph:'e.g. 15.50'}], function(){}); }
-function prOpenAmt() { prModal('Post-Liquidation Amount', [{k:'custom_amt', lbl:'Amount After Liquidation', ph:'e.g. 500.00'}, {k:'custom_cur', lbl:'Currency', ph:'USD'}], function(){}); }
-function prOpenStamp() { prModal('Status Stamp', [{k:'stamp', lbl:'Select Status', opts:['APPROVED','PENDING','PROCESSING','REJECTED','CANCELLED']}], function(){}); }
-function prClearAnnot() { if (PR.idx === null) return; delete PR.meta[prKey()]; prRefreshAnnot(); prRenderList(); }
+function prCloseModal() {
+  var mOv  = document.getElementById('prModalOverlay');
+  var mBox = document.getElementById('prModalBox');
+  if (mOv)  { mOv.style.display  = 'none'; }
+  if (mBox) { mBox.style.display = 'none'; }
+}
 
-function prBuildRows(type, data) {
+function prAskLiq() {
+  prOpenModal('Liquidation Rate', [{ k:'liq_pct', label:'Liquidation Percentage (%)', placeholder:'e.g. 15.50' }], null);
+}
+
+function prAskAmt() {
+  prOpenModal('Post-Liquidation Amount', [
+    { k:'custom_amt', label:'Amount After Liquidation', placeholder:'e.g. 500.00' },
+    { k:'custom_cur', label:'Currency', placeholder:'USD' }
+  ], null);
+}
+
+function prAskStamp() {
+  prOpenModal('Status Stamp', [{ k:'stamp', label:'Select Status', options:['APPROVED','PENDING','PROCESSING','REJECTED','CANCELLED'] }], null);
+}
+
+/* ── Build print rows ───────────────────────────────────────────── */
+function prBuildRows(type, d) {
+  function pe(v) { var el=document.createElement('div'); el.textContent=String(v===null||v===undefined?'':v); return el.innerHTML; }
+  function pn(n) { if(n===null||n===undefined||n===''){return '—';} var x=parseFloat(n); return isNaN(x)?String(n):x.toLocaleString('en-US',{maximumFractionDigits:2}); }
+  function pd(v) { if(\!v){return '—';} try{return new Date(v).toLocaleString();}catch(e){return String(v);} }
   var rows = [];
-  function pE(v) { var d=document.createElement('div'); d.textContent=String(v||'—'); return d.innerHTML; }
-  function pF(n,dec) { if(!n&&n!==0)return '—'; var x=parseFloat(n); return isNaN(x)?String(n):x.toLocaleString('en-US',{maximumFractionDigits:dec||2}); }
-  function pD(v) { return v?new Date(v).toLocaleString():'—'; }
   if (type === 'order') {
-    rows = [{h:'IDENTITY'},{l:'Transaction ID',v:pE(data.id)},{l:'External Reference',v:pE(data.external_id)},{l:'Payment Reference',v:pE(data.payment_reference)},{l:'Idempotency Key',v:pE(data.idempotency_key)},{h:'FIAT'},{l:'Fiat Amount',v:'<strong>'+pF(data.fiat_amount)+' '+pE(data.fiat_currency)+'</strong>'},{l:'Exchange Rate',v:pE(data.exchange_rate)},{l:'Fees (Fiat)',v:pE(data.fees_fiat)},{h:'CRYPTO'},{l:'Crypto Amount',v:'<strong>'+pF(data.crypto_amount,6)+' '+pE(data.crypto_currency)+'</strong>'},{l:'Network',v:pE(data.network)},{l:'Provider',v:pE(data.provider)},{h:'WALLETS'},{l:'User Wallet',v:'<code>'+pE(data.user_wallet_address||data.wallet)+'</code>'},{l:'Treasury Wallet',v:'<code>'+pE(data.treasury_wallet_address)+'</code>'},{h:'BLOCKCHAIN'},{l:'TX Hash',v:'<code>'+pE(data.tx_hash)+'</code>'},{l:'Processor Ref',v:pE(data.processor_reference)},{h:'STATUS'},{l:'Status',v:pE(data.status)},{l:'Client IP',v:pE(data.client_ip)},{l:'Notes',v:pE(data.notes)},{h:'TIMESTAMPS'},{l:'Created',v:pD(data.created_at)},{l:'Updated',v:pD(data.updated_at)},{l:'Completed',v:pD(data.completed_at)}];
+    rows = [
+      {h:'IDENTITY'},{l:'Transaction ID',v:pe(d.id)},{l:'External Reference',v:pe(d.external_id)},{l:'Payment Reference',v:pe(d.payment_reference)},{l:'Idempotency Key',v:pe(d.idempotency_key)},
+      {h:'FIAT'},{l:'Fiat Amount',v:'<strong>'+pn(d.fiat_amount)+' '+pe(d.fiat_currency)+'</strong>'},{l:'Exchange Rate',v:pe(d.exchange_rate)},{l:'Fees',v:pe(d.fees_fiat)},
+      {h:'CRYPTO'},{l:'Crypto Amount',v:'<strong>'+pn(d.crypto_amount)+' '+pe(d.crypto_currency)+'</strong>'},{l:'Network',v:pe(d.network)},{l:'Provider',v:pe(d.provider)},
+      {h:'WALLETS'},{l:'User Wallet',v:'<code>'+pe(d.user_wallet_address||d.wallet)+'</code>'},{l:'Treasury Wallet',v:'<code>'+pe(d.treasury_wallet_address)+'</code>'},
+      {h:'BLOCKCHAIN'},{l:'TX Hash',v:'<code>'+pe(d.tx_hash)+'</code>'},{l:'Processor Ref',v:pe(d.processor_reference)},
+      {h:'STATUS'},{l:'Status',v:pe(d.status)},{l:'Client IP',v:pe(d.client_ip)},{l:'Notes',v:pe(d.notes)},
+      {h:'TIMESTAMPS'},{l:'Created',v:pd(d.created_at)},{l:'Updated',v:pd(d.updated_at)},{l:'Completed',v:pd(d.completed_at)}
+    ];
   } else if (type === 'm1') {
-    rows = [{h:'IDENTITY'},{l:'Job ID',v:pE(data.id)},{l:'Sender Reference',v:pE(data.sender_reference)},{h:'SENDER'},{l:'Sender Name',v:pE(data.sender_name)},{l:'Sender IBAN',v:'<code>'+pE(data.sender_iban)+'</code>'},{l:'Sender Bank',v:pE(data.sender_bank)},{h:'CONVERSION'},{l:'EUR Amount',v:'<strong>'+pF(data.eur_amount)+' EUR</strong>'},{l:'FX Rate EUR→USD',v:pE(data.fx_rate_eur_usd||data.fx_rate)},{l:'USD Amount',v:pE(data.usd_amount)+' USD'},{l:'Output',v:'<strong>'+pF(data.usdt_amount)+' '+pE(data.target_asset||'SIG')+'</strong>'},{h:'BLOCKCHAIN'},{l:'Network',v:pE((data.network||'').toUpperCase())},{l:'Receiver Wallet',v:'<code>'+pE(data.receiver_wallet)+'</code>'},{l:'TX Hash',v:'<code>'+pE(data.tx_hash)+'</code>'},{h:'STATUS'},{l:'Status',v:pE(data.status)},{l:'Error',v:pE(data.error_message)},{l:'Notes',v:pE(data.notes)},{h:'TIMESTAMPS'},{l:'Created',v:pD(data.created_at)},{l:'Updated',v:pD(data.updated_at)},{l:'Completed',v:pD(data.completed_at)}];
+    rows = [
+      {h:'IDENTITY'},{l:'Job ID',v:pe(d.id)},{l:'Sender Reference',v:pe(d.sender_reference)},
+      {h:'SENDER'},{l:'Sender Name',v:pe(d.sender_name)},{l:'Sender IBAN',v:'<code>'+pe(d.sender_iban)+'</code>'},{l:'Sender Bank',v:pe(d.sender_bank)},
+      {h:'CONVERSION'},{l:'EUR Amount',v:'<strong>'+pn(d.eur_amount)+' EUR</strong>'},{l:'FX Rate EUR/USD',v:pe(d.fx_rate_eur_usd||d.fx_rate)},{l:'USD Amount',v:pe(d.usd_amount)+' USD'},{l:'Output',v:'<strong>'+pn(d.usdt_amount)+' '+(d.target_asset||'SIG')+'</strong>'},
+      {h:'BLOCKCHAIN'},{l:'Network',v:pe((d.network||'').toUpperCase())},{l:'Receiver Wallet',v:'<code>'+pe(d.receiver_wallet)+'</code>'},{l:'TX Hash',v:'<code>'+pe(d.tx_hash)+'</code>'},
+      {h:'STATUS'},{l:'Status',v:pe(d.status)},{l:'Error',v:pe(d.error_message)},{l:'Notes',v:pe(d.notes)},
+      {h:'TIMESTAMPS'},{l:'Created',v:pd(d.created_at)},{l:'Updated',v:pd(d.updated_at)},{l:'Completed',v:pd(d.completed_at)}
+    ];
   } else if (type === 'payload') {
-    rows = [{h:'IDENTITY'},{l:'Payload ID',v:pE(data.id)},{l:'Transaction Reference',v:pE(data.transaction_reference)},{l:'Request ID',v:pE(data.request_id)},{h:'AMOUNT'},{l:'Asset',v:pE(data.asset)},{l:'Amount',v:'<strong>'+pF(data.amount)+' '+pE(data.asset)+'</strong>'},{l:'Network',v:pE(data.network_name)},{h:'WALLETS'},{l:'Sender',v:'<code>'+pE(data.sender_wallet)+'</code>'},{l:'Receiver',v:'<code>'+pE(data.receiver_wallet)+'</code>'},{h:'BLOCKCHAIN'},{l:'TX Hash',v:'<code>'+pE(data.tx_hash)+'</code>'},{l:'Block Number',v:pE(data.block_number)},{l:'Confirmations',v:pE(data.confirmations)},{h:'SECURITY'},{l:'Status',v:pE(data.verification_status)},{l:'Security Level',v:pE(data.security_level)},{l:'Client IP',v:pE(data.client_ip)},{h:'TIMESTAMPS'},{l:'Created',v:pD(data.created_at)},{l:'Updated',v:pD(data.updated_at)}];
+    rows = [
+      {h:'IDENTITY'},{l:'Payload ID',v:pe(d.id)},{l:'Transaction Reference',v:pe(d.transaction_reference)},{l:'Request ID',v:pe(d.request_id)},
+      {h:'AMOUNT'},{l:'Asset',v:pe(d.asset)},{l:'Amount',v:'<strong>'+pn(d.amount)+' '+pe(d.asset)+'</strong>'},{l:'Network',v:pe(d.network_name)},
+      {h:'WALLETS'},{l:'Sender',v:'<code>'+pe(d.sender_wallet)+'</code>'},{l:'Receiver',v:'<code>'+pe(d.receiver_wallet)+'</code>'},
+      {h:'BLOCKCHAIN'},{l:'TX Hash',v:'<code>'+pe(d.tx_hash)+'</code>'},{l:'Block Number',v:pe(d.block_number)},{l:'Confirmations',v:pe(d.confirmations)},
+      {h:'SECURITY'},{l:'Status',v:pe(d.verification_status)},{l:'Security Level',v:pe(d.security_level)},{l:'Client IP',v:pe(d.client_ip)},
+      {h:'TIMESTAMPS'},{l:'Created',v:pd(d.created_at)},{l:'Updated',v:pd(d.updated_at)}
+    ];
   } else {
-    rows = [{h:'IDENTITY'},{l:'Transfer ID',v:pE(data.id)},{l:'Priority',v:pE(data.priority)},{h:'DETAILS'},{l:'Network',v:pE((data.network||'').toUpperCase())},{l:'Asset',v:pE(data.asset||data.currency||'USDT')},{l:'Amount',v:'<strong>'+pF(data.amount)+' '+pE(data.asset||data.currency||'USDT')+'</strong>'},{h:'WALLETS'},{l:'To Address',v:'<code>'+pE(data.to_address)+'</code>'},{l:'From Address',v:'<code>'+pE(data.from_address)+'</code>'},{h:'BLOCKCHAIN'},{l:'TX Hash',v:'<code>'+pE(data.tx_hash)+'</code>'},{h:'APPROVAL'},{l:'Status',v:pE(data.status)},{l:'Approved By',v:pE(data.approved_by)},{l:'Approved At',v:pD(data.approved_at)},{h:'ERROR'},{l:'Retry Count',v:pE(data.retry_count)},{l:'Error',v:pE(data.error_message)},{h:'TIMESTAMPS'},{l:'Created',v:pD(data.created_at)},{l:'Updated',v:pD(data.updated_at)},{l:'Completed',v:pD(data.completed_at)}];
+    rows = [
+      {h:'IDENTITY'},{l:'Transfer ID',v:pe(d.id)},{l:'Priority',v:pe(d.priority)},
+      {h:'DETAILS'},{l:'Network',v:pe((d.network||'').toUpperCase())},{l:'Asset',v:pe(d.asset||d.currency||'USDT')},{l:'Amount',v:'<strong>'+pn(d.amount)+' '+pe(d.asset||d.currency||'USDT')+'</strong>'},
+      {h:'WALLETS'},{l:'To Address',v:'<code>'+pe(d.to_address)+'</code>'},{l:'From Address',v:'<code>'+pe(d.from_address)+'</code>'},
+      {h:'BLOCKCHAIN'},{l:'TX Hash',v:'<code>'+pe(d.tx_hash)+'</code>'},
+      {h:'APPROVAL'},{l:'Status',v:pe(d.status)},{l:'Approved By',v:pe(d.approved_by)},{l:'Approved At',v:pd(d.approved_at)},
+      {h:'ERROR'},{l:'Retry Count',v:pe(d.retry_count)},{l:'Error',v:pe(d.error_message)},
+      {h:'TIMESTAMPS'},{l:'Created',v:pd(d.created_at)},{l:'Updated',v:pd(d.updated_at)},{l:'Completed',v:pd(d.completed_at)}
+    ];
   }
   return rows;
 }
 
-function prBuildHTML(type, data, meta, title, ref) {
+/* ── Build printable HTML ───────────────────────────────────────── */
+function prBuildPrintHTML(type, d, meta, titleStr, ref) {
   var m = meta || {};
-  var stampColors = {APPROVED:'#065f46',CANCELLED:'#b91c1c',REJECTED:'#b91c1c',PENDING:'#92400e',PROCESSING:'#1e40af'};
-  var stampBg = {APPROVED:'#d1fae5',CANCELLED:'#fee2e2',REJECTED:'#fee2e2',PENDING:'#fef3c7',PROCESSING:'#dbeafe'};
-  var rows = prBuildRows(type, data);
+  var sColors = { APPROVED:'#065f46', CANCELLED:'#b91c1c', REJECTED:'#b91c1c', PENDING:'#92400e', PROCESSING:'#1e40af' };
+  var sBg     = { APPROVED:'#d1fae5', CANCELLED:'#fee2e2', REJECTED:'#fee2e2', PENDING:'#fef3c7', PROCESSING:'#dbeafe' };
+  var rows = prBuildRows(type, d);
   if (m.liq_pct || m.custom_amt || m.stamp) {
-    rows.push({h:'PRIVATE ANNOTATIONS'});
-    if (m.liq_pct) rows.push({l:'Liquidation Rate', v:'<strong>'+m.liq_pct+'%</strong>'});
-    if (m.custom_amt) rows.push({l:'Post-Liquidation Amount', v:'<strong>'+m.custom_amt+' '+(m.custom_cur||'USD')+'</strong>'});
-    if (m.stamp) rows.push({l:'Status Stamp', v:'<strong style="color:'+(stampColors[m.stamp]||'#555')+';">'+m.stamp+'</strong>'});
+    rows.push({ h:'PRIVATE ANNOTATIONS' });
+    if (m.liq_pct)     { rows.push({ l:'Liquidation Rate',       v:'<strong>' + m.liq_pct + '%</strong>' }); }
+    if (m.custom_amt)  { rows.push({ l:'Post-Liquidation Amount', v:'<strong>' + m.custom_amt + ' ' + (m.custom_cur || 'USD') + '</strong>' }); }
+    if (m.stamp)       { rows.push({ l:'Status Stamp',            v:'<strong style="color:' + (sColors[m.stamp] || '#555') + ';">' + m.stamp + '</strong>' }); }
   }
   var rowsHTML = rows.map(function(r) {
-    if (r.h) return '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:9px;font-weight:800;letter-spacing:.8px;padding:5px 12px;text-transform:uppercase;">' + r.h + '</td></tr>';
+    if (r.h) {
+      return '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:9px;font-weight:800;letter-spacing:.8px;padding:5px 12px;text-transform:uppercase;">' + r.h + '</td></tr>';
+    }
     return '<tr><td style="background:#f4f7fb;font-weight:600;color:#445;padding:5px 12px;white-space:nowrap;font-size:9.5px;width:38%;">' + r.l + '</td><td style="padding:5px 12px;font-size:9.5px;color:#1a2a3a;">' + r.v + '</td></tr>';
   }).join('');
   var stamp = m.stamp || '';
-  var stampWatermark = stamp ? '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(0,0,0,.05);white-space:nowrap;pointer-events:none;">' + stamp + '</div>' : '';
-  var stampBanner = stamp ? '<div style="background:'+(stampBg[stamp]||'#e5e7eb')+';color:'+(stampColors[stamp]||'#374151')+';font-size:15px;font-weight:900;text-align:center;padding:8px;letter-spacing:2px;margin-bottom:14px;border-radius:5px;">' + stamp + '</div>' : '';
-  var css = '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;color:#0d1b2a;margin:0;padding:22px 28px;background:#fff;}.gbar{height:5px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}.cband{background:#1a3a6b;color:#fff;padding:7px 20px;font-size:8px;font-weight:700;display:flex;justify-content:space-between;}.hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 0 10px;border-bottom:2px solid #1a3a6b;margin-bottom:14px;}.co{font-size:14px;font-weight:800;color:#1a3a6b;}.seal{width:56px;height:56px;border:2px solid #b8860b;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7.5px;font-weight:700;color:#8b6914;line-height:1.3;}table{width:100%;border-collapse:collapse;margin-bottom:16px;border:1px solid #d0d9ea;}tr:nth-child(even)>td{background:#f9fbfd;}.no-print{display:block}code{font-family:monospace;font-size:8.5px;word-break:break-all;}@media print{.no-print{display:none!important}@page{size:A4 portrait;margin:8mm 10mm}body{padding:0}}';
-  return '<!doctype html><html><head><meta charset=utf-8><title>Private Report — ' + title + '</title><style>' + css + '</style></head><body>'
-    + '<div class="gbar"></div>'
-    + '<div class="cband"><span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &mdash; BIC: ALSHAEXXXX &mdash; REG: UAE/FIN/2024/0081</span><span>PRIVATE — CONFIDENTIAL</span></div>'
-    + '<div class="hdr"><div><div class="co">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div><div style="font-size:9.5px;color:#5a6a80;margin-top:3px;">Private Report &mdash; ' + title + ' &mdash; ' + new Date().toUTCString() + '</div></div><div class="seal">ALSH<br>GROUP<br>&#9733;&#9733;&#9733;</div></div>'
-    + '<div class="no-print" style="margin-bottom:14px;display:flex;gap:8px;"><button onclick="window.print()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 24px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;">&#128424; Print / Save PDF</button><button onclick="window.close()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 18px;font-size:12px;border-radius:5px;cursor:pointer;">&#10005; Close</button></div>'
-    + stampWatermark + stampBanner
-    + '<table>' + rowsHTML + '</table>'
-    + '<div style="margin-top:16px;padding-top:8px;border-top:1px solid #d0d9ea;display:flex;justify-content:space-between;font-size:8px;color:#9aa;"><span>PRIVATE REPORT — ALSHUMOOKH GROUP 2026 — Authorised personnel only — Ref: PR-' + ref + '</span><span>Generated: ' + new Date().toLocaleString() + '</span></div>'
-    + '</body></html>';
+  var stampWM = stamp ? '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(0,0,0,.05);white-space:nowrap;pointer-events:none;">' + stamp + '</div>' : '';
+  var stampBN = stamp ? '<div style="background:' + (sBg[stamp] || '#e5e7eb') + ';color:' + (sColors[stamp] || '#374151') + ';font-size:15px;font-weight:900;text-align:center;padding:8px;letter-spacing:2px;margin-bottom:14px;border-radius:5px;">' + stamp + '</div>' : '';
+  var css = [
+    '*{-webkit-print-color-adjust:exact\!important;print-color-adjust:exact\!important}',
+    'body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;color:#0d1b2a;margin:0;padding:22px 28px;background:#fff;}',
+    '.gbar{height:5px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}',
+    '.cband{background:#1a3a6b;color:#fff;padding:7px 20px;font-size:8px;font-weight:700;display:flex;justify-content:space-between;}',
+    '.hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 0 10px;border-bottom:2px solid #1a3a6b;margin-bottom:14px;}',
+    '.co{font-size:14px;font-weight:800;color:#1a3a6b;}',
+    '.seal{width:56px;height:56px;border:2px solid #b8860b;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7.5px;font-weight:700;color:#8b6914;line-height:1.3;}',
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px;border:1px solid #d0d9ea;}',
+    'tr:nth-child(even)>td{background:#f9fbfd;}',
+    '.np{display:block}code{font-family:monospace;font-size:8.5px;word-break:break-all;}',
+    '@media print{.np{display:none\!important}@page{size:A4 portrait;margin:8mm 10mm}body{padding:0}}'
+  ].join('');
+  var parts = [
+    '<\!doctype html><html><head><meta charset="utf-8">',
+    '<title>Private Report - ' + titleStr + '</title>',
+    '<style>' + css + '</style></head><body>',
+    '<div class="gbar"></div>',
+    '<div class="cband"><span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &mdash; PRIVATE &mdash; CONFIDENTIAL</span><span>Ref: PR-' + ref + '</span></div>',
+    '<div class="hdr"><div><div class="co">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>',
+    '<div style="font-size:9.5px;color:#5a6a80;margin-top:3px;">Private Report &mdash; ' + titleStr + ' &mdash; ' + new Date().toUTCString() + '</div></div>',
+    '<div class="seal">ALSH<br>GROUP<br>&#9733;&#9733;&#9733;</div></div>',
+    '<div class="np" style="margin-bottom:14px;display:flex;gap:8px;">',
+    '<button onclick="window.print()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 24px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;">&#128424; Print / Save PDF</button>',
+    '<button onclick="window.close()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 18px;font-size:12px;border-radius:5px;cursor:pointer;">&#10005; Close</button></div>',
+    stampWM, stampBN,
+    '<table>' + rowsHTML + '</table>',
+    '<div style="margin-top:16px;padding-top:8px;border-top:1px solid #d0d9ea;display:flex;justify-content:space-between;font-size:8px;color:#9aa;">',
+    '<span>PRIVATE REPORT &mdash; ALSHUMOOKH GROUP 2026 &mdash; Ref: PR-' + ref + '</span>',
+    '<span>Generated: ' + new Date().toLocaleString() + '</span></div>',
+    '</body></html>'
+  ];
+  return parts.join('');
 }
 
-function prPrintSel() {
-  if (PR.idx === null) { alert('Please select a transaction first.'); return; }
-  var type = PR.type;
-  var data = type==='order' ? PR.data.orders[PR.idx] : type==='m1' ? PR.data.m1[PR.idx] : type==='payload' ? PR.data.payloads[PR.idx] : PR.data.transfers[PR.idx];
-  if (!data) return;
-  var lblMap = {order:'Payment Order', m1:'M1 Tokenization Job', payload:'Settlement Payload', transfer:'Outbound Transfer'};
-  var ref = Date.now().toString(36).toUpperCase();
-  var html = prBuildHTML(type, data, PR.meta[prKey()], lblMap[type]||type, ref);
+/* ── Print one transaction ──────────────────────────────────────── */
+function prPrintOne() {
+  if (PR_SEL.idx === null) { alert('Please select a transaction first.'); return; }
+  var type = PR_SEL.type;
+  var d    = PR_DATA[type] ? PR_DATA[type][PR_SEL.idx] : null;
+  if (\!d)  { return; }
+  var lblMap = { order:'Payment Order', m1:'M1 Tokenization', payload:'Settlement Payload', transfer:'Outbound Transfer' };
+  var ref    = Date.now().toString(36).toUpperCase();
+  var html   = prBuildPrintHTML(type, d, PR_META[prKey()], lblMap[type] || type, ref);
   var w = window.open('', '_blank', 'width=820,height=980');
-  w.document.write(html); w.document.close();
+  if (w) { w.document.write(html); w.document.close(); }
 }
 
+/* ── Print all ──────────────────────────────────────────────────── */
 function prPrintAll() {
-  var types = ['order','m1','payload','transfer'];
-  var lblMap = {order:'Payment Order', m1:'M1 Tokenization Job', payload:'Settlement Payload', transfer:'Outbound Transfer'};
-  var allRows = [];
+  var types  = ['order','m1','payload','transfer'];
+  var lblMap = { order:'Payment Order', m1:'M1 Tokenization', payload:'Settlement Payload', transfer:'Outbound Transfer' };
+  var allItems = [];
   types.forEach(function(t) {
-    (PR.data[t]||[]).forEach(function(d, i) {
-      var rows = prBuildRows(t, d);
-      var m = PR.meta[t+'_'+i] || {};
-      if (m.liq_pct||m.custom_amt||m.stamp) {
-        rows.push({h:'PRIVATE ANNOTATIONS'});
-        if(m.liq_pct) rows.push({l:'Liquidation Rate',v:'<strong>'+m.liq_pct+'%</strong>'});
-        if(m.custom_amt) rows.push({l:'Post-Liquidation Amount',v:'<strong>'+m.custom_amt+' '+(m.custom_cur||'USD')+'</strong>'});
-        if(m.stamp) rows.push({l:'Status Stamp',v:'<strong>'+m.stamp+'</strong>'});
-      }
-      allRows.push({type:t, lbl:lblMap[t], rows:rows, d:d});
+    var arr = PR_DATA[t] || [];
+    arr.forEach(function(d, i) {
+      allItems.push({ type:t, idx:i, d:d, lbl:lblMap[t], meta:PR_META[t+'_'+i]||{} });
     });
   });
-  if (!allRows.length) { alert('No transactions loaded.'); return; }
-  var css = '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:9.5px;color:#0d1b2a;margin:0;padding:18px 24px;background:#fff;}.gbar{height:4px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}.cband{background:#1a3a6b;color:#fff;padding:5px 16px;font-size:7.5px;font-weight:700;display:flex;justify-content:space-between;}.hdr{display:flex;justify-content:space-between;align-items:center;padding:10px 0 8px;border-bottom:2px solid #1a3a6b;margin-bottom:10px;}.co{font-size:13px;font-weight:800;color:#1a3a6b;}.seal{width:48px;height:48px;border:2px solid #b8860b;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7px;font-weight:700;color:#8b6914;line-height:1.3;}table{width:100%;border-collapse:collapse;margin-bottom:12px;border:1px solid #d0d9ea;page-break-inside:avoid;}tr:nth-child(even)>td{background:#f9fbfd;}.no-print{display:block}code{font-family:monospace;font-size:8px;word-break:break-all;}@media print{.no-print{display:none!important}@page{size:A4 portrait;margin:6mm 8mm}body{padding:0}.tx-block{page-break-after:always;}}';
-  var ref = Date.now().toString(36).toUpperCase();
-  var body = allRows.map(function(item) {
-    var rowsHTML = item.rows.map(function(r) {
-      if (r.h) return '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:8px;font-weight:800;letter-spacing:.8px;padding:4px 10px;text-transform:uppercase;">'+r.h+'</td></tr>';
-      return '<tr><td style="background:#f4f7fb;font-weight:600;color:#445;padding:4px 10px;white-space:nowrap;font-size:8.5px;width:36%;">'+r.l+'</td><td style="padding:4px 10px;font-size:8.5px;color:#1a2a3a;">'+r.v+'</td></tr>';
+  if (\!allItems.length) { alert('No transactions loaded. Please wait for data to load.'); return; }
+  var css = [
+    '*{-webkit-print-color-adjust:exact\!important;print-color-adjust:exact\!important}',
+    'body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:9.5px;color:#0d1b2a;margin:0;padding:18px 24px;background:#fff;}',
+    '.gbar{height:4px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}',
+    '.cband{background:#1a3a6b;color:#fff;padding:5px 16px;font-size:7.5px;font-weight:700;display:flex;justify-content:space-between;}',
+    '.hdr{display:flex;justify-content:space-between;align-items:center;padding:10px 0 8px;border-bottom:2px solid #1a3a6b;margin-bottom:10px;}',
+    '.co{font-size:13px;font-weight:800;color:#1a3a6b;}',
+    '.seal{width:48px;height:48px;border:2px solid #b8860b;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7px;font-weight:700;color:#8b6914;line-height:1.3;}',
+    'table{width:100%;border-collapse:collapse;margin-bottom:12px;border:1px solid #d0d9ea;page-break-inside:avoid;}',
+    'tr:nth-child(even)>td{background:#f9fbfd;}',
+    '.np{display:block}code{font-family:monospace;font-size:8px;word-break:break-all;}',
+    '.blk{page-break-after:always;}',
+    '@media print{.np{display:none\!important}@page{size:A4 portrait;margin:6mm 8mm}body{padding:0}}'
+  ].join('');
+  var ref  = Date.now().toString(36).toUpperCase();
+  var body = allItems.map(function(item) {
+    var rows = prBuildRows(item.type, item.d);
+    var m = item.meta;
+    if (m.liq_pct || m.custom_amt || m.stamp) {
+      rows.push({ h:'PRIVATE ANNOTATIONS' });
+      if (m.liq_pct)    { rows.push({ l:'Liquidation Rate',       v:'<strong>' + m.liq_pct + '%</strong>' }); }
+      if (m.custom_amt) { rows.push({ l:'Post-Liquidation Amount', v:'<strong>' + m.custom_amt + ' ' + (m.custom_cur || 'USD') + '</strong>' }); }
+      if (m.stamp)      { rows.push({ l:'Status Stamp',            v:'<strong>' + m.stamp + '</strong>' }); }
+    }
+    var rHTML = rows.map(function(r) {
+      if (r.h) { return '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:8px;font-weight:800;letter-spacing:.8px;padding:4px 10px;text-transform:uppercase;">' + r.h + '</td></tr>'; }
+      return '<tr><td style="background:#f4f7fb;font-weight:600;color:#445;padding:4px 10px;white-space:nowrap;font-size:8.5px;width:36%;">' + r.l + '</td><td style="padding:4px 10px;font-size:8.5px;color:#1a2a3a;">' + r.v + '</td></tr>';
     }).join('');
-    return '<div class="tx-block"><div style="background:#1a3a6b;color:#c9a84c;font-size:9px;font-weight:800;padding:4px 10px;margin-bottom:2px;border-radius:3px 3px 0 0;">' + item.lbl + ' — ' + (item.d.id||'') + '</div><table>'+rowsHTML+'</table></div>';
+    return '<div class="blk"><div style="background:#1a3a6b;color:#c9a84c;font-size:9px;font-weight:800;padding:4px 10px;margin-bottom:2px;border-radius:3px 3px 0 0;">' + item.lbl + ' &mdash; ' + String(item.d.id || '') + '</div><table>' + rHTML + '</table></div>';
   }).join('');
-  var html = '<!doctype html><html><head><meta charset=utf-8><title>Private Report — All Transactions</title><style>'+css+'</style></head><body>'
-    + '<div class="gbar"></div>'
-    + '<div class="cband"><span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &mdash; PRIVATE &mdash; CONFIDENTIAL</span><span>Ref: PR-ALL-'+ref+'</span></div>'
-    + '<div class="hdr"><div><div class="co">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div><div style="font-size:9px;color:#5a6a80;margin-top:2px;">Complete Private Report &mdash; All Transactions &mdash; ' + new Date().toUTCString() + '</div></div><div class="seal">ALSH<br>GROUP<br>&#9733;&#9733;&#9733;</div></div>'
-    + '<div class="no-print" style="margin-bottom:12px;display:flex;gap:8px;"><button onclick="window.print()" style="background:#0d2240;color:#c9a84c;border:none;padding:8px 20px;font-size:11px;font-weight:700;border-radius:5px;cursor:pointer;">&#128424; Print / Save PDF</button><button onclick="window.close()" style="background:#e5e7eb;color:#374151;border:none;padding:8px 16px;font-size:11px;border-radius:5px;cursor:pointer;">&#10005; Close</button><span style="font-size:11px;color:#555;line-height:32px;">' + allRows.length + ' total transactions</span></div>'
-    + body
-    + '<div style="margin-top:12px;padding-top:6px;border-top:1px solid #d0d9ea;display:flex;justify-content:space-between;font-size:7.5px;color:#9aa;"><span>PRIVATE REPORT — ALSHUMOOKH GROUP 2026 — Authorised personnel only — Ref: PR-ALL-'+ref+'</span><span>Generated: '+new Date().toLocaleString()+'</span></div>'
-    + '</body></html>';
+
+  var parts = [
+    '<\!doctype html><html><head><meta charset="utf-8">',
+    '<title>Private Report - All Transactions</title>',
+    '<style>' + css + '</style></head><body>',
+    '<div class="gbar"></div>',
+    '<div class="cband"><span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &mdash; PRIVATE &mdash; CONFIDENTIAL</span><span>Ref: PR-ALL-' + ref + '</span></div>',
+    '<div class="hdr"><div><div class="co">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>',
+    '<div style="font-size:9px;color:#5a6a80;margin-top:2px;">Complete Private Report &mdash; All Transactions &mdash; ' + new Date().toUTCString() + '</div></div>',
+    '<div class="seal">ALSH<br>GROUP<br>&#9733;&#9733;&#9733;</div></div>',
+    '<div class="np" style="margin-bottom:12px;display:flex;gap:8px;">',
+    '<button onclick="window.print()" style="background:#0d2240;color:#c9a84c;border:none;padding:8px 20px;font-size:11px;font-weight:700;border-radius:5px;cursor:pointer;">&#128424; Print / Save PDF</button>',
+    '<button onclick="window.close()" style="background:#e5e7eb;color:#374151;border:none;padding:8px 16px;font-size:11px;border-radius:5px;cursor:pointer;">&#10005; Close</button>',
+    '<span style="font-size:11px;color:#555;line-height:32px;">' + allItems.length + ' total transactions</span></div>',
+    body,
+    '<div style="margin-top:12px;padding-top:6px;border-top:1px solid #d0d9ea;display:flex;justify-content:space-between;font-size:7.5px;color:#9aa;">',
+    '<span>PRIVATE REPORT &mdash; ALSHUMOOKH GROUP 2026 &mdash; Ref: PR-ALL-' + ref + '</span>',
+    '<span>Generated: ' + new Date().toLocaleString() + '</span></div>',
+    '</body></html>'
+  ];
+  var html = parts.join('');
   var w = window.open('', '_blank', 'width=900,height=1000');
-  w.document.write(html); w.document.close();
+  if (w) { w.document.write(html); w.document.close(); }
 }
 
-// Load all data on page init
-prLoadAll();
+/* ── Init ───────────────────────────────────────────────────────── */
+(function init() {
+  prLoadAll();
+})();
 </script>
 """
 
