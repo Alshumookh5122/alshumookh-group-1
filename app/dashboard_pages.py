@@ -3517,43 +3517,56 @@ function printTxReport(idx,type){
   function renderCell(label,val,hint){
     if(val&&typeof val==='object'&&val.raw) return val.raw;
     var s=String(val===null||val===undefined?'—':val);
-    if(hint==='status') return '<span style="display:inline-block;padding:3px 14px;border-radius:12px;font-weight:700;font-size:11px;'+statusColor+';">'+esc(s)+'</span>';
-    if(hint==='hash'||label==='TX Hash') return s==='—'?'<span style="color:#bbb;">—</span>':'<div style="font-family:monospace;font-size:9.5px;word-break:break-all;color:#0d2240;background:#f0f4fb;padding:5px 8px;border-radius:4px;border:1px solid #d0dced;margin-top:2px;">'+esc(s)+'</div>';
-    if(hint==='id') return s==='—'?'<span style="color:#bbb;">—</span>':'<span style="font-family:monospace;font-size:10px;color:#555;">'+esc(s)+'</span>';
-    if(hint==='addr') return s==='—'?'<span style="color:#bbb;">—</span>':'<span style="font-family:monospace;font-size:10px;word-break:break-all;">'+esc(s)+'</span>';
-    if(hint==='amount') return s==='—'?'<span style="color:#bbb;">—</span>':'<strong style="font-size:14px;color:#0d2240;">'+esc(s)+'</strong>';
-    if(hint==='err') return s==='—'?'<span style="color:#bbb;">—</span>':'<span style="color:#991b1b;">'+esc(s)+'</span>';
-    if(hint==='url') return s==='—'?'<span style="color:#bbb;">—</span>':'<a href="'+esc(s)+'" target="_blank" style="color:#1a3a6b;word-break:break-all;font-size:10px;">'+esc(s)+'</a>';
-    return s==='—'?'<span style="color:#bbb;">—</span>':esc(s);
+    var dash='<span style="color:#bbb;">—</span>';
+    if(s==='—') return dash;
+    if(hint==='status') return '<span style="display:inline-block;padding:3px 14px;border-radius:12px;font-weight:700;font-size:11px;'+statusColor+'!important;">'+esc(s)+'</span>';
+    if(hint==='hash'||label==='TX Hash') return '<span class="hash-box">'+esc(s)+'</span>';
+    if(hint==='id') return '<span style="font-family:monospace;font-size:10px;color:#444;">'+esc(s)+'</span>';
+    if(hint==='addr') return '<span style="font-family:monospace;font-size:10px;word-break:break-all;">'+esc(s)+'</span>';
+    if(hint==='amount') return '<strong style="font-size:14px;color:#0d2240;">'+esc(s)+'</strong>';
+    if(hint==='err') return '<span style="color:#991b1b;">'+esc(s)+'</span>';
+    if(hint==='url') return '<a href="'+esc(s)+'" target="_blank" style="color:#1a3a6b;word-break:break-all;font-size:10px;">'+esc(s)+'</a>';
+    return esc(s);
   }
 
   var rowsHTML=rows.map(function(r){
-    if(r.h) return '<tr><td colspan="2" style="padding:7px 16px 5px;font-size:9px;font-weight:800;letter-spacing:1.4px;color:#c9a84c;background:#0d2240;text-transform:uppercase;">'+r.h+'</td></tr>';
-    return '<tr><td style="padding:8px 16px;font-weight:600;color:#1a3a6b;background:#f4f7fb;width:210px;font-size:11px;border-bottom:1px solid #e5eef8;vertical-align:top;white-space:nowrap;">'+esc(r[0])+'</td>'
-          +'<td style="padding:8px 16px;font-size:11px;border-bottom:1px solid #e5eef8;vertical-align:top;">'+renderCell(r[0],r[1],r[2])+'</td></tr>';
+    if(r.h) return '<tr><td colspan="2" class="sec-hdr">'+r.h+'</td></tr>';
+    return '<tr><td class="lbl-cell">'+esc(r[0])+'</td>'
+          +'<td class="val-cell">'+renderCell(r[0],r[1],r[2])+'</td></tr>';
   }).join('');
 
-  var summaryHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;">'
-    +'<div style="background:#0d2240;color:#c9a84c;border-radius:8px;padding:13px 16px;"><div style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.7;margin-bottom:5px;">Transaction ID</div><div style="font-family:monospace;font-size:10px;word-break:break-all;">'+esc(sum[0]||'—')+'</div></div>'
-    +'<div style="background:#f0f4fb;border-radius:8px;padding:13px 16px;border:1.5px solid #c8d9f0;"><div style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:5px;">Amount / Conversion</div><div style="font-size:13px;font-weight:800;color:#0d2240;word-break:break-all;">'+esc(sum[1]||'—')+'</div></div>'
-    +'<div style="background:#f0f4fb;border-radius:8px;padding:13px 16px;border:1.5px solid #c8d9f0;"><div style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:5px;">Status</div><div style="display:inline-block;padding:4px 14px;border-radius:14px;font-weight:800;font-size:12px;'+statusColor+'">'+esc(sum[2]||'—')+'</div></div>'
-    +'<div style="background:#f0f4fb;border-radius:8px;padding:13px 16px;border:1.5px solid #c8d9f0;"><div style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:5px;">'+(type==='order'?'Provider':type==='m1'?'Sender':type==='payload'?'Network':'Recipient')+'</div><div style="font-size:11px;font-weight:700;color:#0d2240;word-break:break-all;">'+esc(sum[3]||'—')+'</div></div>'
+  var summaryHTML='<div class="sum-grid">'
+    +'<div class="sum-dark"><div class="sum-lbl">Transaction ID</div><div style="font-family:monospace;font-size:10px;word-break:break-all;color:#c9a84c;">'+esc(sum[0]||'—')+'</div></div>'
+    +'<div class="sum-light"><div class="sum-lbl" style="color:#6b7a90;">Amount / Conversion</div><div style="font-size:13px;font-weight:800;color:#0d2240;word-break:break-all;">'+esc(sum[1]||'—')+'</div></div>'
+    +'<div class="sum-light"><div class="sum-lbl" style="color:#6b7a90;">Status</div><div style="display:inline-block;padding:4px 14px;border-radius:14px;font-weight:800;font-size:12px;'+statusColor+'!important">'+esc(sum[2]||'—')+'</div></div>'
+    +'<div class="sum-light"><div class="sum-lbl" style="color:#6b7a90;">'+(type==='order'?'Provider':type==='m1'?'Sender':type==='payload'?'Network':'Recipient')+'</div><div style="font-size:11px;font-weight:700;color:#0d2240;word-break:break-all;">'+esc(sum[3]||'—')+'</div></div>'
     +'</div>';
 
-  var css='body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:11px;color:#0d1b2a;margin:0;padding:0;background:#fff;}'
-    +'.gbar{height:5px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}'
-    +'.cband{background:#0d2240;color:#fff;padding:8px 26px;font-size:8.5px;font-weight:700;letter-spacing:.6px;display:flex;justify-content:space-between;align-items:center;}'
+  var css='*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;box-sizing:border-box;}'
+    +'body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:11px;color:#0d1b2a;margin:0;padding:0;background:#fff;}'
+    +'.gbar{height:6px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400)!important;-webkit-print-color-adjust:exact!important;}'
+    +'.cband{background:#0d2240!important;color:#fff!important;padding:8px 26px;font-size:8.5px;font-weight:700;letter-spacing:.6px;display:flex;justify-content:space-between;align-items:center;}'
     +'.hdr{padding:18px 26px 12px;border-bottom:2.5px solid #0d2240;display:flex;justify-content:space-between;align-items:center;}'
     +'.co{font-size:16px;font-weight:800;color:#0d2240;letter-spacing:.2px;}.co-sub{font-size:9.5px;color:#6b7a90;margin-top:3px;}'
     +'.seal{width:64px;height:64px;border:2px solid #c9a84c;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:8px;font-weight:700;color:#8b6914;line-height:1.4;}'
-    +'.rpt-title{background:#0d2240;color:#c9a84c;padding:11px 26px;font-size:13px;font-weight:700;letter-spacing:.5px;}'
-    +'.rpt-ref{background:#f7f9fc;padding:6px 26px;font-size:9px;color:#888;display:flex;justify-content:space-between;border-bottom:1px solid #dde6f5;}'
-    +'.body{padding:20px 26px;}'
-    +'table{width:100%;border-collapse:collapse;border:1.5px solid #c8d9f0;overflow:hidden;box-shadow:0 1px 6px rgba(13,34,64,.07);}'
-    +'.foot{margin-top:24px;padding:10px 26px 18px;border-top:2px solid #0d2240;display:flex;justify-content:space-between;align-items:flex-end;}'
+    +'.rpt-title{background:#0d2240!important;color:#c9a84c!important;padding:11px 26px;font-size:13px;font-weight:700;letter-spacing:.5px;}'
+    +'.rpt-ref{background:#f7f9fc!important;padding:6px 26px;font-size:9px;color:#888;display:flex;justify-content:space-between;border-bottom:1px solid #dde6f5;}'
+    +'.body{padding:16px 26px;}'
+    +'table{width:100%;border-collapse:collapse;border:1.5px solid #c8d9f0;}'
+    +'.sum-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}'
+    +'.sum-dark{background:#0d2240!important;color:#c9a84c!important;border-radius:7px;padding:12px 15px;}'
+    +'.sum-light{background:#f0f4fb!important;border-radius:7px;padding:12px 15px;border:1.5px solid #c8d9f0;}'
+    +'.sum-lbl{font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.75;margin-bottom:4px;}'
+    +'.sum-val{font-size:12px;font-weight:800;word-break:break-all;}'
+    +'.sec-hdr{background:#0d2240!important;color:#c9a84c!important;padding:7px 16px 5px;font-size:9px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;}'
+    +'.lbl-cell{padding:8px 16px;font-weight:600;color:#1a3a6b;background:#f4f7fb!important;width:210px;font-size:11px;border-bottom:1px solid #e5eef8;vertical-align:top;white-space:nowrap;}'
+    +'.val-cell{padding:8px 16px;font-size:11px;border-bottom:1px solid #e5eef8;vertical-align:top;}'
+    +'.hash-box{font-family:monospace;font-size:9.5px;word-break:break-all;color:#0d2240;background:#f0f4fb!important;padding:5px 8px;border-radius:4px;border:1px solid #d0dced;display:block;}'
+    +'.foot{margin-top:20px;padding:10px 26px 16px;border-top:2px solid #0d2240;display:flex;justify-content:space-between;align-items:flex-end;}'
     +'.ftxt{font-size:8px;color:#9aa;line-height:1.7;max-width:440px;}'
-    +'.fseal{width:52px;height:52px;border:2px solid #c9a84c;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7.5px;font-weight:700;color:#8b6914;line-height:1.4;}'
-    +'@page{size:A4;margin:10mm 12mm}@media print{.no-print{display:none!important}body{padding:0}}';
+    +'.fseal{width:50px;height:50px;border:2px solid #c9a84c;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7px;font-weight:700;color:#8b6914;line-height:1.4;}'
+    +'@page{size:A4 portrait;margin:8mm 10mm}'
+    +'@media print{.no-print{display:none!important}}';
 
   var html='<!doctype html><html><head><meta charset=utf-8><title>'+title+'</title><style>'+css+'</style></head><body>'
     +'<div class="gbar"></div>'
