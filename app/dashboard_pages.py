@@ -4921,7 +4921,7 @@ function prFetch(url) {
   if (ak) { hdrs['X-Admin-API-Key'] = ak; }
   return fetch(url, { headers: hdrs, credentials: 'include' })
     .then(function(r) {
-      if (\!r.ok) { throw new Error('HTTP ' + r.status); }
+      if (!r.ok) { throw new Error('HTTP ' + r.status); }
       return r.json();
     });
 }
@@ -4929,7 +4929,7 @@ function prFetch(url) {
 /* ── Load all endpoints ─────────────────────────────────────────── */
 function prLoadAll() {
   var el = document.getElementById('prListContainer');
-  if (\!el) { return; }
+  if (!el) { return; }
   el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--muted);font-size:12px;">Loading transactions...</div>';
 
   var urls = [
@@ -4962,7 +4962,7 @@ function prSetFilter(btn, f) {
   var ids = ['all','order','m1','payload','transfer'];
   ids.forEach(function(k) {
     var b = document.getElementById('prBtn_' + k);
-    if (\!b) { return; }
+    if (!b) { return; }
     if (k === f) {
       b.className = 'btn btn-primary';
     } else {
@@ -4989,7 +4989,7 @@ function prFmtNum(n) {
 }
 
 function prFmtDate(v) {
-  if (\!v) { return '—'; }
+  if (!v) { return '—'; }
   try { return new Date(v).toLocaleString(); } catch(e) { return String(v); }
 }
 
@@ -5008,7 +5008,7 @@ function prProgress(type, d) {
 /* ── Render list ────────────────────────────────────────────────── */
 function prRender() {
   var el = document.getElementById('prListContainer');
-  if (\!el) { return; }
+  if (!el) { return; }
   var q = '';
   var si = document.getElementById('prSearchInput');
   if (si) { q = si.value.toLowerCase().trim(); }
@@ -5019,7 +5019,7 @@ function prRender() {
 
   var rows = [];
   types.forEach(function(t) {
-    if (PR_FILT \!== 'all' && PR_FILT \!== t) { return; }
+    if (PR_FILT !== 'all' && PR_FILT !== t) { return; }
     var arr = PR_DATA[t] || [];
     arr.forEach(function(d, i) {
       var amt = '';
@@ -5037,7 +5037,7 @@ function prRender() {
       if (q && srch.toLowerCase().indexOf(q) === -1) { return; }
       var mk = t + '_' + i;
       var sel = (PR_SEL.idx === i && PR_SEL.type === t);
-      var hasAnnot = \!\!PR_META[mk];
+      var hasAnnot = !!PR_META[mk];
       var ref = '';
       if (t === 'order') { ref = d.external_id || d.payment_reference || d.idempotency_key || ''; }
       else if (t === 'm1') { ref = d.sender_reference || d.sender_name || ''; }
@@ -5053,7 +5053,7 @@ function prRender() {
   var cl = document.getElementById('prCountLabel');
   if (cl) { cl.textContent = rows.length + ' records'; }
 
-  if (\!rows.length) {
+  if (!rows.length) {
     el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--muted);font-size:12px;">No transactions found</div>';
     return;
   }
@@ -5098,7 +5098,7 @@ function prSelect(idx, type) {
   PR_SEL.idx  = idx;
   PR_SEL.type = type;
   var d = PR_DATA[type] ? PR_DATA[type][idx] : null;
-  if (\!d) { return; }
+  if (!d) { return; }
 
   var lblMap = { order:'Payment Order', m1:'M1 Tokenization Job', payload:'Settlement Payload', transfer:'Outbound Transfer' };
   var amt = '';
@@ -5183,7 +5183,7 @@ function prOpenModal(title, fields, onSave) {
   var mSave   = document.getElementById('prModalSave');
   var mOv     = document.getElementById('prModalOverlay');
   var mBox    = document.getElementById('prModalBox');
-  if (\!mTitle || \!mFields || \!mSave || \!mOv || \!mBox) { return; }
+  if (!mTitle || !mFields || !mSave || !mOv || !mBox) { return; }
 
   var existing = PR_META[prKey()] || {};
   mTitle.textContent = title;
@@ -5249,7 +5249,7 @@ function prAskStamp() {
 function prBuildRows(type, d) {
   function pe(v) { var el=document.createElement('div'); el.textContent=String(v===null||v===undefined?'':v); return el.innerHTML; }
   function pn(n) { if(n===null||n===undefined||n===''){return '—';} var x=parseFloat(n); return isNaN(x)?String(n):x.toLocaleString('en-US',{maximumFractionDigits:2}); }
-  function pd(v) { if(\!v){return '—';} try{return new Date(v).toLocaleString();}catch(e){return String(v);} }
+  function pd(v) { if(!v){return '—';} try{return new Date(v).toLocaleString();}catch(e){return String(v);} }
   var rows = [];
   if (type === 'order') {
     rows = [
@@ -5315,7 +5315,7 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
   var stampWM = stamp ? '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(0,0,0,.05);white-space:nowrap;pointer-events:none;">' + stamp + '</div>' : '';
   var stampBN = stamp ? '<div style="background:' + (sBg[stamp] || '#e5e7eb') + ';color:' + (sColors[stamp] || '#374151') + ';font-size:15px;font-weight:900;text-align:center;padding:8px;letter-spacing:2px;margin-bottom:14px;border-radius:5px;">' + stamp + '</div>' : '';
   var css = [
-    '*{-webkit-print-color-adjust:exact\!important;print-color-adjust:exact\!important}',
+    '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}',
     'body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;color:#0d1b2a;margin:0;padding:22px 28px;background:#fff;}',
     '.gbar{height:5px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}',
     '.cband{background:#1a3a6b;color:#fff;padding:7px 20px;font-size:8px;font-weight:700;display:flex;justify-content:space-between;}',
@@ -5325,10 +5325,10 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     'table{width:100%;border-collapse:collapse;margin-bottom:16px;border:1px solid #d0d9ea;}',
     'tr:nth-child(even)>td{background:#f9fbfd;}',
     '.np{display:block}code{font-family:monospace;font-size:8.5px;word-break:break-all;}',
-    '@media print{.np{display:none\!important}@page{size:A4 portrait;margin:8mm 10mm}body{padding:0}}'
+    '@media print{.np{display:none!important}@page{size:A4 portrait;margin:8mm 10mm}body{padding:0}}'
   ].join('');
   var parts = [
-    '<\!doctype html><html><head><meta charset="utf-8">',
+    '<!doctype html><html><head><meta charset="utf-8">',
     '<title>Private Report - ' + titleStr + '</title>',
     '<style>' + css + '</style></head><body>',
     '<div class="gbar"></div>',
@@ -5354,7 +5354,7 @@ function prPrintOne() {
   if (PR_SEL.idx === null) { alert('Please select a transaction first.'); return; }
   var type = PR_SEL.type;
   var d    = PR_DATA[type] ? PR_DATA[type][PR_SEL.idx] : null;
-  if (\!d)  { return; }
+  if (!d)  { return; }
   var lblMap = { order:'Payment Order', m1:'M1 Tokenization', payload:'Settlement Payload', transfer:'Outbound Transfer' };
   var ref    = Date.now().toString(36).toUpperCase();
   var html   = prBuildPrintHTML(type, d, PR_META[prKey()], lblMap[type] || type, ref);
@@ -5373,9 +5373,9 @@ function prPrintAll() {
       allItems.push({ type:t, idx:i, d:d, lbl:lblMap[t], meta:PR_META[t+'_'+i]||{} });
     });
   });
-  if (\!allItems.length) { alert('No transactions loaded. Please wait for data to load.'); return; }
+  if (!allItems.length) { alert('No transactions loaded. Please wait for data to load.'); return; }
   var css = [
-    '*{-webkit-print-color-adjust:exact\!important;print-color-adjust:exact\!important}',
+    '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}',
     'body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:9.5px;color:#0d1b2a;margin:0;padding:18px 24px;background:#fff;}',
     '.gbar{height:4px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}',
     '.cband{background:#1a3a6b;color:#fff;padding:5px 16px;font-size:7.5px;font-weight:700;display:flex;justify-content:space-between;}',
@@ -5386,7 +5386,7 @@ function prPrintAll() {
     'tr:nth-child(even)>td{background:#f9fbfd;}',
     '.np{display:block}code{font-family:monospace;font-size:8px;word-break:break-all;}',
     '.blk{page-break-after:always;}',
-    '@media print{.np{display:none\!important}@page{size:A4 portrait;margin:6mm 8mm}body{padding:0}}'
+    '@media print{.np{display:none!important}@page{size:A4 portrait;margin:6mm 8mm}body{padding:0}}'
   ].join('');
   var ref  = Date.now().toString(36).toUpperCase();
   var body = allItems.map(function(item) {
@@ -5406,7 +5406,7 @@ function prPrintAll() {
   }).join('');
 
   var parts = [
-    '<\!doctype html><html><head><meta charset="utf-8">',
+    '<!doctype html><html><head><meta charset="utf-8">',
     '<title>Private Report - All Transactions</title>',
     '<style>' + css + '</style></head><body>',
     '<div class="gbar"></div>',
@@ -5434,6 +5434,7 @@ function prPrintAll() {
   prLoadAll();
 })();
 </script>
+
 """
 
 
