@@ -93,6 +93,10 @@ def _sidebar(active_path: str) -> str:
     </div>
   </div>
   <nav>{links}</nav>
+  <!-- Private Report Button -->
+  <div style="padding:8px 14px 4px;">
+    <button onclick="openPrivatePanel()" style="width:100%;background:#0d2240;color:#c9a84c;border:1.5px solid #c9a84c44;padding:10px 12px;border-radius:8px;font-size:11.5px;font-weight:800;cursor:pointer;letter-spacing:.3px;transition:opacity .2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">&#128274; Private Report</button>
+  </div>
   <div class="sidebar-foot">
     <span style="font-weight:700;color:var(--gold);">Settlement Wallets</span>
     <div style="margin-top:6px;">
@@ -112,6 +116,403 @@ def _sidebar(active_path: str) -> str:
     </a>
   </div>
 </aside>
+
+<!-- ══ PRIVATE REPORT FLOATING PANEL ══════════════════════════════ -->
+<div id="_prOverlay" onclick="closePrivatePanel()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9990;"></div>
+<div id="_prPanel" style="display:none;position:fixed;left:220px;top:0;width:430px;height:100vh;background:#fff;z-index:9991;box-shadow:6px 0 40px rgba(0,0,0,.3);flex-direction:column;overflow:hidden;">
+  <!-- Panel Header -->
+  <div style="background:#0d2240;color:#c9a84c;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+    <div style="font-size:13px;font-weight:800;letter-spacing:.3px;">&#128274; Private Report</div>
+    <button onclick="closePrivatePanel()" style="background:rgba(255,255,255,.12);border:none;color:#c9a84c;font-size:18px;width:30px;height:30px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">&#10005;</button>
+  </div>
+  <!-- Filter Bar -->
+  <div style="background:#f4f7fb;padding:8px 14px;border-bottom:1px solid #e5eef8;display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;">
+    <button id="_prF_all"    onclick="_prFilter('all')"     style="background:#0d2240;color:#fff;border:none;padding:4px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;">All</button>
+    <button id="_prF_order"  onclick="_prFilter('order')"   style="background:#e2e8f0;color:#374151;border:none;padding:4px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;">Orders</button>
+    <button id="_prF_m1"     onclick="_prFilter('m1')"      style="background:#e2e8f0;color:#374151;border:none;padding:4px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;">M1</button>
+    <button id="_prF_payload" onclick="_prFilter('payload')" style="background:#e2e8f0;color:#374151;border:none;padding:4px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;">Payloads</button>
+    <button id="_prF_transfer" onclick="_prFilter('transfer')" style="background:#e2e8f0;color:#374151;border:none;padding:4px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;">Transfers</button>
+    <span id="_prTotal" style="margin-left:auto;font-size:10px;color:#6b7a90;line-height:28px;"></span>
+  </div>
+  <!-- Search -->
+  <div style="padding:8px 14px;border-bottom:1px solid #e5eef8;flex-shrink:0;">
+    <input id="_prSearch" oninput="_prRenderList()" placeholder="&#128269; Search by ID, amount, status..." style="width:100%;padding:7px 10px;border:1.5px solid #c8d9f0;border-radius:6px;font-size:11px;box-sizing:border-box;outline:none;">
+  </div>
+  <!-- Transaction List -->
+  <div id="_prList" style="flex:1;overflow-y:auto;border-bottom:1px solid #e5eef8;"></div>
+  <!-- Selected Transaction + Annotation Controls -->
+  <div id="_prAnnot" style="flex-shrink:0;display:none;border-top:2px solid #0d2240;">
+    <div style="background:#f4f7fb;padding:8px 14px;border-bottom:1px solid #e5eef8;">
+      <div style="font-size:9px;font-weight:800;color:#6b7a90;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;">Selected Transaction</div>
+      <div id="_prSelBox" style="font-size:10px;color:#0d2240;"></div>
+    </div>
+    <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px;">
+      <!-- Liquidation Rate -->
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;">
+          <div style="font-size:9px;font-weight:800;color:#1e40af;text-transform:uppercase;">&#128197; Liquidation Rate</div>
+          <div id="_prLiqDisp" style="font-size:11px;color:#555;margin-top:2px;">Not set</div>
+        </div>
+        <button onclick="_prOpenLiq()" style="background:#1e40af;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">Set %</button>
+      </div>
+      <!-- Post-Liquidation Amount -->
+      <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;">
+          <div style="font-size:9px;font-weight:800;color:#065f46;text-transform:uppercase;">&#128181; Post-Liquidation Amount</div>
+          <div id="_prAmtDisp" style="font-size:11px;color:#555;margin-top:2px;">Not set</div>
+        </div>
+        <button onclick="_prOpenAmt()" style="background:#065f46;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">Set</button>
+      </div>
+      <!-- Status Stamp -->
+      <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;">
+          <div style="font-size:9px;font-weight:800;color:#6d28d9;text-transform:uppercase;">&#128396; Status Stamp</div>
+          <div id="_prStampDisp" style="font-size:11px;color:#555;margin-top:2px;">Not set</div>
+        </div>
+        <button onclick="_prOpenStamp()" style="background:#6d28d9;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">Set</button>
+      </div>
+    </div>
+    <!-- Action Buttons -->
+    <div style="padding:0 14px 14px;display:flex;gap:8px;">
+      <button onclick="_prClear()" style="flex:1;background:#fee2e2;color:#991b1b;border:none;padding:9px 6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">&#128465; Clear</button>
+      <button onclick="_prPrint()" style="flex:2;background:#0d2240;color:#c9a84c;border:none;padding:9px 6px;border-radius:6px;font-size:12px;font-weight:800;cursor:pointer;">&#128274; Print Private Report</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══ PRIVATE REPORT PANEL — self-contained ═══════════════════ */
+var _pr={{
+  data:{{orders:[],m1:[],payloads:[],transfers:[]}},
+  meta:{{}},
+  idx:null, type:null,
+  filter:'all',
+  loaded:false
+}};
+function _prEsc(v){{var d=document.createElement('div');d.textContent=String(v||'');return d.innerHTML;}}
+function _prFmt(n){{if(!n&&n!==0)return '—';var x=parseFloat(n);return isNaN(x)?String(n):x.toLocaleString('en-US',{{maximumFractionDigits:6}});}}
+function _prKey(idx,type){{
+  var d=type==='order'?_pr.data.orders[idx]:type==='m1'?_pr.data.m1[idx]:type==='payload'?_pr.data.payloads[idx]:_pr.data.transfers[idx];
+  return type+'_'+(d?d.id:'x');
+}}
+function _prApi(url){{
+  return fetch(url,{{headers:{{'X-Admin-Key':localStorage.getItem('adminKey')||document.getElementById('_adminKey')?document.getElementById('_adminKey').value:''}}}}).then(function(r){{return r.json();}});
+}}
+
+function openPrivatePanel(){{
+  var panel=document.getElementById('_prPanel');
+  var overlay=document.getElementById('_prOverlay');
+  panel.style.display='flex';
+  overlay.style.display='block';
+  if(!_pr.loaded) _prLoadAll();
+  else _prRenderList();
+}}
+function closePrivatePanel(){{
+  document.getElementById('_prPanel').style.display='none';
+  document.getElementById('_prOverlay').style.display='none';
+}}
+function _prLoadAll(){{
+  var listEl=document.getElementById('_prList');
+  listEl.innerHTML='<div style="padding:24px;text-align:center;color:#aaa;font-size:12px;">Loading all transactions&hellip;</div>';
+  Promise.all([
+    _prApi('/api/v1/admin/orders').catch(function(){{return[]}}),
+    _prApi('/api/v1/admin/tokenization-jobs?limit=500').catch(function(){{return[]}}),
+    _prApi('/api/v1/admin/payloads?limit=500').catch(function(){{return[]}}),
+    _prApi('/api/v1/admin/outbound-transfers?limit=500').catch(function(){{return[]}})
+  ]).then(function(res){{
+    _pr.data.orders=Array.isArray(res[0])?res[0]:(res[0].orders||[]);
+    _pr.data.m1=Array.isArray(res[1])?res[1]:[];
+    _pr.data.payloads=Array.isArray(res[2])?res[2]:(res[2].payloads||[]);
+    _pr.data.transfers=Array.isArray(res[3])?res[3]:(res[3].transfers||[]);
+    _pr.loaded=true;
+    _prRenderList();
+  }}).catch(function(e){{
+    listEl.innerHTML='<div style="padding:20px;color:#c0392b;font-size:11px;">Error loading data: '+_prEsc(e.message)+'</div>';
+  }});
+}}
+function _prFilter(f){{
+  _pr.filter=f;
+  ['all','order','m1','payload','transfer'].forEach(function(k){{
+    var btn=document.getElementById('_prF_'+k);
+    if(btn){{btn.style.background=k===f?'#0d2240':'#e2e8f0';btn.style.color=k===f?'#fff':'#374151';}}
+  }});
+  _prRenderList();
+}}
+function _prRenderList(){{
+  var listEl=document.getElementById('_prList');
+  var q=(document.getElementById('_prSearch')||{{}}).value||'';
+  q=q.toLowerCase().trim();
+  var types=['order','m1','payload','transfer'];
+  var labels={{order:'ORDER',m1:'M1',payload:'PAYLOAD',transfer:'XFER'}};
+  var colors={{order:'#1e40af',m1:'#065f46',payload:'#7c3aed',transfer:'#b45309'}};
+  var rows=[];
+  types.forEach(function(t){{
+    if(_pr.filter!=='all'&&_pr.filter!==t) return;
+    (_pr.data[t]||[]).forEach(function(d,i){{
+      var amt='';
+      if(t==='order') amt=_prFmt(d.fiat_amount)+' '+(d.fiat_currency||'');
+      else if(t==='m1') amt=_prFmt(d.eur_amount)+' EUR';
+      else if(t==='payload') amt=_prFmt(d.amount)+' '+(d.asset||'');
+      else amt=_prFmt(d.amount)+' '+(d.asset||d.currency||'USDT');
+      var st=d.status||d.verification_status||'';
+      var searchStr=(d.id||'')+amt+st+(d.tx_hash||'')+(d.external_id||d.payment_reference||d.sender_reference||'');
+      if(q&&searchStr.toLowerCase().indexOf(q)===-1) return;
+      var sel=(_pr.idx===i&&_pr.type===t);
+      rows.push({{t:t,i:i,d:d,amt:amt,st:st,sel:sel,lbl:labels[t],color:colors[t]}});
+    }});
+  }});
+  var total=document.getElementById('_prTotal');
+  if(total) total.textContent=rows.length+' records';
+  if(!rows.length){{
+    listEl.innerHTML='<div style="padding:24px;text-align:center;color:#aaa;font-size:11px;">No transactions found</div>';
+    return;
+  }}
+  var html=rows.map(function(r){{
+    var bg=r.sel?'background:#e8f0fe;':'';
+    var mkey=_prKey(r.i,r.t);
+    var hasAnnot=!!_pr.meta[mkey];
+    return '<div onclick="_prSelect('+r.i+',\''+r.t+'\')" style="padding:9px 14px;cursor:pointer;border-bottom:1px solid #edf2f8;'+bg+'">'
+      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">'
+        +'<span style="background:'+r.color+';color:#fff;border-radius:3px;padding:1px 6px;font-size:7.5px;font-weight:800;flex-shrink:0;">'+r.lbl+'</span>'
+        +'<span style="font-family:monospace;font-size:8.5px;color:#6b7a90;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_prEsc((r.d.id||'—'))+'</span>'
+        +(hasAnnot?'<span style="background:#c9a84c;color:#fff;border-radius:3px;padding:1px 5px;font-size:7px;font-weight:800;">ANNOT</span>':'')
+      +'</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;">'
+        +'<span style="font-size:11px;font-weight:700;color:#0d2240;">'+_prEsc(r.amt)+'</span>'
+        +'<span style="font-size:9px;color:#777;background:#f1f5f9;padding:1px 6px;border-radius:8px;">'+_prEsc(r.st)+'</span>'
+      +'</div>'
+    +'</div>';
+  }}).join('');
+  listEl.innerHTML=html;
+}}
+function _prSelect(idx,type){{
+  _pr.idx=idx; _pr.type=type;
+  var d=type==='order'?_pr.data.orders[idx]:type==='m1'?_pr.data.m1[idx]:type==='payload'?_pr.data.payloads[idx]:_pr.data.transfers[idx];
+  if(!d) return;
+  var lblMap={{order:'Payment Order',m1:'M1 Tokenization Job',payload:'Settlement Payload',transfer:'Outbound Transfer'}};
+  var amt='';
+  if(type==='order') amt=_prFmt(d.fiat_amount)+' '+(d.fiat_currency||'');
+  else if(type==='m1') amt=_prFmt(d.eur_amount)+' EUR';
+  else if(type==='payload') amt=_prFmt(d.amount)+' '+(d.asset||'');
+  else amt=_prFmt(d.amount)+' '+(d.asset||d.currency||'USDT');
+  var selBox=document.getElementById('_prSelBox');
+  if(selBox) selBox.innerHTML='<strong>'+_prEsc(lblMap[type]||type)+'</strong> &mdash; <span style="font-family:monospace;font-size:9px;color:#4a6a90;">'+_prEsc(d.id||'')+'</span><br><span style="font-size:12px;font-weight:800;color:#0d2240;">'+_prEsc(amt)+'</span>';
+  document.getElementById('_prAnnot').style.display='block';
+  _prRefreshAnnot();
+  _prRenderList();
+}}
+function _prRefreshAnnot(){{
+  if(_pr.idx===null) return;
+  var m=_pr.meta[_prKey(_pr.idx,_pr.type)]||{{}};
+  var sc={{APPROVED:'#065f46',CANCELLED:'#991b1b',REJECTED:'#991b1b',PENDING:'#92400e',PROCESSING:'#1e40af'}};
+  var ld=document.getElementById('_prLiqDisp');
+  var ad=document.getElementById('_prAmtDisp');
+  var sd=document.getElementById('_prStampDisp');
+  if(ld) ld.textContent=m.liq_pct?m.liq_pct+'%':'Not set';
+  if(ad) ad.textContent=m.custom_amt?m.custom_amt+' '+(m.custom_cur||'USD'):'Not set';
+  if(sd){{sd.textContent=m.stamp||'Not set';sd.style.color=m.stamp?(sc[m.stamp]||'#555'):'#aaa';sd.style.fontWeight=m.stamp?'700':'400';}}
+}}
+function _prModal(title,fields,key,cb){{
+  var ex=_pr.meta[key]||{{}};
+  var fHTML=fields.map(function(f){{
+    var v=ex[f.k]||'';
+    var inp;
+    if(f.opts){{
+      var os=f.opts.map(function(o){{return '<option value="'+o+'"'+(v===o?' selected':'')+'>'+o+'</option>';'}}).join('');
+      inp='<select id="_prMF_'+f.k+'" style="width:100%;padding:8px 10px;border:1.5px solid #c8d9f0;border-radius:5px;font-size:12px;margin-bottom:12px;"><option value="">— Select —</option>'+os+'</select>';
+    }}else{{
+      inp='<input id="_prMF_'+f.k+'" value="'+_prEsc(v)+'" placeholder="'+_prEsc(f.ph||'')+'" style="width:100%;padding:8px 10px;border:1.5px solid #c8d9f0;border-radius:5px;font-size:12px;margin-bottom:12px;box-sizing:border-box;">';
+    }}
+    return '<label style="font-size:11px;font-weight:700;color:#0d2240;display:block;margin-bottom:3px;">'+f.lbl+'</label>'+inp;
+  }}).join('');
+  var m=document.createElement('div');
+  m.id='_prMM';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  m.innerHTML='<div style="background:#fff;border-radius:12px;padding:24px 28px;width:400px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.4);">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">'
+      +'<strong style="font-size:14px;color:#0d2240;">'+title+'</strong>'
+      +'<button onclick="document.getElementById(\'_prMM\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#aaa;">&#10005;</button>'
+    +'</div>'
+    +fHTML
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;">'
+      +'<button onclick="document.getElementById(\'_prMM\').remove()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 18px;border-radius:6px;font-size:12px;cursor:pointer;">Cancel</button>'
+      +'<button id="_prMSv" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 22px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">&#10003; Save</button>'
+    +'</div>'
+  +'</div>';
+  document.body.appendChild(m);
+  document.getElementById('_prMSv').onclick=function(){{
+    var vals={{}};fields.forEach(function(f){{var el=document.getElementById('_prMF_'+f.k);if(el)vals[f.k]=el.value.trim();}});
+    _pr.meta[key]=Object.assign(_pr.meta[key]||{{}},vals);cb(vals);
+    document.getElementById('_prMM').remove();
+    _prRefreshAnnot();
+    _prRenderList();
+  }};
+  m.addEventListener('click',function(e){{if(e.target===m)m.remove();}});
+}}
+function _prOpenLiq(){{
+  _prModal('&#128197; Liquidation Rate',[{{k:'liq_pct',lbl:'Liquidation Percentage (%)',ph:'e.g. 15.50'}}],_prKey(_pr.idx,_pr.type),function(){{}} );
+}}
+function _prOpenAmt(){{
+  _prModal('&#128181; Post-Liquidation Amount',[{{k:'custom_amt',lbl:'Amount After Liquidation',ph:'e.g. 500.00'}},{{k:'custom_cur',lbl:'Currency',ph:'USD'}}],_prKey(_pr.idx,_pr.type),function(){{}} );
+}}
+function _prOpenStamp(){{
+  _prModal('&#128396; Status Stamp',[{{k:'stamp',lbl:'Select Transaction Status',opts:['APPROVED','PENDING','PROCESSING','REJECTED','CANCELLED']}}],_prKey(_pr.idx,_pr.type),function(){{}} );
+}}
+function _prClear(){{
+  if(_pr.idx===null) return;
+  delete _pr.meta[_prKey(_pr.idx,_pr.type)];
+  _prRefreshAnnot();
+  _prRenderList();
+}}
+function _prPrint(){{
+  if(_pr.idx===null) return;
+  /* Build the same comprehensive report as printTxReport but using _pr.data */
+  var idx=_pr.idx, type=_pr.type;
+  var data=type==='order'?_pr.data.orders[idx]:type==='m1'?_pr.data.m1[idx]:type==='payload'?_pr.data.payloads[idx]:_pr.data.transfers[idx];
+  if(!data) return;
+  var metaKey=_prKey(idx,type);
+  var m=_pr.meta[metaKey]||{{}};
+  function pEsc(v){{var d=document.createElement('div');d.textContent=String(v||'—');return d.innerHTML;}}
+  function pFmt(n,dec){{if(!n&&n!==0)return '—';var x=parseFloat(n);return isNaN(x)?String(n):x.toLocaleString('en-US',{{maximumFractionDigits:dec||2}});}}
+  function pDate(v){{return v?new Date(v).toLocaleString():'—';}}
+  var typeLabels={{order:'Payment Order',m1:'M1 Tokenization Job',payload:'Settlement Payload',transfer:'Outbound Transfer'}};
+  var ref=Date.now().toString(36).toUpperCase();
+  var stamp=m.stamp||'';
+  var stampColors={{APPROVED:'#065f46',CANCELLED:'#b91c1c',REJECTED:'#b91c1c',PENDING:'#92400e',PROCESSING:'#1e40af'}};
+  var stampBg={{APPROVED:'#d1fae5',CANCELLED:'#fee2e2',REJECTED:'#fee2e2',PENDING:'#fef3c7',PROCESSING:'#dbeafe'}};
+  var rows=[];
+  if(type==='order'){{
+    rows=[{{h:'IDENTITY'}},
+      {{l:'Transaction ID',v:pEsc(data.id)}},{{l:'External Reference',v:pEsc(data.external_id)}},
+      {{l:'Payment Reference',v:pEsc(data.payment_reference)}},{{l:'Idempotency Key',v:pEsc(data.idempotency_key)}},
+      {{h:'FIAT DETAILS'}},
+      {{l:'Fiat Amount',v:'<strong>'+pFmt(data.fiat_amount)+' '+pEsc(data.fiat_currency)+'</strong>'}},
+      {{l:'Exchange Rate',v:pEsc(data.exchange_rate)}},{{l:'Fees (Fiat)',v:pEsc(data.fees_fiat)}},
+      {{h:'CRYPTO DETAILS'}},
+      {{l:'Crypto Amount',v:'<strong>'+pFmt(data.crypto_amount,6)+' '+pEsc(data.crypto_currency)+'</strong>'}},
+      {{l:'Network',v:pEsc(data.network)}},{{l:'Provider',v:pEsc(data.provider)}},
+      {{l:'Fees (Crypto)',v:pEsc(data.fees_crypto)}},
+      {{h:'WALLETS'}},
+      {{l:'User Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.user_wallet_address||data.wallet)+'</span>'}},
+      {{l:'Treasury Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.treasury_wallet_address)+'</span>'}},
+      {{h:'BLOCKCHAIN'}},
+      {{l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'}},
+      {{l:'Processor Reference',v:pEsc(data.processor_reference)}},
+      {{h:'SYSTEM'}},
+      {{l:'Status',v:pEsc(data.status)}},{{l:'Client IP',v:pEsc(data.client_ip)}},
+      {{l:'Notes',v:pEsc(data.notes)}},{{l:'Webhook URL',v:pEsc(data.webhook_url)}},
+      {{h:'TIMESTAMPS'}},
+      {{l:'Created At',v:pDate(data.created_at)}},{{l:'Updated At',v:pDate(data.updated_at)}},
+      {{l:'Completed At',v:pDate(data.completed_at)}}
+    ];
+  }}else if(type==='m1'){{
+    rows=[{{h:'IDENTITY'}},
+      {{l:'Job ID',v:pEsc(data.id)}},{{l:'Sender Reference',v:pEsc(data.sender_reference)}},
+      {{h:'SENDER'}},
+      {{l:'Sender Name',v:pEsc(data.sender_name)}},{{l:'Sender IBAN',v:'<span style="font-family:monospace;">'+pEsc(data.sender_iban)+'</span>'}},
+      {{l:'Sender Bank',v:pEsc(data.sender_bank)}},
+      {{h:'CONVERSION'}},
+      {{l:'EUR Amount',v:'<strong>'+pFmt(data.eur_amount)+' EUR</strong>'}},
+      {{l:'FX Rate (EUR→USD)',v:pEsc(data.fx_rate_eur_usd||data.fx_rate)}},
+      {{l:'USD Amount',v:pEsc(data.usd_amount)+' USD'}},
+      {{l:'Output Amount',v:'<strong>'+pFmt(data.usdt_amount)+' '+pEsc(data.target_asset||'SIG')+'</strong>'}},
+      {{h:'BLOCKCHAIN'}},
+      {{l:'Network',v:pEsc((data.network||'').toUpperCase())}},
+      {{l:'Receiver Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.receiver_wallet)+'</span>'}},
+      {{l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'}},
+      {{h:'STATUS'}},
+      {{l:'Status',v:pEsc(data.status)}},{{l:'Error',v:pEsc(data.error_message)}},{{l:'Notes',v:pEsc(data.notes)}},
+      {{h:'TIMESTAMPS'}},
+      {{l:'Created At',v:pDate(data.created_at)}},{{l:'Updated At',v:pDate(data.updated_at)}},{{l:'Completed At',v:pDate(data.completed_at)}}
+    ];
+  }}else if(type==='payload'){{
+    rows=[{{h:'IDENTITY'}},
+      {{l:'Payload ID',v:pEsc(data.id)}},{{l:'Transaction Reference',v:pEsc(data.transaction_reference)}},
+      {{l:'Request ID',v:pEsc(data.request_id)}},
+      {{h:'AMOUNT'}},
+      {{l:'Asset',v:pEsc(data.asset)}},{{l:'Amount',v:'<strong>'+pFmt(data.amount)+' '+pEsc(data.asset)+'</strong>'}},
+      {{l:'Network',v:pEsc(data.network_name)}},
+      {{h:'WALLETS'}},
+      {{l:'Sender Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.sender_wallet)+'</span>'}},
+      {{l:'Receiver Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.receiver_wallet)+'</span>'}},
+      {{h:'BLOCKCHAIN'}},
+      {{l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'}},
+      {{l:'Block Number',v:pEsc(data.block_number)}},{{l:'Confirmations',v:pEsc(data.confirmations)}},
+      {{l:'Explorer URL',v:pEsc(data.explorer_url)}},
+      {{h:'SECURITY'}},
+      {{l:'Status',v:pEsc(data.verification_status)}},{{l:'Security Level',v:pEsc(data.security_level)}},
+      {{l:'Client IP',v:pEsc(data.client_ip)}},{{l:'Notes',v:pEsc(data.notes)}},
+      {{h:'TIMESTAMPS'}},
+      {{l:'Created At',v:pDate(data.created_at)}},{{l:'Updated At',v:pDate(data.updated_at)}}
+    ];
+  }}else{{
+    rows=[{{h:'IDENTITY'}},
+      {{l:'Transfer ID',v:pEsc(data.id)}},{{l:'Priority',v:pEsc(data.priority)}},
+      {{h:'DETAILS'}},
+      {{l:'Network',v:pEsc((data.network||'').toUpperCase())}},{{l:'Asset',v:pEsc(data.asset||data.currency||'USDT')}},
+      {{l:'Amount',v:'<strong>'+pFmt(data.amount)+' '+pEsc(data.asset||data.currency||'USDT')+'</strong>'}},
+      {{h:'WALLETS'}},
+      {{l:'To Address',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.to_address)+'</span>'}},
+      {{l:'From Address',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.from_address)+'</span>'}},
+      {{h:'BLOCKCHAIN'}},
+      {{l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'}},
+      {{h:'APPROVAL'}},
+      {{l:'Status',v:pEsc(data.status)}},{{l:'Approved By',v:pEsc(data.approved_by)}},
+      {{l:'Approved At',v:pDate(data.approved_at)}},{{l:'Cancelled By',v:pEsc(data.cancelled_by)}},
+      {{l:'Broadcaster At',v:pDate(data.broadcaster_at)}},
+      {{h:'ERROR/RETRY'}},
+      {{l:'Retry Count',v:pEsc(data.retry_count)}},{{l:'Error',v:pEsc(data.error_message)}},
+      {{h:'WEBHOOK'}},
+      {{l:'Webhook URL',v:pEsc(data.webhook_url)}},{{l:'Notes',v:pEsc(data.notes)}},
+      {{h:'TIMESTAMPS'}},
+      {{l:'Created At',v:pDate(data.created_at)}},{{l:'Updated At',v:pDate(data.updated_at)}},{{l:'Completed At',v:pDate(data.completed_at)}}
+    ];
+  }}
+  /* Add custom annotations */
+  if(m.liq_pct||m.custom_amt||m.stamp){{
+    rows.push({{h:'PRIVATE ANNOTATIONS'}});
+    if(m.liq_pct) rows.push({{l:'Liquidation Rate',v:'<strong>'+pEsc(m.liq_pct)+'%</strong>'}});
+    if(m.custom_amt) rows.push({{l:'Post-Liquidation Amount',v:'<strong>'+pEsc(m.custom_amt)+' '+pEsc(m.custom_cur||'USD')+'</strong>'}});
+    if(m.stamp) rows.push({{l:'Status Stamp',v:'<strong style="color:'+(stampColors[m.stamp]||'#555')+';">'+pEsc(m.stamp)+'</strong>'}});
+  }}
+  var rowsHTML=rows.map(function(r){{
+    if(r.h) return '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:9px;font-weight:800;letter-spacing:.8px;padding:5px 12px;text-transform:uppercase;">'+r.h+'</td></tr>';
+    return '<tr><td style="background:#f4f7fb;font-weight:600;color:#445;padding:5px 12px;white-space:nowrap;font-size:9.5px;width:38%;">'+r.l+'</td><td style="padding:5px 12px;font-size:9.5px;color:#1a2a3a;">'+r.v+'</td></tr>';
+  }}).join('');
+  var css='*{{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}'
+    +'body{{font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;color:#0d1b2a;margin:0;padding:22px 28px;background:#fff;}}'
+    +'.gbar{{height:5px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}}'
+    +'.cband{{background:#1a3a6b;color:#fff;padding:7px 20px;font-size:8px;font-weight:700;display:flex;justify-content:space-between;}}'
+    +'.hdr{{display:flex;justify-content:space-between;align-items:center;padding:14px 0 10px;border-bottom:2px solid #1a3a6b;margin-bottom:14px;}}'
+    +'.co{{font-size:14px;font-weight:800;color:#1a3a6b;}}'
+    +'.seal{{width:56px;height:56px;border:2px solid #b8860b;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7.5px;font-weight:700;color:#8b6914;line-height:1.3;}}'
+    +'table{{width:100%;border-collapse:collapse;margin-bottom:16px;border:1px solid #d0d9ea;}}'
+    +'tr:nth-child(even)>td{{background:#f9fbfd;}}'
+    +'.no-print{{display:block}}'
+    +'@media print{{.no-print{{display:none!important}}@page{{size:A4 portrait;margin:8mm 10mm}}body{{padding:0}}}}';
+  var titleStr=typeLabels[type]||'Transaction';
+  var stampWatermark=stamp?'<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(0,0,0,.05);white-space:nowrap;pointer-events:none;z-index:0;">'+pEsc(stamp)+'</div>':'';
+  var stampBanner=stamp?'<div style="background:'+(stampBg[stamp]||'#e5e7eb')+';color:'+(stampColors[stamp]||'#374151')+';font-size:15px;font-weight:900;text-align:center;padding:8px;letter-spacing:2px;margin-bottom:14px;border-radius:5px;">'+pEsc(stamp)+'</div>':'';
+  var html='<!doctype html><html><head><meta charset=utf-8><title>Private Report — '+titleStr+'</title><style>'+css+'</style></head><body>'
+    +'<div class="gbar"></div>'
+    +'<div class="cband"><span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &mdash; BIC: ALSHAEXXXX &mdash; REG: UAE/FIN/2024/0081</span><span>PRIVATE — CONFIDENTIAL</span></div>'
+    +'<div class="hdr"><div><div class="co">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div><div style="font-size:9.5px;color:#5a6a80;margin-top:3px;">Private Report &mdash; '+titleStr+' &mdash; '+new Date().toUTCString()+'</div></div><div class="seal">ALSH<br>GROUP<br>&#9733;&#9733;&#9733;</div></div>'
+    +'<div class="no-print" style="margin-bottom:14px;display:flex;gap:8px;">'
+      +'<button onclick="window.print()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 24px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;">&#128424; Print / Save PDF</button>'
+      +'<button onclick="window.close()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 18px;font-size:12px;border-radius:5px;cursor:pointer;">&#10005; Close</button>'
+    +'</div>'
+    +stampWatermark+stampBanner
+    +'<table>'+rowsHTML+'</table>'
+    +'<div style="margin-top:16px;padding-top:8px;border-top:1px solid #d0d9ea;display:flex;justify-content:space-between;font-size:8px;color:#9aa;">'
+      +'<span>PRIVATE REPORT — ALSHUMOOKH GROUP 2026 — Authorised personnel only — Ref: PR-'+ref+'</span>'
+      +'<span>Generated: '+new Date().toLocaleString()+'</span>'
+    +'</div>'
+    +'</body></html>';
+  var w=window.open('','_blank','width=820,height=980');w.document.write(html);w.document.close();
+}}
+/* Close panel with Escape key */
+document.addEventListener('keydown',function(e){{if(e.key==='Escape')closePrivatePanel();}});
+</script>
 """
 
 
@@ -3198,63 +3599,6 @@ _REPORTS_BODY = """
 </style>
 
 <div class="page-body">
-<div style="display:grid;grid-template-columns:250px 1fr;gap:16px;align-items:start;">
-
-<!-- ══ LEFT: Private Report Panel ══════════════════════════ -->
-<div class="panel" style="padding:0;overflow:hidden;position:sticky;top:68px;">
-  <div style="background:#0d2240;color:#c9a84c;padding:13px 16px;font-size:12px;font-weight:800;letter-spacing:.4px;display:flex;align-items:center;gap:8px;">
-    &#128274; Private Report
-  </div>
-  <!-- Selected Transaction -->
-  <div style="padding:12px 14px;border-bottom:1px solid #e5eef8;">
-    <div style="font-size:9px;font-weight:800;color:#6b7a90;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">Selected Transaction</div>
-    <div id="annotTargetBox" style="background:#f4f7fb;border:1.5px dashed #c8d9f0;border-radius:6px;padding:8px 10px;font-size:9.5px;color:#888;">
-      &#8212; Click &#128424; Report on any row to select &#8212;
-    </div>
-  </div>
-  <!-- Controls -->
-  <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
-
-    <!-- Liquidation Rate -->
-    <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:7px;padding:10px 12px;">
-      <div style="font-size:9px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">&#128197; Liquidation Rate</div>
-      <div id="annotLiqDisp" style="font-size:11px;color:#555;margin-bottom:6px;min-height:16px;">Not set</div>
-      <button onclick="annotOpenLiq()" style="width:100%;background:#1e40af;color:#fff;border:none;padding:7px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.2px;">Set Rate (%)</button>
-    </div>
-
-    <!-- Post-Liquidation Amount -->
-    <div style="background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:7px;padding:10px 12px;">
-      <div style="font-size:9px;font-weight:800;color:#065f46;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">&#128181; Post-Liquidation Amount</div>
-      <div id="annotAmtDisp" style="font-size:11px;color:#555;margin-bottom:6px;min-height:16px;">Not set</div>
-      <button onclick="annotOpenAmt()" style="width:100%;background:#065f46;color:#fff;border:none;padding:7px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.2px;">Set Amount</button>
-    </div>
-
-    <!-- Status Stamp -->
-    <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:7px;padding:10px 12px;">
-      <div style="font-size:9px;font-weight:800;color:#6d28d9;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">&#128396; Status Stamp</div>
-      <div id="annotStampDisp" style="font-size:11px;color:#555;margin-bottom:6px;min-height:16px;">Not set</div>
-      <button onclick="annotOpenStamp()" style="width:100%;background:#6d28d9;color:#fff;border:none;padding:7px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.2px;">Set Status</button>
-    </div>
-
-  </div>
-  <!-- Transaction Browser List -->
-  <div style="border-top:1.5px solid #e5eef8;">
-    <div style="background:#f4f7fb;padding:7px 14px;font-size:9px;font-weight:800;color:#6b7a90;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid #e5eef8;display:flex;align-items:center;justify-content:space-between;">
-      <span>&#128200; All Transactions</span>
-      <span id="annotTxCount" style="font-size:8px;background:#e2e8f0;padding:1px 6px;border-radius:8px;color:#475569;">0</span>
-    </div>
-    <div id="annotTxList" style="max-height:320px;overflow-y:auto;">
-      <div style="padding:14px 10px;color:#bbb;font-size:10px;text-align:center;">Loading&hellip;</div>
-    </div>
-  </div>
-  <!-- Actions -->
-  <div style="padding:10px 14px 14px;display:flex;gap:8px;">
-    <button onclick="annotClear()" style="flex:1;background:#fee2e2;color:#991b1b;border:none;padding:8px 6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">&#128465; Clear</button>
-    <button onclick="annotPrint()" style="flex:1;background:#0d2240;color:#c9a84c;border:none;padding:8px 6px;border-radius:6px;font-size:11px;font-weight:800;cursor:pointer;">&#128274; Private Report</button>
-  </div>
-</div><!-- end left panel -->
-
-<!-- ══ RIGHT: Main Reports Content ═════════════════════════ -->
 <div style="display:flex;flex-direction:column;gap:16px;">
 
   <!-- Hero Header -->
@@ -3424,79 +3768,6 @@ function openStampModal(idx,type){
     [{k:'stamp',lbl:'Select Transaction Status',opts:['APPROVED','PENDING','PROCESSING','REJECTED','CANCELLED']}],
     key,function(v){if(v.stamp) showToast('Status stamp set: '+v.stamp,'ok');});
 }
-
-/* ── Private Report Panel functions ─────────────────────── */
-var _annotIdx=null,_annotType=null;
-function setAnnotTarget(idx,type){
-  _annotIdx=idx;_annotType=type;
-  var d=type==='order'?_rData.orders[idx]:type==='m1'?_rData.m1[idx]:type==='payload'?_rData.payloads[idx]:_rData.transfers[idx];
-  if(!d)return;
-  var lbl={order:'Payment Order',m1:'M1 Job',payload:'Settlement Payload',transfer:'Outbound Transfer'}[type]||type;
-  var amt='';
-  if(type==='order') amt=fmtNum(d.fiat_amount)+' '+(d.fiat_currency||'');
-  else if(type==='m1') amt=fmtNum(d.eur_amount)+' EUR';
-  else if(type==='payload') amt=fmtNum(d.amount)+' '+(d.asset||'');
-  else amt=fmtNum(d.amount)+' '+(d.asset||d.currency||'USDT');
-  var box=document.getElementById('annotTargetBox');
-  if(box) box.innerHTML='<div style="font-size:9px;font-weight:700;color:#0d2240;text-transform:uppercase;letter-spacing:.5px;">'+esc(lbl)+'</div>'
-    +'<div style="font-family:monospace;font-size:8px;word-break:break-all;color:#4a6a90;margin:2px 0;">'+esc(d.id||'')+'</div>'
-    +'<div style="font-size:11px;font-weight:800;color:#0d2240;margin-top:4px;">'+esc(amt)+'</div>'
-    +'<div style="margin-top:3px;">'+badge(d.status||d.verification_status||'')+'</div>';
-  annotRefresh();
-  annotRefreshList();
-}
-function annotRefresh(){
-  if(_annotIdx===null)return;
-  var key=_rKey(_annotIdx,_annotType);
-  var m=_rMeta[key]||{};
-  var ld=document.getElementById('annotLiqDisp');
-  var ad=document.getElementById('annotAmtDisp');
-  var sd=document.getElementById('annotStampDisp');
-  if(ld) ld.textContent=m.liq_pct?m.liq_pct+'%':'Not set';
-  if(ad) ad.textContent=m.custom_amt?m.custom_amt+' '+(m.custom_cur||'USD'):'Not set';
-  var stampColors={APPROVED:'#065f46',CANCELLED:'#991b1b',REJECTED:'#991b1b',PENDING:'#92400e',PROCESSING:'#1e40af'};
-  if(sd){sd.textContent=m.stamp||'Not set';sd.style.color=m.stamp?(stampColors[m.stamp]||'#555'):'#aaa';sd.style.fontWeight=m.stamp?'700':'400';}
-}
-function annotRefreshList(){
-  var box=document.getElementById('annotTxList');
-  var cnt=document.getElementById('annotTxCount');
-  if(!box)return;
-  var types=['order','m1','payload','transfer'];
-  var labels={order:'ORDER',m1:'M1',payload:'PAYLOAD',transfer:'XFER'};
-  var colors={order:'#1e40af',m1:'#065f46',payload:'#7c3aed',transfer:'#b45309'};
-  var datas={order:_rData.orders,m1:_rData.m1,payload:_rData.payloads,transfer:_rData.transfers};
-  var items=[];
-  types.forEach(function(t){
-    (datas[t]||[]).forEach(function(d,i){
-      var amt='';
-      if(t==='order') amt=fmtNum(d.fiat_amount)+' '+(d.fiat_currency||'');
-      else if(t==='m1') amt=fmtNum(d.eur_amount)+' EUR';
-      else if(t==='payload') amt=fmtNum(d.amount)+' '+(d.asset||'');
-      else amt=fmtNum(d.amount)+' '+(d.asset||d.currency||'USDT');
-      var sel=(_annotIdx===i&&_annotType===t);
-      var bg=sel?'#e8f0fe':'transparent';
-      var hbg=sel?'#d0e2fd':'#f4f7fb';
-      items.push('<div data-i="'+i+'" data-t="'+t+'" onclick="setAnnotTarget(+this.dataset.i,this.dataset.t)" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #edf2f8;background:'+bg+'" onmouseover="this.style.background=\''+hbg+'\'" onmouseout="this.style.background=\''+bg+'\'">'
-        +'<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">'
-          +'<span style="background:'+colors[t]+';color:#fff;border-radius:3px;padding:1px 5px;font-size:7.5px;font-weight:800;flex-shrink:0;">'+labels[t]+'</span>'
-          +'<span style="font-family:monospace;font-size:8px;color:#6b7a90;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc((d.id||'—').slice(0,18))+'</span>'
-        +'</div>'
-        +'<div style="display:flex;justify-content:space-between;align-items:center;">'
-          +'<span style="font-size:10px;font-weight:700;color:#0d2240;">'+esc(amt)+'</span>'
-          +'<span style="font-size:9px;color:#777;">'+esc((d.status||d.verification_status||'—').slice(0,12))+'</span>'
-        +'</div>'
-      +'</div>');
-    });
-  });
-  var total=items.length;
-  if(cnt) cnt.textContent=total;
-  box.innerHTML=total?items.join(''):'<div style="padding:16px;color:#bbb;font-size:10px;text-align:center;">No transactions loaded</div>';
-}
-function annotOpenLiq(){if(_annotIdx===null){showToast('Select a transaction first','error');return;}openLiqModal(_annotIdx,_annotType);setTimeout(function(){annotRefresh();},400);}
-function annotOpenAmt(){if(_annotIdx===null){showToast('Select a transaction first','error');return;}openAmtModal(_annotIdx,_annotType);setTimeout(function(){annotRefresh();},400);}
-function annotOpenStamp(){if(_annotIdx===null){showToast('Select a transaction first','error');return;}openStampModal(_annotIdx,_annotType);setTimeout(function(){annotRefresh();},400);}
-function annotClear(){if(_annotIdx===null){showToast('No transaction selected','error');return;}var key=_rKey(_annotIdx,_annotType);delete _rMeta[key];annotRefresh();showToast('Annotations cleared','ok');}
-function annotPrint(){if(_annotIdx===null){showToast('Select a transaction first','error');return;}printTxReport(_annotIdx,_annotType);}
 
 function switchRTab(tab){
   ['orders','m1','payloads','transfers'].forEach(function(t){
@@ -4042,7 +4313,6 @@ function loadReportOrders(){
   api('/api/v1/admin/orders').then(function(rows){
     if(!Array.isArray(rows)) rows=rows.orders||[];
     _rData.orders=rows;
-    annotRefreshList();
     document.getElementById('rOrderCount').textContent=rows.length+' orders';
     document.getElementById('statOrders').textContent=rows.length;
     if(!rows.length){document.getElementById('reportOrders').innerHTML='<div class="empty-state"><div class="icon">&#128202;</div>No orders found</div>';return;}
@@ -4059,7 +4329,7 @@ function loadReportOrders(){
       +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
         +'<button class="btn btn-primary" data-id="'+esc(o.id||'')+'" onclick="window.open(\\\'/api/v1/admin/orders/\\\'+encodeURIComponent(this.dataset.id)+\\\'/documents/statement\\\',\\\'_blank\\\')" style="font-size:10px;padding:2px 7px;">Statement</button>'
         +'<button class="btn btn-ghost" data-id="'+esc(o.id||'')+'" onclick="window.open(\\\'/api/v1/admin/orders/\\\'+encodeURIComponent(this.dataset.id)+\\\'/documents/invoice\\\',\\\'_blank\\\')" style="font-size:10px;padding:2px 7px;">Invoice</button>'
-        +'<button class="btn btn-success" data-idx="'+i+'" onclick="setAnnotTarget(+this.dataset.idx,\\\'order\\\');printTxReport(+this.dataset.idx,\\\'order\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
+        +'<button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'order\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
         +'</div></td>'
       +'</tr>';}).join('');
     document.getElementById('reportOrders').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Reference</th><th>Provider</th><th>Status</th><th>Fiat</th><th>Crypto</th><th>Network</th><th>TX Hash</th><th>Date</th><th>Actions</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
@@ -4071,7 +4341,6 @@ function loadReportM1(){
   api('/api/v1/admin/tokenization-jobs?limit=200').then(function(rows){
     if(!Array.isArray(rows)) rows=[];
     _rData.m1=rows;
-    annotRefreshList();
     document.getElementById('rM1Count').textContent=rows.length+' jobs';
     document.getElementById('statM1').textContent=rows.length;
     if(!rows.length){document.getElementById('reportM1').innerHTML='<div class="empty-state"><div class="icon">&#128260;</div>No M1 jobs found</div>';return;}
@@ -4087,7 +4356,7 @@ function loadReportM1(){
       +'<td>'+(r.tx_hash?'<span class="mono-id" title="'+esc(r.tx_hash)+'">'+esc(r.tx_hash.slice(0,12))+'&#8230;</span>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
       +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
-        +'<button class="btn btn-success" data-idx="'+i+'" onclick="setAnnotTarget(+this.dataset.idx,\\\'m1\\\');printTxReport(+this.dataset.idx,\\\'m1\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
+        +'<button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'m1\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
         +'<button class="btn btn-ghost" data-ref="'+esc(r.id||'')+'" onclick="document.getElementById(\\\'reportOrderId\\\').value=this.dataset.ref;switchRTab(\\\'orders\\\')" style="font-size:10px;padding:2px 7px;">Find Order</button>'
       +'</div></td>'
       +'</tr>';}).join('');
@@ -4100,7 +4369,6 @@ function loadReportPayloads(){
   api('/api/v1/admin/payloads?limit=200').then(function(data){
     var rows=Array.isArray(data)?data:(data.payloads||[]);
     _rData.payloads=rows;
-    annotRefreshList();
     document.getElementById('rPayloadCount').textContent=rows.length+' payloads';
     document.getElementById('statPayloads').textContent=rows.length;
     if(!rows.length){document.getElementById('reportPayloads').innerHTML='<div class="empty-state"><div class="icon">&#128232;</div>No payloads found</div>';return;}
@@ -4113,7 +4381,7 @@ function loadReportPayloads(){
       +'<td>'+badge(p.verification_status||'')+'</td>'
       +'<td>'+(p.tx_hash?'<span class="mono-id" title="'+esc(p.tx_hash)+'">'+esc(p.tx_hash.slice(0,12))+'&#8230;</span>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(p.created_at)+'</td>'
-      +'<td><button class="btn btn-success" data-idx="'+i+'" onclick="setAnnotTarget(+this.dataset.idx,\\\'payload\\\');printTxReport(+this.dataset.idx,\\\'payload\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button></td>'
+      +'<td><button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'payload\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button></td>'
       +'</tr>';}).join('');
     document.getElementById('reportPayloads').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Reference</th><th>Asset</th><th>Amount</th><th>Network</th><th>Status</th><th>TX Hash</th><th>Date</th><th>Actions</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('reportPayloads').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
@@ -4124,7 +4392,6 @@ function loadReportTransfers(){
   api('/api/v1/admin/outbound-transfers?limit=200').then(function(data){
     var rows=Array.isArray(data)?data:(data.transfers||[]);
     _rData.transfers=rows;
-    annotRefreshList();
     document.getElementById('rXferCount').textContent=rows.length+' transfers';
     document.getElementById('statTransfers').textContent=rows.length;
     if(!rows.length){document.getElementById('reportTransfers').innerHTML='<div class="empty-state"><div class="icon">&#128228;</div>No transfers found</div>';return;}
@@ -4137,7 +4404,7 @@ function loadReportTransfers(){
       +'<td>'+badge(x.status||'')+'</td>'
       +'<td>'+(x.tx_hash?'<span class="mono-id" title="'+esc(x.tx_hash)+'">'+esc(x.tx_hash.slice(0,12))+'&#8230;</span>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(x.created_at)+'</td>'
-      +'<td><button class="btn btn-success" data-idx="'+i+'" onclick="setAnnotTarget(+this.dataset.idx,\\\'transfer\\\');printTxReport(+this.dataset.idx,\\\'transfer\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button></td>'
+      +'<td><button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'transfer\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button></td>'
       +'</tr>';}).join('');
     document.getElementById('reportTransfers').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Network</th><th>Asset</th><th>Amount</th><th>To Wallet</th><th>Status</th><th>TX Hash</th><th>Date</th><th>Actions</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('reportTransfers').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
