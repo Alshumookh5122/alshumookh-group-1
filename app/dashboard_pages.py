@@ -5262,13 +5262,47 @@ function prBuildRows(type, d) {
       {h:'TIMESTAMPS'},{l:'Created',v:pd(d.created_at)},{l:'Updated',v:pd(d.updated_at)},{l:'Completed',v:pd(d.completed_at)}
     ];
   } else if (type === 'm1') {
+    var txLink = d.tx_hash ? (d.explorer_url ? '<a href="'+pe(d.explorer_url)+'" target="_blank" style="font-family:monospace;font-size:9px;word-break:break-all;color:#1d4ed8;">'+pe(d.tx_hash)+'</a>' : '<code>'+pe(d.tx_hash)+'</code>') : '—';
+    var rwLink = d.receiver_wallet ? '<a href="https://etherscan.io/address/'+pe(d.receiver_wallet)+'" target="_blank" style="font-family:monospace;font-size:9px;word-break:break-all;color:#1d4ed8;">'+pe(d.receiver_wallet)+'</a>' : '—';
+    var owLink = d.operator_wallet ? '<code style="font-size:9px;word-break:break-all;">'+pe(d.operator_wallet)+'</code>' : '—';
+    var caLink = d.contract_address ? '<a href="https://etherscan.io/address/'+pe(d.contract_address)+'" target="_blank" style="font-family:monospace;font-size:9px;word-break:break-all;color:#1d4ed8;">'+pe(d.contract_address)+'</a>' : '—';
     rows = [
-      {h:'IDENTITY'},{l:'Job ID',v:pe(d.id)},{l:'Sender Reference',v:pe(d.sender_reference)},
-      {h:'SENDER'},{l:'Sender Name',v:pe(d.sender_name)},{l:'Sender IBAN',v:'<code>'+pe(d.sender_iban)+'</code>'},{l:'Sender Bank',v:pe(d.sender_bank)},
-      {h:'CONVERSION'},{l:'EUR Amount',v:'<strong>'+pn(d.eur_amount)+' EUR</strong>'},{l:'FX Rate EUR/USD',v:pe(d.fx_rate_eur_usd||d.fx_rate)},{l:'USD Amount',v:pe(d.usd_amount)+' USD'},{l:'Output',v:'<strong>'+pn(d.usdt_amount)+' '+(d.target_asset||'SIG')+'</strong>'},
-      {h:'BLOCKCHAIN'},{l:'Network',v:pe((d.network||'').toUpperCase())},{l:'Receiver Wallet',v:'<code>'+pe(d.receiver_wallet)+'</code>'},{l:'TX Hash',v:'<code>'+pe(d.tx_hash)+'</code>'},
-      {h:'STATUS'},{l:'Status',v:pe(d.status)},{l:'Error',v:pe(d.error_message)},{l:'Notes',v:pe(d.notes)},
-      {h:'TIMESTAMPS'},{l:'Created',v:pd(d.created_at)},{l:'Updated',v:pd(d.updated_at)},{l:'Completed',v:pd(d.completed_at)}
+      {h:'IDENTITY'},
+      {l:'Job ID',v:'<code style="font-size:9px;">'+pe(d.id)+'</code>'},
+      {l:'Sender Reference',v:pe(d.sender_reference)},
+      {l:'Outbound Transfer ID',v:'<code style="font-size:9px;">'+pe(d.outbound_transfer_id)+'</code>'},
+      {l:'Payload ID',v:'<code style="font-size:9px;">'+pe(d.payload_id)+'</code>'},
+      {h:'SENDER'},
+      {l:'Sender Name',v:'<strong>'+pe(d.sender_name)+'</strong>'},
+      {l:'Sender IBAN',v:'<code>'+pe(d.sender_iban)+'</code>'},
+      {l:'Sender Bank',v:pe(d.sender_bank)},
+      {h:'CONVERSION'},
+      {l:'EUR Amount',v:'<strong style="color:#1d4ed8;">'+pn(d.eur_amount)+' EUR</strong>'},
+      {l:'FX Rate EUR/USD',v:pe(d.fx_rate_eur_usd||d.fx_rate)},
+      {l:'FX Provider',v:pe(d.fx_provider)},
+      {l:'USD Amount',v:'<strong>'+pe(d.usd_amount)+' USD</strong>'},
+      {l:'Output Amount',v:'<strong style="color:#065f46;">'+pn(d.usdt_amount)+' '+(d.target_asset||'SIG')+'</strong>'},
+      {h:'RECEIVER — ALSHUMOOKH GROUP'},
+      {l:'Network',v:'<strong>'+pe((d.network||'').toUpperCase())+'</strong>'},
+      {l:'Receiver Wallet',v:rwLink},
+      {l:'Operator Wallet',v:owLink},
+      {l:'Contract Address',v:caLink},
+      {h:'TRANSACTION'},
+      {l:'TX Hash',v:txLink},
+      {l:'Block Number',v:pe(d.block_number?String(d.block_number):null)},
+      {l:'Confirmations',v:pe(d.confirmations?String(d.confirmations):null)},
+      {l:'Gas Used',v:pe(d.gas_used?String(d.gas_used):null)},
+      {l:'Explorer',v:d.explorer_url?'<a href="'+pe(d.explorer_url)+'" target="_blank" style="color:#1d4ed8;font-size:10px;">View on Explorer</a>':'—'},
+      {h:'STATUS'},
+      {l:'Job Status',v:'<strong>'+pe(d.status)+'</strong>'},
+      {l:'Outbound Status',v:pe(d.outbound_status)},
+      {l:'Approved By',v:pe(d.approved_by)},
+      {l:'Error',v:pe(d.error_message)},
+      {l:'Notes',v:pe(d.notes)},
+      {h:'TIMESTAMPS'},
+      {l:'Created',v:pd(d.created_at)},
+      {l:'Updated',v:pd(d.updated_at)},
+      {l:'Completed',v:pd(d.completed_at)}
     ];
   } else if (type === 'payload') {
     rows = [
