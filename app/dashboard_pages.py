@@ -75,7 +75,7 @@ _SIDEBAR_LINKS = [
 
 
 
-# ── Private Report floating panel (injected into every page) ──────
+# ── Private Report floating panel (injected into every page) v2 ───
 _PRIVATE_PANEL = """
 <!-- ══ PRIVATE REPORT FLOATING PANEL ══════════════════════════════ -->
 <div id="_prOverlay" onclick="closePrivatePanel()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9990;"></div>
