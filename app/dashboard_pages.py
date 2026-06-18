@@ -74,49 +74,9 @@ _SIDEBAR_LINKS = [
 ]
 
 
-def _sidebar(active_path: str) -> str:
-    links = ""
-    for href, icon, label in _SIDEBAR_LINKS:
-        is_active = (href == active_path)
-        cls = ' class="active"' if is_active else ""
-        links += f'<a href="{href}"{cls}>{icon} {label}</a>\n'
 
-    return f"""
-<aside class="sidebar">
-  <div class="brand-panel">
-    <img class="brand-logo" src="/static/company-logo.png" alt="Logo"
-         onerror="this.style.display='none';this.nextElementSibling.style.display='grid';">
-    <div class="brand-mark">SG</div>
-    <div>
-      <p class="eyebrow">ALSHUMOOKH GLOBAL</p>
-      <h1>Banking Finance &amp; Credit</h1>
-    </div>
-  </div>
-  <nav>{links}</nav>
-  <!-- Private Report Button -->
-  <div style="padding:8px 14px 4px;">
-    <button onclick="openPrivatePanel()" style="width:100%;background:#0d2240;color:#c9a84c;border:1.5px solid #c9a84c44;padding:10px 12px;border-radius:8px;font-size:11.5px;font-weight:800;cursor:pointer;letter-spacing:.3px;transition:opacity .2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">&#128274; Private Report</button>
-  </div>
-  <div class="sidebar-foot">
-    <span style="font-weight:700;color:var(--gold);">Settlement Wallets</span>
-    <div style="margin-top:6px;">
-      <strong style="color:#a78bfa;font-size:11px;">Ethereum (ERC-20)</strong><br>
-      <code style="font-size:10px;color:var(--muted);">0xBD682...4d939</code>
-    </div>
-    <div style="margin-top:4px;">
-      <strong style="color:#34d399;font-size:11px;">TRON (TRC-20)</strong><br>
-      <code style="font-size:10px;color:var(--muted);">TLARV2...EEqjTn</code>
-    </div>
-    <a href="/dashboard/logout"
-       onclick="event.preventDefault();fetch('/dashboard/logout',{{method:'POST'}}).then(()=>{{location.href='/login?type=admin';}})"
-       style="margin-top:12px;display:block;text-align:center;padding:7px;
-              background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);
-              border-radius:6px;color:#f87171;font-size:11px;font-weight:700;text-decoration:none;">
-      &#9211; Logout
-    </a>
-  </div>
-</aside>
-
+# ── Private Report floating panel (injected into every page) ──────
+_PRIVATE_PANEL = """
 <!-- ══ PRIVATE REPORT FLOATING PANEL ══════════════════════════════ -->
 <div id="_prOverlay" onclick="closePrivatePanel()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9990;"></div>
 <div id="_prPanel" style="display:none;position:fixed;left:220px;top:0;width:430px;height:100vh;background:#fff;z-index:9991;box-shadow:6px 0 40px rgba(0,0,0,.3);flex-direction:column;overflow:hidden;">
@@ -182,73 +142,73 @@ def _sidebar(active_path: str) -> str:
 
 <script>
 /* ══ PRIVATE REPORT PANEL — self-contained ═══════════════════ */
-var _pr={{
-  data:{{orders:[],m1:[],payloads:[],transfers:[]}},
-  meta:{{}},
+var _pr={
+  data:{orders:[],m1:[],payloads:[],transfers:[]},
+  meta:{},
   idx:null, type:null,
   filter:'all',
   loaded:false
-}};
-function _prEsc(v){{var d=document.createElement('div');d.textContent=String(v||'');return d.innerHTML;}}
-function _prFmt(n){{if(!n&&n!==0)return '—';var x=parseFloat(n);return isNaN(x)?String(n):x.toLocaleString('en-US',{{maximumFractionDigits:6}});}}
-function _prKey(idx,type){{
+};
+function _prEsc(v){var d=document.createElement('div');d.textContent=String(v||'');return d.innerHTML;}
+function _prFmt(n){if(!n&&n!==0)return '—';var x=parseFloat(n);return isNaN(x)?String(n):x.toLocaleString('en-US',{maximumFractionDigits:6});}
+function _prKey(idx,type){
   var d=type==='order'?_pr.data.orders[idx]:type==='m1'?_pr.data.m1[idx]:type==='payload'?_pr.data.payloads[idx]:_pr.data.transfers[idx];
   return type+'_'+(d?d.id:'x');
-}}
-function _prApi(url){{
-  return fetch(url,{{headers:{{'X-Admin-Key':localStorage.getItem('adminKey')||document.getElementById('_adminKey')?document.getElementById('_adminKey').value:''}}}}).then(function(r){{return r.json();}});
-}}
+}
+function _prApi(url){
+  return fetch(url,{headers:{'X-Admin-Key':localStorage.getItem('adminKey')||document.getElementById('_adminKey')?document.getElementById('_adminKey').value:''}}).then(function(r){return r.json();});
+}
 
-function openPrivatePanel(){{
+function openPrivatePanel(){
   var panel=document.getElementById('_prPanel');
   var overlay=document.getElementById('_prOverlay');
   panel.style.display='flex';
   overlay.style.display='block';
   if(!_pr.loaded) _prLoadAll();
   else _prRenderList();
-}}
-function closePrivatePanel(){{
+}
+function closePrivatePanel(){
   document.getElementById('_prPanel').style.display='none';
   document.getElementById('_prOverlay').style.display='none';
-}}
-function _prLoadAll(){{
+}
+function _prLoadAll(){
   var listEl=document.getElementById('_prList');
   listEl.innerHTML='<div style="padding:24px;text-align:center;color:#aaa;font-size:12px;">Loading all transactions&hellip;</div>';
   Promise.all([
-    _prApi('/api/v1/admin/orders').catch(function(){{return[]}}),
-    _prApi('/api/v1/admin/tokenization-jobs?limit=500').catch(function(){{return[]}}),
-    _prApi('/api/v1/admin/payloads?limit=500').catch(function(){{return[]}}),
-    _prApi('/api/v1/admin/outbound-transfers?limit=500').catch(function(){{return[]}})
-  ]).then(function(res){{
+    _prApi('/api/v1/admin/orders').catch(function(){return[]}),
+    _prApi('/api/v1/admin/tokenization-jobs?limit=500').catch(function(){return[]}),
+    _prApi('/api/v1/admin/payloads?limit=500').catch(function(){return[]}),
+    _prApi('/api/v1/admin/outbound-transfers?limit=500').catch(function(){return[]})
+  ]).then(function(res){
     _pr.data.orders=Array.isArray(res[0])?res[0]:(res[0].orders||[]);
     _pr.data.m1=Array.isArray(res[1])?res[1]:[];
     _pr.data.payloads=Array.isArray(res[2])?res[2]:(res[2].payloads||[]);
     _pr.data.transfers=Array.isArray(res[3])?res[3]:(res[3].transfers||[]);
     _pr.loaded=true;
     _prRenderList();
-  }}).catch(function(e){{
+  }).catch(function(e){
     listEl.innerHTML='<div style="padding:20px;color:#c0392b;font-size:11px;">Error loading data: '+_prEsc(e.message)+'</div>';
-  }});
-}}
-function _prFilter(f){{
+  });
+}
+function _prFilter(f){
   _pr.filter=f;
-  ['all','order','m1','payload','transfer'].forEach(function(k){{
+  ['all','order','m1','payload','transfer'].forEach(function(k){
     var btn=document.getElementById('_prF_'+k);
-    if(btn){{btn.style.background=k===f?'#0d2240':'#e2e8f0';btn.style.color=k===f?'#fff':'#374151';}}
-  }});
+    if(btn){btn.style.background=k===f?'#0d2240':'#e2e8f0';btn.style.color=k===f?'#fff':'#374151';}
+  });
   _prRenderList();
-}}
-function _prRenderList(){{
+}
+function _prRenderList(){
   var listEl=document.getElementById('_prList');
-  var q=(document.getElementById('_prSearch')||{{}}).value||'';
+  var q=(document.getElementById('_prSearch')||{}).value||'';
   q=q.toLowerCase().trim();
   var types=['order','m1','payload','transfer'];
-  var labels={{order:'ORDER',m1:'M1',payload:'PAYLOAD',transfer:'XFER'}};
-  var colors={{order:'#1e40af',m1:'#065f46',payload:'#7c3aed',transfer:'#b45309'}};
+  var labels={order:'ORDER',m1:'M1',payload:'PAYLOAD',transfer:'XFER'};
+  var colors={order:'#1e40af',m1:'#065f46',payload:'#7c3aed',transfer:'#b45309'};
   var rows=[];
-  types.forEach(function(t){{
+  types.forEach(function(t){
     if(_pr.filter!=='all'&&_pr.filter!==t) return;
-    (_pr.data[t]||[]).forEach(function(d,i){{
+    (_pr.data[t]||[]).forEach(function(d,i){
       var amt='';
       if(t==='order') amt=_prFmt(d.fiat_amount)+' '+(d.fiat_currency||'');
       else if(t==='m1') amt=_prFmt(d.eur_amount)+' EUR';
@@ -258,16 +218,16 @@ function _prRenderList(){{
       var searchStr=(d.id||'')+amt+st+(d.tx_hash||'')+(d.external_id||d.payment_reference||d.sender_reference||'');
       if(q&&searchStr.toLowerCase().indexOf(q)===-1) return;
       var sel=(_pr.idx===i&&_pr.type===t);
-      rows.push({{t:t,i:i,d:d,amt:amt,st:st,sel:sel,lbl:labels[t],color:colors[t]}});
-    }});
-  }});
+      rows.push({t:t,i:i,d:d,amt:amt,st:st,sel:sel,lbl:labels[t],color:colors[t]});
+    });
+  });
   var total=document.getElementById('_prTotal');
   if(total) total.textContent=rows.length+' records';
-  if(!rows.length){{
+  if(!rows.length){
     listEl.innerHTML='<div style="padding:24px;text-align:center;color:#aaa;font-size:11px;">No transactions found</div>';
     return;
-  }}
-  var html=rows.map(function(r){{
+  }
+  var html=rows.map(function(r){
     var bg=r.sel?'background:#e8f0fe;':'';
     var mkey=_prKey(r.i,r.t);
     var hasAnnot=!!_pr.meta[mkey];
@@ -282,14 +242,14 @@ function _prRenderList(){{
         +'<span style="font-size:9px;color:#777;background:#f1f5f9;padding:1px 6px;border-radius:8px;">'+_prEsc(r.st)+'</span>'
       +'</div>'
     +'</div>';
-  }}).join('');
+  }).join('');
   listEl.innerHTML=html;
-}}
-function _prSelect(idx,type){{
+}
+function _prSelect(idx,type){
   _pr.idx=idx; _pr.type=type;
   var d=type==='order'?_pr.data.orders[idx]:type==='m1'?_pr.data.m1[idx]:type==='payload'?_pr.data.payloads[idx]:_pr.data.transfers[idx];
   if(!d) return;
-  var lblMap={{order:'Payment Order',m1:'M1 Tokenization Job',payload:'Settlement Payload',transfer:'Outbound Transfer'}};
+  var lblMap={order:'Payment Order',m1:'M1 Tokenization Job',payload:'Settlement Payload',transfer:'Outbound Transfer'};
   var amt='';
   if(type==='order') amt=_prFmt(d.fiat_amount)+' '+(d.fiat_currency||'');
   else if(type==='m1') amt=_prFmt(d.eur_amount)+' EUR';
@@ -300,31 +260,31 @@ function _prSelect(idx,type){{
   document.getElementById('_prAnnot').style.display='block';
   _prRefreshAnnot();
   _prRenderList();
-}}
-function _prRefreshAnnot(){{
+}
+function _prRefreshAnnot(){
   if(_pr.idx===null) return;
-  var m=_pr.meta[_prKey(_pr.idx,_pr.type)]||{{}};
-  var sc={{APPROVED:'#065f46',CANCELLED:'#991b1b',REJECTED:'#991b1b',PENDING:'#92400e',PROCESSING:'#1e40af'}};
+  var m=_pr.meta[_prKey(_pr.idx,_pr.type)]||{};
+  var sc={APPROVED:'#065f46',CANCELLED:'#991b1b',REJECTED:'#991b1b',PENDING:'#92400e',PROCESSING:'#1e40af'};
   var ld=document.getElementById('_prLiqDisp');
   var ad=document.getElementById('_prAmtDisp');
   var sd=document.getElementById('_prStampDisp');
   if(ld) ld.textContent=m.liq_pct?m.liq_pct+'%':'Not set';
   if(ad) ad.textContent=m.custom_amt?m.custom_amt+' '+(m.custom_cur||'USD'):'Not set';
-  if(sd){{sd.textContent=m.stamp||'Not set';sd.style.color=m.stamp?(sc[m.stamp]||'#555'):'#aaa';sd.style.fontWeight=m.stamp?'700':'400';}}
-}}
-function _prModal(title,fields,key,cb){{
-  var ex=_pr.meta[key]||{{}};
-  var fHTML=fields.map(function(f){{
+  if(sd){sd.textContent=m.stamp||'Not set';sd.style.color=m.stamp?(sc[m.stamp]||'#555'):'#aaa';sd.style.fontWeight=m.stamp?'700':'400';}
+}
+function _prModal(title,fields,key,cb){
+  var ex=_pr.meta[key]||{};
+  var fHTML=fields.map(function(f){
     var v=ex[f.k]||'';
     var inp;
-    if(f.opts){{
-      var os=f.opts.map(function(o){{return '<option value="'+o+'"'+(v===o?' selected':'')+'>'+o+'</option>';'}}).join('');
+    if(f.opts){
+      var os=f.opts.map(function(o){return '<option value="'+o+'"'+(v===o?' selected':'')+'>'+o+'</option>';'}).join('');
       inp='<select id="_prMF_'+f.k+'" style="width:100%;padding:8px 10px;border:1.5px solid #c8d9f0;border-radius:5px;font-size:12px;margin-bottom:12px;"><option value="">— Select —</option>'+os+'</select>';
-    }}else{{
+    }else{
       inp='<input id="_prMF_'+f.k+'" value="'+_prEsc(v)+'" placeholder="'+_prEsc(f.ph||'')+'" style="width:100%;padding:8px 10px;border:1.5px solid #c8d9f0;border-radius:5px;font-size:12px;margin-bottom:12px;box-sizing:border-box;">';
-    }}
+    }
     return '<label style="font-size:11px;font-weight:700;color:#0d2240;display:block;margin-bottom:3px;">'+f.lbl+'</label>'+inp;
-  }}).join('');
+  }).join('');
   var m=document.createElement('div');
   m.id='_prMM';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
@@ -340,156 +300,156 @@ function _prModal(title,fields,key,cb){{
     +'</div>'
   +'</div>';
   document.body.appendChild(m);
-  document.getElementById('_prMSv').onclick=function(){{
-    var vals={{}};fields.forEach(function(f){{var el=document.getElementById('_prMF_'+f.k);if(el)vals[f.k]=el.value.trim();}});
-    _pr.meta[key]=Object.assign(_pr.meta[key]||{{}},vals);cb(vals);
+  document.getElementById('_prMSv').onclick=function(){
+    var vals={};fields.forEach(function(f){var el=document.getElementById('_prMF_'+f.k);if(el)vals[f.k]=el.value.trim();});
+    _pr.meta[key]=Object.assign(_pr.meta[key]||{},vals);cb(vals);
     document.getElementById('_prMM').remove();
     _prRefreshAnnot();
     _prRenderList();
-  }};
-  m.addEventListener('click',function(e){{if(e.target===m)m.remove();}});
-}}
-function _prOpenLiq(){{
-  _prModal('&#128197; Liquidation Rate',[{{k:'liq_pct',lbl:'Liquidation Percentage (%)',ph:'e.g. 15.50'}}],_prKey(_pr.idx,_pr.type),function(){{}} );
-}}
-function _prOpenAmt(){{
-  _prModal('&#128181; Post-Liquidation Amount',[{{k:'custom_amt',lbl:'Amount After Liquidation',ph:'e.g. 500.00'}},{{k:'custom_cur',lbl:'Currency',ph:'USD'}}],_prKey(_pr.idx,_pr.type),function(){{}} );
-}}
-function _prOpenStamp(){{
-  _prModal('&#128396; Status Stamp',[{{k:'stamp',lbl:'Select Transaction Status',opts:['APPROVED','PENDING','PROCESSING','REJECTED','CANCELLED']}}],_prKey(_pr.idx,_pr.type),function(){{}} );
-}}
-function _prClear(){{
+  };
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+}
+function _prOpenLiq(){
+  _prModal('&#128197; Liquidation Rate',[{k:'liq_pct',lbl:'Liquidation Percentage (%)',ph:'e.g. 15.50'}],_prKey(_pr.idx,_pr.type),function(){} );
+}
+function _prOpenAmt(){
+  _prModal('&#128181; Post-Liquidation Amount',[{k:'custom_amt',lbl:'Amount After Liquidation',ph:'e.g. 500.00'},{k:'custom_cur',lbl:'Currency',ph:'USD'}],_prKey(_pr.idx,_pr.type),function(){} );
+}
+function _prOpenStamp(){
+  _prModal('&#128396; Status Stamp',[{k:'stamp',lbl:'Select Transaction Status',opts:['APPROVED','PENDING','PROCESSING','REJECTED','CANCELLED']}],_prKey(_pr.idx,_pr.type),function(){} );
+}
+function _prClear(){
   if(_pr.idx===null) return;
   delete _pr.meta[_prKey(_pr.idx,_pr.type)];
   _prRefreshAnnot();
   _prRenderList();
-}}
-function _prPrint(){{
+}
+function _prPrint(){
   if(_pr.idx===null) return;
   /* Build the same comprehensive report as printTxReport but using _pr.data */
   var idx=_pr.idx, type=_pr.type;
   var data=type==='order'?_pr.data.orders[idx]:type==='m1'?_pr.data.m1[idx]:type==='payload'?_pr.data.payloads[idx]:_pr.data.transfers[idx];
   if(!data) return;
   var metaKey=_prKey(idx,type);
-  var m=_pr.meta[metaKey]||{{}};
-  function pEsc(v){{var d=document.createElement('div');d.textContent=String(v||'—');return d.innerHTML;}}
-  function pFmt(n,dec){{if(!n&&n!==0)return '—';var x=parseFloat(n);return isNaN(x)?String(n):x.toLocaleString('en-US',{{maximumFractionDigits:dec||2}});}}
-  function pDate(v){{return v?new Date(v).toLocaleString():'—';}}
-  var typeLabels={{order:'Payment Order',m1:'M1 Tokenization Job',payload:'Settlement Payload',transfer:'Outbound Transfer'}};
+  var m=_pr.meta[metaKey]||{};
+  function pEsc(v){var d=document.createElement('div');d.textContent=String(v||'—');return d.innerHTML;}
+  function pFmt(n,dec){if(!n&&n!==0)return '—';var x=parseFloat(n);return isNaN(x)?String(n):x.toLocaleString('en-US',{maximumFractionDigits:dec||2});}
+  function pDate(v){return v?new Date(v).toLocaleString():'—';}
+  var typeLabels={order:'Payment Order',m1:'M1 Tokenization Job',payload:'Settlement Payload',transfer:'Outbound Transfer'};
   var ref=Date.now().toString(36).toUpperCase();
   var stamp=m.stamp||'';
-  var stampColors={{APPROVED:'#065f46',CANCELLED:'#b91c1c',REJECTED:'#b91c1c',PENDING:'#92400e',PROCESSING:'#1e40af'}};
-  var stampBg={{APPROVED:'#d1fae5',CANCELLED:'#fee2e2',REJECTED:'#fee2e2',PENDING:'#fef3c7',PROCESSING:'#dbeafe'}};
+  var stampColors={APPROVED:'#065f46',CANCELLED:'#b91c1c',REJECTED:'#b91c1c',PENDING:'#92400e',PROCESSING:'#1e40af'};
+  var stampBg={APPROVED:'#d1fae5',CANCELLED:'#fee2e2',REJECTED:'#fee2e2',PENDING:'#fef3c7',PROCESSING:'#dbeafe'};
   var rows=[];
-  if(type==='order'){{
-    rows=[{{h:'IDENTITY'}},
-      {{l:'Transaction ID',v:pEsc(data.id)}},{{l:'External Reference',v:pEsc(data.external_id)}},
-      {{l:'Payment Reference',v:pEsc(data.payment_reference)}},{{l:'Idempotency Key',v:pEsc(data.idempotency_key)}},
-      {{h:'FIAT DETAILS'}},
-      {{l:'Fiat Amount',v:'<strong>'+pFmt(data.fiat_amount)+' '+pEsc(data.fiat_currency)+'</strong>'}},
-      {{l:'Exchange Rate',v:pEsc(data.exchange_rate)}},{{l:'Fees (Fiat)',v:pEsc(data.fees_fiat)}},
-      {{h:'CRYPTO DETAILS'}},
-      {{l:'Crypto Amount',v:'<strong>'+pFmt(data.crypto_amount,6)+' '+pEsc(data.crypto_currency)+'</strong>'}},
-      {{l:'Network',v:pEsc(data.network)}},{{l:'Provider',v:pEsc(data.provider)}},
-      {{l:'Fees (Crypto)',v:pEsc(data.fees_crypto)}},
-      {{h:'WALLETS'}},
-      {{l:'User Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.user_wallet_address||data.wallet)+'</span>'}},
-      {{l:'Treasury Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.treasury_wallet_address)+'</span>'}},
-      {{h:'BLOCKCHAIN'}},
-      {{l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'}},
-      {{l:'Processor Reference',v:pEsc(data.processor_reference)}},
-      {{h:'SYSTEM'}},
-      {{l:'Status',v:pEsc(data.status)}},{{l:'Client IP',v:pEsc(data.client_ip)}},
-      {{l:'Notes',v:pEsc(data.notes)}},{{l:'Webhook URL',v:pEsc(data.webhook_url)}},
-      {{h:'TIMESTAMPS'}},
-      {{l:'Created At',v:pDate(data.created_at)}},{{l:'Updated At',v:pDate(data.updated_at)}},
-      {{l:'Completed At',v:pDate(data.completed_at)}}
+  if(type==='order'){
+    rows=[{h:'IDENTITY'},
+      {l:'Transaction ID',v:pEsc(data.id)},{l:'External Reference',v:pEsc(data.external_id)},
+      {l:'Payment Reference',v:pEsc(data.payment_reference)},{l:'Idempotency Key',v:pEsc(data.idempotency_key)},
+      {h:'FIAT DETAILS'},
+      {l:'Fiat Amount',v:'<strong>'+pFmt(data.fiat_amount)+' '+pEsc(data.fiat_currency)+'</strong>'},
+      {l:'Exchange Rate',v:pEsc(data.exchange_rate)},{l:'Fees (Fiat)',v:pEsc(data.fees_fiat)},
+      {h:'CRYPTO DETAILS'},
+      {l:'Crypto Amount',v:'<strong>'+pFmt(data.crypto_amount,6)+' '+pEsc(data.crypto_currency)+'</strong>'},
+      {l:'Network',v:pEsc(data.network)},{l:'Provider',v:pEsc(data.provider)},
+      {l:'Fees (Crypto)',v:pEsc(data.fees_crypto)},
+      {h:'WALLETS'},
+      {l:'User Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.user_wallet_address||data.wallet)+'</span>'},
+      {l:'Treasury Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.treasury_wallet_address)+'</span>'},
+      {h:'BLOCKCHAIN'},
+      {l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'},
+      {l:'Processor Reference',v:pEsc(data.processor_reference)},
+      {h:'SYSTEM'},
+      {l:'Status',v:pEsc(data.status)},{l:'Client IP',v:pEsc(data.client_ip)},
+      {l:'Notes',v:pEsc(data.notes)},{l:'Webhook URL',v:pEsc(data.webhook_url)},
+      {h:'TIMESTAMPS'},
+      {l:'Created At',v:pDate(data.created_at)},{l:'Updated At',v:pDate(data.updated_at)},
+      {l:'Completed At',v:pDate(data.completed_at)}
     ];
-  }}else if(type==='m1'){{
-    rows=[{{h:'IDENTITY'}},
-      {{l:'Job ID',v:pEsc(data.id)}},{{l:'Sender Reference',v:pEsc(data.sender_reference)}},
-      {{h:'SENDER'}},
-      {{l:'Sender Name',v:pEsc(data.sender_name)}},{{l:'Sender IBAN',v:'<span style="font-family:monospace;">'+pEsc(data.sender_iban)+'</span>'}},
-      {{l:'Sender Bank',v:pEsc(data.sender_bank)}},
-      {{h:'CONVERSION'}},
-      {{l:'EUR Amount',v:'<strong>'+pFmt(data.eur_amount)+' EUR</strong>'}},
-      {{l:'FX Rate (EUR→USD)',v:pEsc(data.fx_rate_eur_usd||data.fx_rate)}},
-      {{l:'USD Amount',v:pEsc(data.usd_amount)+' USD'}},
-      {{l:'Output Amount',v:'<strong>'+pFmt(data.usdt_amount)+' '+pEsc(data.target_asset||'SIG')+'</strong>'}},
-      {{h:'BLOCKCHAIN'}},
-      {{l:'Network',v:pEsc((data.network||'').toUpperCase())}},
-      {{l:'Receiver Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.receiver_wallet)+'</span>'}},
-      {{l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'}},
-      {{h:'STATUS'}},
-      {{l:'Status',v:pEsc(data.status)}},{{l:'Error',v:pEsc(data.error_message)}},{{l:'Notes',v:pEsc(data.notes)}},
-      {{h:'TIMESTAMPS'}},
-      {{l:'Created At',v:pDate(data.created_at)}},{{l:'Updated At',v:pDate(data.updated_at)}},{{l:'Completed At',v:pDate(data.completed_at)}}
+  }else if(type==='m1'){
+    rows=[{h:'IDENTITY'},
+      {l:'Job ID',v:pEsc(data.id)},{l:'Sender Reference',v:pEsc(data.sender_reference)},
+      {h:'SENDER'},
+      {l:'Sender Name',v:pEsc(data.sender_name)},{l:'Sender IBAN',v:'<span style="font-family:monospace;">'+pEsc(data.sender_iban)+'</span>'},
+      {l:'Sender Bank',v:pEsc(data.sender_bank)},
+      {h:'CONVERSION'},
+      {l:'EUR Amount',v:'<strong>'+pFmt(data.eur_amount)+' EUR</strong>'},
+      {l:'FX Rate (EUR→USD)',v:pEsc(data.fx_rate_eur_usd||data.fx_rate)},
+      {l:'USD Amount',v:pEsc(data.usd_amount)+' USD'},
+      {l:'Output Amount',v:'<strong>'+pFmt(data.usdt_amount)+' '+pEsc(data.target_asset||'SIG')+'</strong>'},
+      {h:'BLOCKCHAIN'},
+      {l:'Network',v:pEsc((data.network||'').toUpperCase())},
+      {l:'Receiver Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.receiver_wallet)+'</span>'},
+      {l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'},
+      {h:'STATUS'},
+      {l:'Status',v:pEsc(data.status)},{l:'Error',v:pEsc(data.error_message)},{l:'Notes',v:pEsc(data.notes)},
+      {h:'TIMESTAMPS'},
+      {l:'Created At',v:pDate(data.created_at)},{l:'Updated At',v:pDate(data.updated_at)},{l:'Completed At',v:pDate(data.completed_at)}
     ];
-  }}else if(type==='payload'){{
-    rows=[{{h:'IDENTITY'}},
-      {{l:'Payload ID',v:pEsc(data.id)}},{{l:'Transaction Reference',v:pEsc(data.transaction_reference)}},
-      {{l:'Request ID',v:pEsc(data.request_id)}},
-      {{h:'AMOUNT'}},
-      {{l:'Asset',v:pEsc(data.asset)}},{{l:'Amount',v:'<strong>'+pFmt(data.amount)+' '+pEsc(data.asset)+'</strong>'}},
-      {{l:'Network',v:pEsc(data.network_name)}},
-      {{h:'WALLETS'}},
-      {{l:'Sender Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.sender_wallet)+'</span>'}},
-      {{l:'Receiver Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.receiver_wallet)+'</span>'}},
-      {{h:'BLOCKCHAIN'}},
-      {{l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'}},
-      {{l:'Block Number',v:pEsc(data.block_number)}},{{l:'Confirmations',v:pEsc(data.confirmations)}},
-      {{l:'Explorer URL',v:pEsc(data.explorer_url)}},
-      {{h:'SECURITY'}},
-      {{l:'Status',v:pEsc(data.verification_status)}},{{l:'Security Level',v:pEsc(data.security_level)}},
-      {{l:'Client IP',v:pEsc(data.client_ip)}},{{l:'Notes',v:pEsc(data.notes)}},
-      {{h:'TIMESTAMPS'}},
-      {{l:'Created At',v:pDate(data.created_at)}},{{l:'Updated At',v:pDate(data.updated_at)}}
+  }else if(type==='payload'){
+    rows=[{h:'IDENTITY'},
+      {l:'Payload ID',v:pEsc(data.id)},{l:'Transaction Reference',v:pEsc(data.transaction_reference)},
+      {l:'Request ID',v:pEsc(data.request_id)},
+      {h:'AMOUNT'},
+      {l:'Asset',v:pEsc(data.asset)},{l:'Amount',v:'<strong>'+pFmt(data.amount)+' '+pEsc(data.asset)+'</strong>'},
+      {l:'Network',v:pEsc(data.network_name)},
+      {h:'WALLETS'},
+      {l:'Sender Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.sender_wallet)+'</span>'},
+      {l:'Receiver Wallet',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.receiver_wallet)+'</span>'},
+      {h:'BLOCKCHAIN'},
+      {l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'},
+      {l:'Block Number',v:pEsc(data.block_number)},{l:'Confirmations',v:pEsc(data.confirmations)},
+      {l:'Explorer URL',v:pEsc(data.explorer_url)},
+      {h:'SECURITY'},
+      {l:'Status',v:pEsc(data.verification_status)},{l:'Security Level',v:pEsc(data.security_level)},
+      {l:'Client IP',v:pEsc(data.client_ip)},{l:'Notes',v:pEsc(data.notes)},
+      {h:'TIMESTAMPS'},
+      {l:'Created At',v:pDate(data.created_at)},{l:'Updated At',v:pDate(data.updated_at)}
     ];
-  }}else{{
-    rows=[{{h:'IDENTITY'}},
-      {{l:'Transfer ID',v:pEsc(data.id)}},{{l:'Priority',v:pEsc(data.priority)}},
-      {{h:'DETAILS'}},
-      {{l:'Network',v:pEsc((data.network||'').toUpperCase())}},{{l:'Asset',v:pEsc(data.asset||data.currency||'USDT')}},
-      {{l:'Amount',v:'<strong>'+pFmt(data.amount)+' '+pEsc(data.asset||data.currency||'USDT')+'</strong>'}},
-      {{h:'WALLETS'}},
-      {{l:'To Address',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.to_address)+'</span>'}},
-      {{l:'From Address',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.from_address)+'</span>'}},
-      {{h:'BLOCKCHAIN'}},
-      {{l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'}},
-      {{h:'APPROVAL'}},
-      {{l:'Status',v:pEsc(data.status)}},{{l:'Approved By',v:pEsc(data.approved_by)}},
-      {{l:'Approved At',v:pDate(data.approved_at)}},{{l:'Cancelled By',v:pEsc(data.cancelled_by)}},
-      {{l:'Broadcaster At',v:pDate(data.broadcaster_at)}},
-      {{h:'ERROR/RETRY'}},
-      {{l:'Retry Count',v:pEsc(data.retry_count)}},{{l:'Error',v:pEsc(data.error_message)}},
-      {{h:'WEBHOOK'}},
-      {{l:'Webhook URL',v:pEsc(data.webhook_url)}},{{l:'Notes',v:pEsc(data.notes)}},
-      {{h:'TIMESTAMPS'}},
-      {{l:'Created At',v:pDate(data.created_at)}},{{l:'Updated At',v:pDate(data.updated_at)}},{{l:'Completed At',v:pDate(data.completed_at)}}
+  }else{
+    rows=[{h:'IDENTITY'},
+      {l:'Transfer ID',v:pEsc(data.id)},{l:'Priority',v:pEsc(data.priority)},
+      {h:'DETAILS'},
+      {l:'Network',v:pEsc((data.network||'').toUpperCase())},{l:'Asset',v:pEsc(data.asset||data.currency||'USDT')},
+      {l:'Amount',v:'<strong>'+pFmt(data.amount)+' '+pEsc(data.asset||data.currency||'USDT')+'</strong>'},
+      {h:'WALLETS'},
+      {l:'To Address',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.to_address)+'</span>'},
+      {l:'From Address',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.from_address)+'</span>'},
+      {h:'BLOCKCHAIN'},
+      {l:'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;">'+pEsc(data.tx_hash)+'</span>'},
+      {h:'APPROVAL'},
+      {l:'Status',v:pEsc(data.status)},{l:'Approved By',v:pEsc(data.approved_by)},
+      {l:'Approved At',v:pDate(data.approved_at)},{l:'Cancelled By',v:pEsc(data.cancelled_by)},
+      {l:'Broadcaster At',v:pDate(data.broadcaster_at)},
+      {h:'ERROR/RETRY'},
+      {l:'Retry Count',v:pEsc(data.retry_count)},{l:'Error',v:pEsc(data.error_message)},
+      {h:'WEBHOOK'},
+      {l:'Webhook URL',v:pEsc(data.webhook_url)},{l:'Notes',v:pEsc(data.notes)},
+      {h:'TIMESTAMPS'},
+      {l:'Created At',v:pDate(data.created_at)},{l:'Updated At',v:pDate(data.updated_at)},{l:'Completed At',v:pDate(data.completed_at)}
     ];
-  }}
+  }
   /* Add custom annotations */
-  if(m.liq_pct||m.custom_amt||m.stamp){{
-    rows.push({{h:'PRIVATE ANNOTATIONS'}});
-    if(m.liq_pct) rows.push({{l:'Liquidation Rate',v:'<strong>'+pEsc(m.liq_pct)+'%</strong>'}});
-    if(m.custom_amt) rows.push({{l:'Post-Liquidation Amount',v:'<strong>'+pEsc(m.custom_amt)+' '+pEsc(m.custom_cur||'USD')+'</strong>'}});
-    if(m.stamp) rows.push({{l:'Status Stamp',v:'<strong style="color:'+(stampColors[m.stamp]||'#555')+';">'+pEsc(m.stamp)+'</strong>'}});
-  }}
-  var rowsHTML=rows.map(function(r){{
+  if(m.liq_pct||m.custom_amt||m.stamp){
+    rows.push({h:'PRIVATE ANNOTATIONS'});
+    if(m.liq_pct) rows.push({l:'Liquidation Rate',v:'<strong>'+pEsc(m.liq_pct)+'%</strong>'});
+    if(m.custom_amt) rows.push({l:'Post-Liquidation Amount',v:'<strong>'+pEsc(m.custom_amt)+' '+pEsc(m.custom_cur||'USD')+'</strong>'});
+    if(m.stamp) rows.push({l:'Status Stamp',v:'<strong style="color:'+(stampColors[m.stamp]||'#555')+';">'+pEsc(m.stamp)+'</strong>'});
+  }
+  var rowsHTML=rows.map(function(r){
     if(r.h) return '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:9px;font-weight:800;letter-spacing:.8px;padding:5px 12px;text-transform:uppercase;">'+r.h+'</td></tr>';
     return '<tr><td style="background:#f4f7fb;font-weight:600;color:#445;padding:5px 12px;white-space:nowrap;font-size:9.5px;width:38%;">'+r.l+'</td><td style="padding:5px 12px;font-size:9.5px;color:#1a2a3a;">'+r.v+'</td></tr>';
-  }}).join('');
-  var css='*{{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}'
-    +'body{{font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;color:#0d1b2a;margin:0;padding:22px 28px;background:#fff;}}'
-    +'.gbar{{height:5px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}}'
-    +'.cband{{background:#1a3a6b;color:#fff;padding:7px 20px;font-size:8px;font-weight:700;display:flex;justify-content:space-between;}}'
-    +'.hdr{{display:flex;justify-content:space-between;align-items:center;padding:14px 0 10px;border-bottom:2px solid #1a3a6b;margin-bottom:14px;}}'
-    +'.co{{font-size:14px;font-weight:800;color:#1a3a6b;}}'
-    +'.seal{{width:56px;height:56px;border:2px solid #b8860b;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7.5px;font-weight:700;color:#8b6914;line-height:1.3;}}'
-    +'table{{width:100%;border-collapse:collapse;margin-bottom:16px;border:1px solid #d0d9ea;}}'
-    +'tr:nth-child(even)>td{{background:#f9fbfd;}}'
-    +'.no-print{{display:block}}'
-    +'@media print{{.no-print{{display:none!important}}@page{{size:A4 portrait;margin:8mm 10mm}}body{{padding:0}}}}';
+  }).join('');
+  var css='*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
+    +'body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;color:#0d1b2a;margin:0;padding:22px 28px;background:#fff;}'
+    +'.gbar{height:5px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}'
+    +'.cband{background:#1a3a6b;color:#fff;padding:7px 20px;font-size:8px;font-weight:700;display:flex;justify-content:space-between;}'
+    +'.hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 0 10px;border-bottom:2px solid #1a3a6b;margin-bottom:14px;}'
+    +'.co{font-size:14px;font-weight:800;color:#1a3a6b;}'
+    +'.seal{width:56px;height:56px;border:2px solid #b8860b;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7.5px;font-weight:700;color:#8b6914;line-height:1.3;}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:16px;border:1px solid #d0d9ea;}'
+    +'tr:nth-child(even)>td{background:#f9fbfd;}'
+    +'.no-print{display:block}'
+    +'@media print{.no-print{display:none!important}@page{size:A4 portrait;margin:8mm 10mm}body{padding:0}}';
   var titleStr=typeLabels[type]||'Transaction';
   var stampWatermark=stamp?'<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(0,0,0,.05);white-space:nowrap;pointer-events:none;z-index:0;">'+pEsc(stamp)+'</div>':'';
   var stampBanner=stamp?'<div style="background:'+(stampBg[stamp]||'#e5e7eb')+';color:'+(stampColors[stamp]||'#374151')+';font-size:15px;font-weight:900;text-align:center;padding:8px;letter-spacing:2px;margin-bottom:14px;border-radius:5px;">'+pEsc(stamp)+'</div>':'';
@@ -509,10 +469,56 @@ function _prPrint(){{
     +'</div>'
     +'</body></html>';
   var w=window.open('','_blank','width=820,height=980');w.document.write(html);w.document.close();
-}}
+}
 /* Close panel with Escape key */
-document.addEventListener('keydown',function(e){{if(e.key==='Escape')closePrivatePanel();}});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closePrivatePanel();});
 </script>
+"""
+
+
+def _sidebar(active_path: str) -> str:
+    links = ""
+    for href, icon, label in _SIDEBAR_LINKS:
+        is_active = (href == active_path)
+        cls = ' class="active"' if is_active else ""
+        links += f'<a href="{href}"{cls}>{icon} {label}</a>\n'
+
+    return f"""
+<aside class="sidebar">
+  <div class="brand-panel">
+    <img class="brand-logo" src="/static/company-logo.png" alt="Logo"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='grid';">
+    <div class="brand-mark">SG</div>
+    <div>
+      <p class="eyebrow">ALSHUMOOKH GLOBAL</p>
+      <h1>Banking Finance &amp; Credit</h1>
+    </div>
+  </div>
+  <nav>{links}</nav>
+  <!-- Private Report Button -->
+  <div style="padding:8px 14px 4px;">
+    <button onclick="openPrivatePanel()" style="width:100%;background:#1e3a5f;color:#e2c97e;border:none;padding:10px 12px;border-radius:8px;font-size:11.5px;font-weight:800;cursor:pointer;letter-spacing:.3px;">Private Report</button>
+  </div>
+  <div class="sidebar-foot">
+    <span style="font-weight:700;color:var(--gold);">Settlement Wallets</span>
+    <div style="margin-top:6px;">
+      <strong style="color:#a78bfa;font-size:11px;">Ethereum (ERC-20)</strong><br>
+      <code style="font-size:10px;color:var(--muted);">0xBD682...4d939</code>
+    </div>
+    <div style="margin-top:4px;">
+      <strong style="color:#34d399;font-size:11px;">TRON (TRC-20)</strong><br>
+      <code style="font-size:10px;color:var(--muted);">TLARV2...EEqjTn</code>
+    </div>
+    <a href="/dashboard/logout"
+       onclick="event.preventDefault();fetch('/dashboard/logout',{{method:'POST'}}).then(()=>{{location.href='/login?type=admin';}})"
+       style="margin-top:12px;display:block;text-align:center;padding:7px;
+              background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);
+              border-radius:6px;color:#f87171;font-size:11px;font-weight:700;text-decoration:none;">
+      &#9211; Logout
+    </a>
+  </div>
+</aside>
+
 """
 
 
@@ -855,6 +861,7 @@ def _page(title: str, active: str, body: str) -> str:
         "</head>\n"
         "<body>\n"
         + _sidebar(active)
+        + _PRIVATE_PANEL
         + "<main>\n"
         + _topbar(title)
         + _SHARED_JS
