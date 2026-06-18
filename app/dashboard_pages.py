@@ -3198,6 +3198,64 @@ _REPORTS_BODY = """
 </style>
 
 <div class="page-body">
+<div style="display:grid;grid-template-columns:250px 1fr;gap:16px;align-items:start;">
+
+<!-- ══ LEFT: Private Report Panel ══════════════════════════ -->
+<div class="panel" style="padding:0;overflow:hidden;position:sticky;top:68px;">
+  <div style="background:#0d2240;color:#c9a84c;padding:13px 16px;font-size:12px;font-weight:800;letter-spacing:.4px;display:flex;align-items:center;gap:8px;">
+    &#128274; Private Report
+  </div>
+  <!-- Selected Transaction -->
+  <div style="padding:12px 14px;border-bottom:1px solid #e5eef8;">
+    <div style="font-size:9px;font-weight:800;color:#6b7a90;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">Selected Transaction</div>
+    <div id="annotTargetBox" style="background:#f4f7fb;border:1.5px dashed #c8d9f0;border-radius:6px;padding:8px 10px;font-size:9.5px;color:#888;">
+      &#8212; Click &#128424; Report on any row to select &#8212;
+    </div>
+  </div>
+  <!-- Controls -->
+  <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+
+    <!-- Liquidation Rate -->
+    <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:7px;padding:10px 12px;">
+      <div style="font-size:9px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">&#128197; Liquidation Rate</div>
+      <div id="annotLiqDisp" style="font-size:11px;color:#555;margin-bottom:6px;min-height:16px;">Not set</div>
+      <button onclick="annotOpenLiq()" style="width:100%;background:#1e40af;color:#fff;border:none;padding:7px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.2px;">Set Rate (%)</button>
+    </div>
+
+    <!-- Post-Liquidation Amount -->
+    <div style="background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:7px;padding:10px 12px;">
+      <div style="font-size:9px;font-weight:800;color:#065f46;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">&#128181; Post-Liquidation Amount</div>
+      <div id="annotAmtDisp" style="font-size:11px;color:#555;margin-bottom:6px;min-height:16px;">Not set</div>
+      <button onclick="annotOpenAmt()" style="width:100%;background:#065f46;color:#fff;border:none;padding:7px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.2px;">Set Amount</button>
+    </div>
+
+    <!-- Status Stamp -->
+    <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:7px;padding:10px 12px;">
+      <div style="font-size:9px;font-weight:800;color:#6d28d9;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">&#128396; Status Stamp</div>
+      <div id="annotStampDisp" style="font-size:11px;color:#555;margin-bottom:6px;min-height:16px;">Not set</div>
+      <button onclick="annotOpenStamp()" style="width:100%;background:#6d28d9;color:#fff;border:none;padding:7px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.2px;">Set Status</button>
+    </div>
+
+  </div>
+  <!-- Transaction Browser List -->
+  <div style="border-top:1.5px solid #e5eef8;">
+    <div style="background:#f4f7fb;padding:7px 14px;font-size:9px;font-weight:800;color:#6b7a90;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid #e5eef8;display:flex;align-items:center;justify-content:space-between;">
+      <span>&#128200; All Transactions</span>
+      <span id="annotTxCount" style="font-size:8px;background:#e2e8f0;padding:1px 6px;border-radius:8px;color:#475569;">0</span>
+    </div>
+    <div id="annotTxList" style="max-height:320px;overflow-y:auto;">
+      <div style="padding:14px 10px;color:#bbb;font-size:10px;text-align:center;">Loading&hellip;</div>
+    </div>
+  </div>
+  <!-- Actions -->
+  <div style="padding:10px 14px 14px;display:flex;gap:8px;">
+    <button onclick="annotClear()" style="flex:1;background:#fee2e2;color:#991b1b;border:none;padding:8px 6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">&#128465; Clear</button>
+    <button onclick="annotPrint()" style="flex:1;background:#0d2240;color:#c9a84c;border:none;padding:8px 6px;border-radius:6px;font-size:11px;font-weight:800;cursor:pointer;">&#128274; Private Report</button>
+  </div>
+</div><!-- end left panel -->
+
+<!-- ══ RIGHT: Main Reports Content ═════════════════════════ -->
+<div style="display:flex;flex-direction:column;gap:16px;">
 
   <!-- Hero Header -->
   <div class="panel" style="padding:0;overflow:hidden;">
@@ -3366,6 +3424,79 @@ function openStampModal(idx,type){
     [{k:'stamp',lbl:'Select Transaction Status',opts:['APPROVED','PENDING','PROCESSING','REJECTED','CANCELLED']}],
     key,function(v){if(v.stamp) showToast('Status stamp set: '+v.stamp,'ok');});
 }
+
+/* ── Private Report Panel functions ─────────────────────── */
+var _annotIdx=null,_annotType=null;
+function setAnnotTarget(idx,type){
+  _annotIdx=idx;_annotType=type;
+  var d=type==='order'?_rData.orders[idx]:type==='m1'?_rData.m1[idx]:type==='payload'?_rData.payloads[idx]:_rData.transfers[idx];
+  if(!d)return;
+  var lbl={order:'Payment Order',m1:'M1 Job',payload:'Settlement Payload',transfer:'Outbound Transfer'}[type]||type;
+  var amt='';
+  if(type==='order') amt=fmtNum(d.fiat_amount)+' '+(d.fiat_currency||'');
+  else if(type==='m1') amt=fmtNum(d.eur_amount)+' EUR';
+  else if(type==='payload') amt=fmtNum(d.amount)+' '+(d.asset||'');
+  else amt=fmtNum(d.amount)+' '+(d.asset||d.currency||'USDT');
+  var box=document.getElementById('annotTargetBox');
+  if(box) box.innerHTML='<div style="font-size:9px;font-weight:700;color:#0d2240;text-transform:uppercase;letter-spacing:.5px;">'+esc(lbl)+'</div>'
+    +'<div style="font-family:monospace;font-size:8px;word-break:break-all;color:#4a6a90;margin:2px 0;">'+esc(d.id||'')+'</div>'
+    +'<div style="font-size:11px;font-weight:800;color:#0d2240;margin-top:4px;">'+esc(amt)+'</div>'
+    +'<div style="margin-top:3px;">'+badge(d.status||d.verification_status||'')+'</div>';
+  annotRefresh();
+  annotRefreshList();
+}
+function annotRefresh(){
+  if(_annotIdx===null)return;
+  var key=_rKey(_annotIdx,_annotType);
+  var m=_rMeta[key]||{};
+  var ld=document.getElementById('annotLiqDisp');
+  var ad=document.getElementById('annotAmtDisp');
+  var sd=document.getElementById('annotStampDisp');
+  if(ld) ld.textContent=m.liq_pct?m.liq_pct+'%':'Not set';
+  if(ad) ad.textContent=m.custom_amt?m.custom_amt+' '+(m.custom_cur||'USD'):'Not set';
+  var stampColors={APPROVED:'#065f46',CANCELLED:'#991b1b',REJECTED:'#991b1b',PENDING:'#92400e',PROCESSING:'#1e40af'};
+  if(sd){sd.textContent=m.stamp||'Not set';sd.style.color=m.stamp?(stampColors[m.stamp]||'#555'):'#aaa';sd.style.fontWeight=m.stamp?'700':'400';}
+}
+function annotRefreshList(){
+  var box=document.getElementById('annotTxList');
+  var cnt=document.getElementById('annotTxCount');
+  if(!box)return;
+  var types=['order','m1','payload','transfer'];
+  var labels={order:'ORDER',m1:'M1',payload:'PAYLOAD',transfer:'XFER'};
+  var colors={order:'#1e40af',m1:'#065f46',payload:'#7c3aed',transfer:'#b45309'};
+  var datas={order:_rData.orders,m1:_rData.m1,payload:_rData.payloads,transfer:_rData.transfers};
+  var items=[];
+  types.forEach(function(t){
+    (datas[t]||[]).forEach(function(d,i){
+      var amt='';
+      if(t==='order') amt=fmtNum(d.fiat_amount)+' '+(d.fiat_currency||'');
+      else if(t==='m1') amt=fmtNum(d.eur_amount)+' EUR';
+      else if(t==='payload') amt=fmtNum(d.amount)+' '+(d.asset||'');
+      else amt=fmtNum(d.amount)+' '+(d.asset||d.currency||'USDT');
+      var sel=(_annotIdx===i&&_annotType===t);
+      var bg=sel?'#e8f0fe':'transparent';
+      var hbg=sel?'#d0e2fd':'#f4f7fb';
+      items.push('<div data-i="'+i+'" data-t="'+t+'" onclick="setAnnotTarget(+this.dataset.i,this.dataset.t)" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #edf2f8;background:'+bg+'" onmouseover="this.style.background=\''+hbg+'\'" onmouseout="this.style.background=\''+bg+'\'">'
+        +'<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">'
+          +'<span style="background:'+colors[t]+';color:#fff;border-radius:3px;padding:1px 5px;font-size:7.5px;font-weight:800;flex-shrink:0;">'+labels[t]+'</span>'
+          +'<span style="font-family:monospace;font-size:8px;color:#6b7a90;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc((d.id||'—').slice(0,18))+'</span>'
+        +'</div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;">'
+          +'<span style="font-size:10px;font-weight:700;color:#0d2240;">'+esc(amt)+'</span>'
+          +'<span style="font-size:9px;color:#777;">'+esc((d.status||d.verification_status||'—').slice(0,12))+'</span>'
+        +'</div>'
+      +'</div>');
+    });
+  });
+  var total=items.length;
+  if(cnt) cnt.textContent=total;
+  box.innerHTML=total?items.join(''):'<div style="padding:16px;color:#bbb;font-size:10px;text-align:center;">No transactions loaded</div>';
+}
+function annotOpenLiq(){if(_annotIdx===null){showToast('Select a transaction first','error');return;}openLiqModal(_annotIdx,_annotType);setTimeout(function(){annotRefresh();},400);}
+function annotOpenAmt(){if(_annotIdx===null){showToast('Select a transaction first','error');return;}openAmtModal(_annotIdx,_annotType);setTimeout(function(){annotRefresh();},400);}
+function annotOpenStamp(){if(_annotIdx===null){showToast('Select a transaction first','error');return;}openStampModal(_annotIdx,_annotType);setTimeout(function(){annotRefresh();},400);}
+function annotClear(){if(_annotIdx===null){showToast('No transaction selected','error');return;}var key=_rKey(_annotIdx,_annotType);delete _rMeta[key];annotRefresh();showToast('Annotations cleared','ok');}
+function annotPrint(){if(_annotIdx===null){showToast('Select a transaction first','error');return;}printTxReport(_annotIdx,_annotType);}
 
 function switchRTab(tab){
   ['orders','m1','payloads','transfers'].forEach(function(t){
@@ -3674,18 +3805,103 @@ function printTabData(tab){
   if(!data.length){showToast('No data &mdash; please wait for data to load or click Refresh','error');return;}
   var titles={orders:'Payment Orders Report',m1:'M1 Tokenization Jobs',payloads:'Settlement Payloads',transfers:'Outbound Transfers'};
   var html='<!doctype html><html><head><meta charset=utf-8><title>'+titles[tab]+'</title><style>'+_pCSS+'</style></head><body>'+_ph(titles[tab],data.length);
+  function _tDate(v){return v?new Date(v).toLocaleString():'—';}
+  function _tHash(v){return v?'<span style="font-family:monospace;font-size:8px;word-break:break-all;">'+esc(v)+'</span>':'—';}
   if(tab==='orders'){
-    html+='<table><thead><tr><th>Order ID</th><th>Reference</th><th>Provider</th><th>Network</th><th>Status</th><th>Fiat Amount</th><th>Crypto</th><th>Wallet</th><th>TX Hash</th><th>Date</th></tr></thead><tbody>';
-    data.forEach(function(o){html+='<tr><td>'+esc((o.id||'—').slice(0,14))+'</td><td>'+esc(o.external_id||o.payment_reference||'—')+'</td><td>'+esc(o.provider||'—')+'</td><td>'+esc((o.network||'—').toUpperCase())+'</td><td>'+_sb(o.status)+'</td><td><strong>'+esc(String(o.fiat_amount||'—'))+' '+esc(o.fiat_currency||'')+'</strong></td><td>'+esc(String(o.crypto_amount||'—'))+' '+esc(o.crypto_currency||'')+'</td><td>'+esc((o.user_wallet_address||o.treasury_wallet_address||'—').slice(0,18))+'</td><td>'+esc((o.tx_hash||'—').slice(0,16))+'</td><td>'+esc(o.created_at?new Date(o.created_at).toLocaleDateString():'—')+'</td></tr>';});
+    html+='<table><thead><tr><th>Full ID</th><th>Ext Reference</th><th>Payment Ref</th><th>Provider</th><th>Status</th><th>Fiat Amount</th><th>Fiat Currency</th><th>Exchange Rate</th><th>Crypto Amount</th><th>Crypto Currency</th><th>Network</th><th>User Wallet</th><th>Treasury Wallet</th><th>TX Hash</th><th>Fees Fiat</th><th>Fees Crypto</th><th>Processor Ref</th><th>Client IP</th><th>Notes</th><th>Created At</th><th>Updated At</th><th>Completed At</th></tr></thead><tbody>';
+    data.forEach(function(o){html+='<tr>'
+      +'<td style="font-family:monospace;font-size:8px;word-break:break-all;">'+esc(o.id||'—')+'</td>'
+      +'<td>'+esc(o.external_id||'—')+'</td>'
+      +'<td>'+esc(o.payment_reference||'—')+'</td>'
+      +'<td>'+esc(o.provider||'—')+'</td>'
+      +'<td>'+_sb(o.status)+'</td>'
+      +'<td><strong>'+esc(String(o.fiat_amount||'—'))+'</strong></td>'
+      +'<td>'+esc(o.fiat_currency||'—')+'</td>'
+      +'<td>'+esc(String(o.exchange_rate||'—'))+'</td>'
+      +'<td><strong>'+esc(String(o.crypto_amount||'—'))+'</strong></td>'
+      +'<td>'+esc(o.crypto_currency||'—')+'</td>'
+      +'<td>'+esc(o.network||'—')+'</td>'
+      +'<td>'+_tHash(o.user_wallet_address||o.wallet)+'</td>'
+      +'<td>'+_tHash(o.treasury_wallet_address)+'</td>'
+      +'<td>'+_tHash(o.tx_hash)+'</td>'
+      +'<td>'+esc(String(o.fees_fiat||'—'))+'</td>'
+      +'<td>'+esc(String(o.fees_crypto||'—'))+'</td>'
+      +'<td>'+esc(o.processor_reference||'—')+'</td>'
+      +'<td>'+esc(o.client_ip||'—')+'</td>'
+      +'<td>'+esc(o.notes||'—')+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(o.created_at)+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(o.updated_at)+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(o.completed_at)+'</td>'
+      +'</tr>';});
   }else if(tab==='m1'){
-    html+='<table><thead><tr><th>Job ID</th><th>Reference</th><th>Sender</th><th>IBAN</th><th>EUR Amount</th><th>FX Rate</th><th>SIG Output</th><th>Network</th><th>Status</th><th>Date</th></tr></thead><tbody>';
-    data.forEach(function(r){html+='<tr><td>'+esc((r.id||'—').slice(0,14))+'</td><td>'+esc(r.sender_reference||'—')+'</td><td>'+esc(r.sender_name||'—')+'</td><td>'+esc((r.sender_iban||'—').slice(0,20))+'</td><td><strong>'+esc(String(r.eur_amount||'—'))+' EUR</strong></td><td>'+esc(String(r.fx_rate_eur_usd||r.fx_rate||'—'))+'</td><td><strong>'+esc(String(r.usdt_amount||'—'))+' '+esc(r.target_asset||'SIG')+'</strong></td><td>'+esc((r.network||'—').toUpperCase())+'</td><td>'+_sb(r.status)+'</td><td>'+esc(r.created_at?new Date(r.created_at).toLocaleDateString():'—')+'</td></tr>';});
+    html+='<table><thead><tr><th>Full ID</th><th>Sender Reference</th><th>Sender Name</th><th>Sender IBAN</th><th>Sender Bank</th><th>EUR Amount</th><th>FX Rate EUR/USD</th><th>USD Amount</th><th>Output Amount</th><th>Target Asset</th><th>Receiver Wallet</th><th>Network</th><th>TX Hash</th><th>Status</th><th>Error</th><th>Notes</th><th>Created At</th><th>Updated At</th><th>Completed At</th></tr></thead><tbody>';
+    data.forEach(function(r){html+='<tr>'
+      +'<td style="font-family:monospace;font-size:8px;word-break:break-all;">'+esc(r.id||'—')+'</td>'
+      +'<td>'+esc(r.sender_reference||'—')+'</td>'
+      +'<td>'+esc(r.sender_name||'—')+'</td>'
+      +'<td style="font-family:monospace;font-size:8px;">'+esc(r.sender_iban||'—')+'</td>'
+      +'<td>'+esc(r.sender_bank||'—')+'</td>'
+      +'<td><strong>'+esc(String(r.eur_amount||'—'))+' EUR</strong></td>'
+      +'<td>'+esc(String(r.fx_rate_eur_usd||r.fx_rate||'—'))+'</td>'
+      +'<td>'+esc(String(r.usd_amount||'—'))+' USD</td>'
+      +'<td><strong>'+esc(String(r.usdt_amount||'—'))+'</strong></td>'
+      +'<td>'+esc(r.target_asset||'SIG')+'</td>'
+      +'<td>'+_tHash(r.receiver_wallet)+'</td>'
+      +'<td>'+esc((r.network||'—').toUpperCase())+'</td>'
+      +'<td>'+_tHash(r.tx_hash)+'</td>'
+      +'<td>'+_sb(r.status)+'</td>'
+      +'<td style="color:#c0392b;font-size:8px;">'+esc(r.error_message||'—')+'</td>'
+      +'<td>'+esc(r.notes||'—')+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(r.created_at)+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(r.updated_at)+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(r.completed_at)+'</td>'
+      +'</tr>';});
   }else if(tab==='payloads'){
-    html+='<table><thead><tr><th>Payload ID</th><th>Reference</th><th>Asset</th><th>Amount</th><th>Network</th><th>Status</th><th>TX Hash</th><th>Date</th></tr></thead><tbody>';
-    data.forEach(function(p){html+='<tr><td>'+esc((p.id||'—').slice(0,14))+'</td><td>'+esc(p.transaction_reference||p.request_id||'—')+'</td><td>'+esc(p.asset||'—')+'</td><td><strong>'+esc(String(p.amount||'—'))+'</strong></td><td>'+esc(p.network_name||'—')+'</td><td>'+_sb(p.verification_status)+'</td><td>'+esc((p.tx_hash||'—').slice(0,18))+'</td><td>'+esc(p.created_at?new Date(p.created_at).toLocaleDateString():'—')+'</td></tr>';});
+    html+='<table><thead><tr><th>Full ID</th><th>Transaction Reference</th><th>Request ID</th><th>Asset</th><th>Amount</th><th>Network</th><th>Sender Wallet</th><th>Receiver Wallet</th><th>TX Hash</th><th>Block Number</th><th>Confirmations</th><th>Status</th><th>Security Level</th><th>Client IP</th><th>Explorer URL</th><th>Notes</th><th>Created At</th><th>Updated At</th></tr></thead><tbody>';
+    data.forEach(function(p){html+='<tr>'
+      +'<td style="font-family:monospace;font-size:8px;word-break:break-all;">'+esc(p.id||'—')+'</td>'
+      +'<td>'+esc(p.transaction_reference||'—')+'</td>'
+      +'<td>'+esc(p.request_id||'—')+'</td>'
+      +'<td>'+esc(p.asset||'—')+'</td>'
+      +'<td><strong>'+esc(String(p.amount||'—'))+'</strong></td>'
+      +'<td>'+esc(p.network_name||'—')+'</td>'
+      +'<td>'+_tHash(p.sender_wallet)+'</td>'
+      +'<td>'+_tHash(p.receiver_wallet)+'</td>'
+      +'<td>'+_tHash(p.tx_hash)+'</td>'
+      +'<td>'+esc(String(p.block_number||'—'))+'</td>'
+      +'<td>'+esc(String(p.confirmations||'—'))+'</td>'
+      +'<td>'+_sb(p.verification_status)+'</td>'
+      +'<td>'+esc(p.security_level||'—')+'</td>'
+      +'<td>'+esc(p.client_ip||'—')+'</td>'
+      +'<td style="font-size:8px;word-break:break-all;">'+esc(p.explorer_url||'—')+'</td>'
+      +'<td>'+esc(p.notes||'—')+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(p.created_at)+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(p.updated_at)+'</td>'
+      +'</tr>';});
   }else if(tab==='transfers'){
-    html+='<table><thead><tr><th>Transfer ID</th><th>Network</th><th>Asset</th><th>Amount</th><th>To Wallet</th><th>Status</th><th>TX Hash</th><th>Date</th></tr></thead><tbody>';
-    data.forEach(function(x){html+='<tr><td>'+esc((x.id||'—').slice(0,14))+'</td><td><strong>'+esc((x.network||'—').toUpperCase())+'</strong></td><td>'+esc(x.asset||x.currency||'USDT')+'</td><td><strong>'+esc(String(x.amount||'—'))+'</strong></td><td>'+esc((x.to_address||'—').slice(0,20))+'</td><td>'+_sb(x.status)+'</td><td>'+esc((x.tx_hash||'—').slice(0,18))+'</td><td>'+esc(x.created_at?new Date(x.created_at).toLocaleDateString():'—')+'</td></tr>';});
+    html+='<table><thead><tr><th>Full ID</th><th>Network</th><th>Asset</th><th>Amount</th><th>To Address</th><th>From Address</th><th>TX Hash</th><th>Status</th><th>Approved By</th><th>Approved At</th><th>Cancelled By</th><th>Broadcaster At</th><th>Retry#</th><th>Error</th><th>Priority</th><th>Webhook URL</th><th>Notes</th><th>Created At</th><th>Updated At</th><th>Completed At</th></tr></thead><tbody>';
+    data.forEach(function(x){html+='<tr>'
+      +'<td style="font-family:monospace;font-size:8px;word-break:break-all;">'+esc(x.id||'—')+'</td>'
+      +'<td><strong>'+esc((x.network||'—').toUpperCase())+'</strong></td>'
+      +'<td>'+esc(x.asset||x.currency||'USDT')+'</td>'
+      +'<td><strong>'+esc(String(x.amount||'—'))+'</strong></td>'
+      +'<td>'+_tHash(x.to_address)+'</td>'
+      +'<td>'+_tHash(x.from_address)+'</td>'
+      +'<td>'+_tHash(x.tx_hash)+'</td>'
+      +'<td>'+_sb(x.status)+'</td>'
+      +'<td>'+esc(x.approved_by||'—')+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(x.approved_at)+'</td>'
+      +'<td>'+esc(x.cancelled_by||'—')+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(x.broadcaster_at)+'</td>'
+      +'<td>'+esc(String(x.retry_count||0))+'</td>'
+      +'<td style="color:#c0392b;font-size:8px;">'+esc(x.error_message||'—')+'</td>'
+      +'<td>'+esc(x.priority||'—')+'</td>'
+      +'<td style="font-size:8px;word-break:break-all;">'+esc(x.webhook_url||'—')+'</td>'
+      +'<td>'+esc(x.notes||'—')+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(x.created_at)+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(x.updated_at)+'</td>'
+      +'<td style="white-space:nowrap;">'+_tDate(x.completed_at)+'</td>'
+      +'</tr>';});
   }
   html+='</tbody></table>'+_pf()+'</body></html>';
   var w=window.open('','_blank','width=1200,height=820');w.document.write(html);w.document.close();setTimeout(function(){w.print();},450);
@@ -3705,10 +3921,117 @@ function printAllTransactions(){
     var total=orders.length+m1.length+payloads.length+transfers.length;
     var html='<!doctype html><html><head><meta charset=utf-8><title>Complete Transaction Audit</title><style>'+_pCSS+'</style></head><body>'+_ph('Complete Transaction Audit',total);
     html+='<div class="sgrid"><div class="scard"><div class="snum">'+orders.length+'</div><div class="slbl">Payment Orders</div></div><div class="scard"><div class="snum">'+m1.length+'</div><div class="slbl">M1 Jobs</div></div><div class="scard"><div class="snum">'+payloads.length+'</div><div class="slbl">Payloads</div></div><div class="scard"><div class="snum">'+transfers.length+'</div><div class="slbl">Transfers</div></div></div>';
-    if(orders.length){html+='<h2>Payment Orders ('+orders.length+')</h2><table><thead><tr><th>ID</th><th>Reference</th><th>Provider</th><th>Status</th><th>Fiat</th><th>Crypto</th><th>Network</th><th>Date</th></tr></thead><tbody>';orders.forEach(function(o){html+='<tr><td>'+esc((o.id||'—').slice(0,14))+'</td><td>'+esc(o.external_id||o.payment_reference||'—')+'</td><td>'+esc(o.provider||'')+'</td><td>'+_sb(o.status)+'</td><td><strong>'+esc(String(o.fiat_amount||'—'))+' '+esc(o.fiat_currency||'')+'</strong></td><td>'+esc(String(o.crypto_amount||'—'))+' '+esc(o.crypto_currency||'')+'</td><td>'+esc(o.network||'')+'</td><td>'+esc(o.created_at?new Date(o.created_at).toLocaleDateString():'—')+'</td></tr>';});html+='</tbody></table>';}
-    if(m1.length){html+='<h2>M1 Tokenization Jobs ('+m1.length+')</h2><table><thead><tr><th>ID</th><th>Reference</th><th>Sender</th><th>EUR</th><th>FX</th><th>SIG</th><th>Network</th><th>Status</th><th>Date</th></tr></thead><tbody>';m1.forEach(function(r){html+='<tr><td>'+esc((r.id||'—').slice(0,14))+'</td><td>'+esc(r.sender_reference||'—')+'</td><td>'+esc(r.sender_name||'—')+'</td><td><strong>'+esc(String(r.eur_amount||'—'))+' EUR</strong></td><td>'+esc(String(r.fx_rate_eur_usd||r.fx_rate||'—'))+'</td><td><strong>'+esc(String(r.usdt_amount||'—'))+' '+esc(r.target_asset||'SIG')+'</strong></td><td>'+esc((r.network||'—').toUpperCase())+'</td><td>'+_sb(r.status)+'</td><td>'+esc(r.created_at?new Date(r.created_at).toLocaleDateString():'—')+'</td></tr>';});html+='</tbody></table>';}
-    if(payloads.length){html+='<h2>Settlement Payloads ('+payloads.length+')</h2><table><thead><tr><th>ID</th><th>Reference</th><th>Asset</th><th>Amount</th><th>Network</th><th>Status</th><th>Date</th></tr></thead><tbody>';payloads.forEach(function(p){html+='<tr><td>'+esc((p.id||'—').slice(0,14))+'</td><td>'+esc(p.transaction_reference||p.request_id||'—')+'</td><td>'+esc(p.asset||'—')+'</td><td><strong>'+esc(String(p.amount||'—'))+'</strong></td><td>'+esc(p.network_name||'—')+'</td><td>'+_sb(p.verification_status)+'</td><td>'+esc(p.created_at?new Date(p.created_at).toLocaleDateString():'—')+'</td></tr>';});html+='</tbody></table>';}
-    if(transfers.length){html+='<h2>Outbound Transfers ('+transfers.length+')</h2><table><thead><tr><th>ID</th><th>Network</th><th>Asset</th><th>Amount</th><th>To Wallet</th><th>Status</th><th>Date</th></tr></thead><tbody>';transfers.forEach(function(x){html+='<tr><td>'+esc((x.id||'—').slice(0,14))+'</td><td>'+esc((x.network||'—').toUpperCase())+'</td><td>'+esc(x.asset||x.currency||'USDT')+'</td><td><strong>'+esc(String(x.amount||'—'))+'</strong></td><td>'+esc((x.to_address||'—').slice(0,22))+'</td><td>'+_sb(x.status)+'</td><td>'+esc(x.created_at?new Date(x.created_at).toLocaleDateString():'—')+'</td></tr>';});html+='</tbody></table>';}
+    /* ── Full-detail tables: ALL fields, no truncation on amounts ── */
+    function _allDate(v){return v?new Date(v).toLocaleString():'—';}
+    function _allHash(v){return v?'<span style="font-family:monospace;font-size:8px;word-break:break-all;">'+esc(v)+'</span>':'—';}
+    if(orders.length){
+      html+='<h2>Payment Orders — '+orders.length+' records (full detail)</h2>'
+        +'<table><thead><tr><th>Full ID</th><th>Ext Reference</th><th>Payment Reference</th><th>Provider</th><th>Status</th><th>Fiat Amount</th><th>Fiat Currency</th><th>Exchange Rate</th><th>Crypto Amount</th><th>Crypto Currency</th><th>Network</th><th>User Wallet</th><th>Treasury Wallet</th><th>TX Hash</th><th>Fees Fiat</th><th>Fees Crypto</th><th>Processor Ref</th><th>Client IP</th><th>Idempotency Key</th><th>Notes</th><th>Created At</th><th>Updated At</th><th>Completed At</th></tr></thead><tbody>';
+      orders.forEach(function(o){html+='<tr>'
+        +'<td style="font-family:monospace;font-size:8px;word-break:break-all;">'+esc(o.id||'—')+'</td>'
+        +'<td>'+esc(o.external_id||'—')+'</td>'
+        +'<td>'+esc(o.payment_reference||'—')+'</td>'
+        +'<td>'+esc(o.provider||'—')+'</td>'
+        +'<td>'+_sb(o.status)+'</td>'
+        +'<td><strong>'+esc(String(o.fiat_amount||'—'))+'</strong></td>'
+        +'<td>'+esc(o.fiat_currency||'—')+'</td>'
+        +'<td>'+esc(String(o.exchange_rate||'—'))+'</td>'
+        +'<td><strong>'+esc(String(o.crypto_amount||'—'))+'</strong></td>'
+        +'<td>'+esc(o.crypto_currency||'—')+'</td>'
+        +'<td>'+esc(o.network||'—')+'</td>'
+        +'<td>'+_allHash(o.user_wallet_address||o.wallet)+'</td>'
+        +'<td>'+_allHash(o.treasury_wallet_address)+'</td>'
+        +'<td>'+_allHash(o.tx_hash)+'</td>'
+        +'<td>'+esc(String(o.fees_fiat||'—'))+'</td>'
+        +'<td>'+esc(String(o.fees_crypto||'—'))+'</td>'
+        +'<td>'+esc(o.processor_reference||'—')+'</td>'
+        +'<td>'+esc(o.client_ip||'—')+'</td>'
+        +'<td style="font-size:8px;">'+esc((o.idempotency_key||'—').slice(0,24))+'</td>'
+        +'<td>'+esc(o.notes||'—')+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(o.created_at)+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(o.updated_at)+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(o.completed_at)+'</td>'
+        +'</tr>';});
+      html+='</tbody></table>';
+    }
+    if(m1.length){
+      html+='<h2>M1 Tokenization Jobs — '+m1.length+' records (full detail)</h2>'
+        +'<table><thead><tr><th>Full ID</th><th>Sender Reference</th><th>Sender Name</th><th>Sender IBAN</th><th>Sender Bank</th><th>EUR Amount</th><th>FX Rate EUR/USD</th><th>USD Amount</th><th>Output Amount</th><th>Target Asset</th><th>Receiver Wallet</th><th>Network</th><th>TX Hash</th><th>Status</th><th>Error</th><th>Notes</th><th>Created At</th><th>Updated At</th><th>Completed At</th></tr></thead><tbody>';
+      m1.forEach(function(r){html+='<tr>'
+        +'<td style="font-family:monospace;font-size:8px;word-break:break-all;">'+esc(r.id||'—')+'</td>'
+        +'<td>'+esc(r.sender_reference||'—')+'</td>'
+        +'<td>'+esc(r.sender_name||'—')+'</td>'
+        +'<td style="font-family:monospace;font-size:8px;">'+esc(r.sender_iban||'—')+'</td>'
+        +'<td>'+esc(r.sender_bank||'—')+'</td>'
+        +'<td><strong>'+esc(String(r.eur_amount||'—'))+' EUR</strong></td>'
+        +'<td>'+esc(String(r.fx_rate_eur_usd||r.fx_rate||'—'))+'</td>'
+        +'<td>'+esc(String(r.usd_amount||'—'))+' USD</td>'
+        +'<td><strong>'+esc(String(r.usdt_amount||'—'))+'</strong></td>'
+        +'<td>'+esc(r.target_asset||'SIG')+'</td>'
+        +'<td>'+_allHash(r.receiver_wallet)+'</td>'
+        +'<td>'+esc((r.network||'—').toUpperCase())+'</td>'
+        +'<td>'+_allHash(r.tx_hash)+'</td>'
+        +'<td>'+_sb(r.status)+'</td>'
+        +'<td style="color:#c0392b;font-size:8px;">'+esc(r.error_message||'—')+'</td>'
+        +'<td>'+esc(r.notes||'—')+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(r.created_at)+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(r.updated_at)+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(r.completed_at)+'</td>'
+        +'</tr>';});
+      html+='</tbody></table>';
+    }
+    if(payloads.length){
+      html+='<h2>Settlement Payloads — '+payloads.length+' records (full detail)</h2>'
+        +'<table><thead><tr><th>Full ID</th><th>Transaction Reference</th><th>Request ID</th><th>Asset</th><th>Amount</th><th>Network</th><th>Sender Wallet</th><th>Receiver Wallet</th><th>TX Hash</th><th>Block Number</th><th>Confirmations</th><th>Status</th><th>Security Level</th><th>Client IP</th><th>Explorer URL</th><th>Notes</th><th>Created At</th><th>Updated At</th></tr></thead><tbody>';
+      payloads.forEach(function(p){html+='<tr>'
+        +'<td style="font-family:monospace;font-size:8px;word-break:break-all;">'+esc(p.id||'—')+'</td>'
+        +'<td>'+esc(p.transaction_reference||'—')+'</td>'
+        +'<td>'+esc(p.request_id||'—')+'</td>'
+        +'<td>'+esc(p.asset||'—')+'</td>'
+        +'<td><strong>'+esc(String(p.amount||'—'))+'</strong></td>'
+        +'<td>'+esc(p.network_name||'—')+'</td>'
+        +'<td>'+_allHash(p.sender_wallet)+'</td>'
+        +'<td>'+_allHash(p.receiver_wallet)+'</td>'
+        +'<td>'+_allHash(p.tx_hash)+'</td>'
+        +'<td>'+esc(String(p.block_number||'—'))+'</td>'
+        +'<td>'+esc(String(p.confirmations||'—'))+'</td>'
+        +'<td>'+_sb(p.verification_status)+'</td>'
+        +'<td>'+esc(p.security_level||'—')+'</td>'
+        +'<td>'+esc(p.client_ip||'—')+'</td>'
+        +'<td style="font-size:8px;word-break:break-all;">'+esc(p.explorer_url||'—')+'</td>'
+        +'<td>'+esc(p.notes||'—')+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(p.created_at)+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(p.updated_at)+'</td>'
+        +'</tr>';});
+      html+='</tbody></table>';
+    }
+    if(transfers.length){
+      html+='<h2>Outbound Transfers — '+transfers.length+' records (full detail)</h2>'
+        +'<table><thead><tr><th>Full ID</th><th>Network</th><th>Asset</th><th>Amount</th><th>To Address</th><th>From Address</th><th>TX Hash</th><th>Status</th><th>Approved By</th><th>Approved At</th><th>Cancelled By</th><th>Broadcaster At</th><th>Retry Count</th><th>Error</th><th>Priority</th><th>Webhook URL</th><th>Notes</th><th>Created At</th><th>Updated At</th><th>Completed At</th></tr></thead><tbody>';
+      transfers.forEach(function(x){html+='<tr>'
+        +'<td style="font-family:monospace;font-size:8px;word-break:break-all;">'+esc(x.id||'—')+'</td>'
+        +'<td><strong>'+esc((x.network||'—').toUpperCase())+'</strong></td>'
+        +'<td>'+esc(x.asset||x.currency||'USDT')+'</td>'
+        +'<td><strong>'+esc(String(x.amount||'—'))+'</strong></td>'
+        +'<td>'+_allHash(x.to_address)+'</td>'
+        +'<td>'+_allHash(x.from_address)+'</td>'
+        +'<td>'+_allHash(x.tx_hash)+'</td>'
+        +'<td>'+_sb(x.status)+'</td>'
+        +'<td>'+esc(x.approved_by||'—')+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(x.approved_at)+'</td>'
+        +'<td>'+esc(x.cancelled_by||'—')+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(x.broadcaster_at)+'</td>'
+        +'<td>'+esc(String(x.retry_count||0))+'</td>'
+        +'<td style="color:#c0392b;font-size:8px;">'+esc(x.error_message||'—')+'</td>'
+        +'<td>'+esc(x.priority||'—')+'</td>'
+        +'<td style="font-size:8px;word-break:break-all;">'+esc(x.webhook_url||'—')+'</td>'
+        +'<td>'+esc(x.notes||'—')+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(x.created_at)+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(x.updated_at)+'</td>'
+        +'<td style="white-space:nowrap;">'+_allDate(x.completed_at)+'</td>'
+        +'</tr>';});
+      html+='</tbody></table>';
+    }
     html+=_pf()+'</body></html>';
     var w=window.open('','_blank','width=1200,height=820');w.document.write(html);w.document.close();setTimeout(function(){w.print();},500);
   }).catch(function(e){showToast('Print error: '+e.message,'error');});
@@ -3719,6 +4042,7 @@ function loadReportOrders(){
   api('/api/v1/admin/orders').then(function(rows){
     if(!Array.isArray(rows)) rows=rows.orders||[];
     _rData.orders=rows;
+    annotRefreshList();
     document.getElementById('rOrderCount').textContent=rows.length+' orders';
     document.getElementById('statOrders').textContent=rows.length;
     if(!rows.length){document.getElementById('reportOrders').innerHTML='<div class="empty-state"><div class="icon">&#128202;</div>No orders found</div>';return;}
@@ -3735,10 +4059,7 @@ function loadReportOrders(){
       +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
         +'<button class="btn btn-primary" data-id="'+esc(o.id||'')+'" onclick="window.open(\\\'/api/v1/admin/orders/\\\'+encodeURIComponent(this.dataset.id)+\\\'/documents/statement\\\',\\\'_blank\\\')" style="font-size:10px;padding:2px 7px;">Statement</button>'
         +'<button class="btn btn-ghost" data-id="'+esc(o.id||'')+'" onclick="window.open(\\\'/api/v1/admin/orders/\\\'+encodeURIComponent(this.dataset.id)+\\\'/documents/invoice\\\',\\\'_blank\\\')" style="font-size:10px;padding:2px 7px;">Invoice</button>'
-        +'<button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'order\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
-        +'<button data-idx="'+i+'" onclick="openLiqModal(+this.dataset.idx,\\\'order\\\')" title="Liquidation Rate" style="font-size:11px;padding:2px 7px;background:#1e40af;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128197;%</button>'
-        +'<button data-idx="'+i+'" onclick="openAmtModal(+this.dataset.idx,\\\'order\\\')" title="Post-Liquidation Amount" style="font-size:11px;padding:2px 7px;background:#065f46;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128181;</button>'
-        +'<button data-idx="'+i+'" onclick="openStampModal(+this.dataset.idx,\\\'order\\\')" title="Status Stamp" style="font-size:11px;padding:2px 7px;background:#6d28d9;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128396;</button>'
+        +'<button class="btn btn-success" data-idx="'+i+'" onclick="setAnnotTarget(+this.dataset.idx,\\\'order\\\');printTxReport(+this.dataset.idx,\\\'order\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
         +'</div></td>'
       +'</tr>';}).join('');
     document.getElementById('reportOrders').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Reference</th><th>Provider</th><th>Status</th><th>Fiat</th><th>Crypto</th><th>Network</th><th>TX Hash</th><th>Date</th><th>Actions</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
@@ -3750,6 +4071,7 @@ function loadReportM1(){
   api('/api/v1/admin/tokenization-jobs?limit=200').then(function(rows){
     if(!Array.isArray(rows)) rows=[];
     _rData.m1=rows;
+    annotRefreshList();
     document.getElementById('rM1Count').textContent=rows.length+' jobs';
     document.getElementById('statM1').textContent=rows.length;
     if(!rows.length){document.getElementById('reportM1').innerHTML='<div class="empty-state"><div class="icon">&#128260;</div>No M1 jobs found</div>';return;}
@@ -3765,10 +4087,7 @@ function loadReportM1(){
       +'<td>'+(r.tx_hash?'<span class="mono-id" title="'+esc(r.tx_hash)+'">'+esc(r.tx_hash.slice(0,12))+'&#8230;</span>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
       +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
-        +'<button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'m1\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
-        +'<button data-idx="'+i+'" onclick="openLiqModal(+this.dataset.idx,\\\'m1\\\')" title="Liquidation Rate" style="font-size:11px;padding:2px 7px;background:#1e40af;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128197;%</button>'
-        +'<button data-idx="'+i+'" onclick="openAmtModal(+this.dataset.idx,\\\'m1\\\')" title="Post-Liquidation Amount" style="font-size:11px;padding:2px 7px;background:#065f46;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128181;</button>'
-        +'<button data-idx="'+i+'" onclick="openStampModal(+this.dataset.idx,\\\'m1\\\')" title="Status Stamp" style="font-size:11px;padding:2px 7px;background:#6d28d9;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128396;</button>'
+        +'<button class="btn btn-success" data-idx="'+i+'" onclick="setAnnotTarget(+this.dataset.idx,\\\'m1\\\');printTxReport(+this.dataset.idx,\\\'m1\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
         +'<button class="btn btn-ghost" data-ref="'+esc(r.id||'')+'" onclick="document.getElementById(\\\'reportOrderId\\\').value=this.dataset.ref;switchRTab(\\\'orders\\\')" style="font-size:10px;padding:2px 7px;">Find Order</button>'
       +'</div></td>'
       +'</tr>';}).join('');
@@ -3781,6 +4100,7 @@ function loadReportPayloads(){
   api('/api/v1/admin/payloads?limit=200').then(function(data){
     var rows=Array.isArray(data)?data:(data.payloads||[]);
     _rData.payloads=rows;
+    annotRefreshList();
     document.getElementById('rPayloadCount').textContent=rows.length+' payloads';
     document.getElementById('statPayloads').textContent=rows.length;
     if(!rows.length){document.getElementById('reportPayloads').innerHTML='<div class="empty-state"><div class="icon">&#128232;</div>No payloads found</div>';return;}
@@ -3793,12 +4113,7 @@ function loadReportPayloads(){
       +'<td>'+badge(p.verification_status||'')+'</td>'
       +'<td>'+(p.tx_hash?'<span class="mono-id" title="'+esc(p.tx_hash)+'">'+esc(p.tx_hash.slice(0,12))+'&#8230;</span>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(p.created_at)+'</td>'
-      +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
-        +'<button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'payload\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
-        +'<button data-idx="'+i+'" onclick="openLiqModal(+this.dataset.idx,\\\'payload\\\')" title="Liquidation Rate" style="font-size:11px;padding:2px 7px;background:#1e40af;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128197;%</button>'
-        +'<button data-idx="'+i+'" onclick="openAmtModal(+this.dataset.idx,\\\'payload\\\')" title="Post-Liquidation Amount" style="font-size:11px;padding:2px 7px;background:#065f46;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128181;</button>'
-        +'<button data-idx="'+i+'" onclick="openStampModal(+this.dataset.idx,\\\'payload\\\')" title="Status Stamp" style="font-size:11px;padding:2px 7px;background:#6d28d9;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128396;</button>'
-      +'</div></td>'
+      +'<td><button class="btn btn-success" data-idx="'+i+'" onclick="setAnnotTarget(+this.dataset.idx,\\\'payload\\\');printTxReport(+this.dataset.idx,\\\'payload\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button></td>'
       +'</tr>';}).join('');
     document.getElementById('reportPayloads').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Reference</th><th>Asset</th><th>Amount</th><th>Network</th><th>Status</th><th>TX Hash</th><th>Date</th><th>Actions</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('reportPayloads').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
@@ -3809,6 +4124,7 @@ function loadReportTransfers(){
   api('/api/v1/admin/outbound-transfers?limit=200').then(function(data){
     var rows=Array.isArray(data)?data:(data.transfers||[]);
     _rData.transfers=rows;
+    annotRefreshList();
     document.getElementById('rXferCount').textContent=rows.length+' transfers';
     document.getElementById('statTransfers').textContent=rows.length;
     if(!rows.length){document.getElementById('reportTransfers').innerHTML='<div class="empty-state"><div class="icon">&#128228;</div>No transfers found</div>';return;}
@@ -3821,12 +4137,7 @@ function loadReportTransfers(){
       +'<td>'+badge(x.status||'')+'</td>'
       +'<td>'+(x.tx_hash?'<span class="mono-id" title="'+esc(x.tx_hash)+'">'+esc(x.tx_hash.slice(0,12))+'&#8230;</span>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(x.created_at)+'</td>'
-      +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
-        +'<button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'transfer\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
-        +'<button data-idx="'+i+'" onclick="openLiqModal(+this.dataset.idx,\\\'transfer\\\')" title="Liquidation Rate" style="font-size:11px;padding:2px 7px;background:#1e40af;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128197;%</button>'
-        +'<button data-idx="'+i+'" onclick="openAmtModal(+this.dataset.idx,\\\'transfer\\\')" title="Post-Liquidation Amount" style="font-size:11px;padding:2px 7px;background:#065f46;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128181;</button>'
-        +'<button data-idx="'+i+'" onclick="openStampModal(+this.dataset.idx,\\\'transfer\\\')" title="Status Stamp" style="font-size:11px;padding:2px 7px;background:#6d28d9;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128396;</button>'
-      +'</div></td>'
+      +'<td><button class="btn btn-success" data-idx="'+i+'" onclick="setAnnotTarget(+this.dataset.idx,\\\'transfer\\\');printTxReport(+this.dataset.idx,\\\'transfer\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button></td>'
       +'</tr>';}).join('');
     document.getElementById('reportTransfers').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Network</th><th>Asset</th><th>Amount</th><th>To Wallet</th><th>Status</th><th>TX Hash</th><th>Date</th><th>Actions</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('reportTransfers').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
