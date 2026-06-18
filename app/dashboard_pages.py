@@ -281,7 +281,7 @@ function _prModal(title,fields,key,cb){
     var v=ex[f.k]||'';
     var inp;
     if(f.opts){
-      var os=f.opts.map(function(o){return '<option value="'+o+'"'+(v===o?' selected':'')+'>'+o+'</option>';'}).join('');
+      var os=f.opts.map(function(o){return '<option value="'+o+'"'+(v===o?' selected':'')+'>'+o+'</option>';}).join('');
       inp='<select id="_prMF_'+f.k+'" style="width:100%;padding:8px 10px;border:1.5px solid #c8d9f0;border-radius:5px;font-size:12px;margin-bottom:12px;"><option value="">— Select —</option>'+os+'</select>';
     }else{
       inp='<input id="_prMF_'+f.k+'" value="'+_prEsc(v)+'" placeholder="'+_prEsc(f.ph||'')+'" style="width:100%;padding:8px 10px;border:1.5px solid #c8d9f0;border-radius:5px;font-size:12px;margin-bottom:12px;box-sizing:border-box;">';
