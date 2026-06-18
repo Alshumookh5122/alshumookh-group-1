@@ -3361,109 +3361,185 @@ function printTxReport(idx,type){
   else if(type==='transfer') data=_rData.transfers[idx];
   if(!data){showToast('Data not found — please refresh the tab','error');return;}
   var ref=Date.now().toString(36).toUpperCase();
-  function explorerLink(hash,network){
-    if(!hash||hash==='—') return '—';
+
+  function fdt(v){if(!v||v==='null'||v==='undefined') return '—';try{return new Date(v).toUTCString();}catch(e){return String(v);}}
+  function fv(v){var s=String(v===null||v===undefined?'':v);return(s===''||s==='null'||s==='undefined')?'—':s;}
+  function explorerLink(hash,network,stored){
+    if(stored&&stored.indexOf('http')===0) return '<a href="'+esc(stored)+'" target="_blank" style="color:#1a3a6b;word-break:break-all;font-family:monospace;font-size:10px;">'+esc(stored)+'</a>';
+    if(!hash||hash==='—'||hash==='null') return '<span style="color:#999;">—</span>';
     var n=(network||'').toLowerCase();
     var base='https://etherscan.io/tx/';
     if(n.indexOf('tron')!==-1||n.indexOf('trx')!==-1) base='https://tronscan.org/#/transaction/';
     else if(n.indexOf('base')!==-1) base='https://basescan.org/tx/';
     else if(n.indexOf('bsc')!==-1||n.indexOf('bnb')!==-1) base='https://bscscan.com/tx/';
-    return '<a href="'+base+hash+'" target="_blank" style="color:#1a3a6b;word-break:break-all;font-family:monospace;font-size:10.5px;">'+hash+'</a>';
+    return '<a href="'+base+esc(hash)+'" target="_blank" style="color:#1a3a6b;word-break:break-all;font-family:monospace;font-size:10px;">'+esc(hash)+'</a>';
   }
+
   var net=(data.network||data.network_name||'').toLowerCase();
-  var title,rows=[];
+  var statusVal=String(data.status||data.verification_status||'').toUpperCase();
+  var statusColor=statusVal==='COMPLETED'||statusVal==='VERIFIED'?'background:#d1fae5;color:#065f46':statusVal==='PENDING'||statusVal==='PROCESSING'?'background:#fef3c7;color:#92400e':statusVal==='FAILED'||statusVal==='REJECTED'?'background:#fee2e2;color:#991b1b':'background:#e5e7eb;color:#374151';
+
+  var title,rows=[],sum=[];
+
   if(type==='order'){
     title='Payment Order — Certified Transaction Report';
+    sum=[fv(data.id),(fv(data.fiat_amount)+' '+fv(data.fiat_currency)+' \u2192 '+fv(data.crypto_amount)+' '+fv(data.crypto_currency)),statusVal,fv(data.provider)];
     rows=[
-      ['Transaction Type','Payment Order'],
-      ['Order ID',data.id||'—'],
-      ['External Reference',data.external_id||data.payment_reference||'—'],
-      ['Provider',data.provider||'—'],
-      ['Network',(data.network||'—').toUpperCase()],
-      ['Status',data.status||'—'],
-      ['Fiat Amount',(data.fiat_amount||'—')+' '+(data.fiat_currency||'')],
-      ['Crypto Amount',(data.crypto_amount||'—')+' '+(data.crypto_currency||'')],
-      ['User Wallet',data.user_wallet_address||'—'],
-      ['Treasury Wallet',data.treasury_wallet_address||'—'],
-      ['TX Hash',data.tx_hash||'—'],
-      ['Blockchain Explorer',{raw:explorerLink(data.tx_hash,net)}],
-      ['Created',data.created_at?new Date(data.created_at).toUTCString():'—'],
-      ['Updated',data.updated_at?new Date(data.updated_at).toUTCString():'—']
+      {h:'TRANSACTION IDENTITY'},
+      ['Order ID',fv(data.id),'id'],
+      ['External Reference',fv(data.external_id),''],
+      ['Payment Reference',fv(data.payment_reference),''],
+      ['Provider Order ID',fv(data.provider_order_id),''],
+      {h:'TRANSACTION DETAILS'},
+      ['Type','Payment Order',''],
+      ['Provider',fv(data.provider),''],
+      ['Side',fv(data.side),''],
+      ['Network',fv(data.network).toUpperCase(),''],
+      ['Status',statusVal,'status'],
+      {h:'FIAT DETAILS'},
+      ['Fiat Currency',fv(data.fiat_currency),''],
+      ['Fiat Amount',fv(data.fiat_amount)+' '+fv(data.fiat_currency),'amount'],
+      {h:'CRYPTO / DIGITAL ASSET DETAILS'},
+      ['Crypto Currency',fv(data.crypto_currency),''],
+      ['Crypto Amount',fv(data.crypto_amount)+' '+fv(data.crypto_currency),'amount'],
+      ['User Wallet',fv(data.wallet||data.user_wallet_address),'addr'],
+      ['Treasury Wallet',fv(data.treasury_wallet_address),'addr'],
+      {h:'PAYER INFORMATION'},
+      ['Payer Email',fv(data.payer_email),''],
+      ['Checkout URL',fv(data.checkout_url),'url'],
+      {h:'BLOCKCHAIN DATA'},
+      ['TX Hash',fv(data.tx_hash),'hash'],
+      ['Blockchain Explorer',{raw:explorerLink(data.tx_hash,net,null)},''],
+      {h:'STATUS & ERROR'},
+      ['Current Status',statusVal,'status'],
+      ['Failure Reason',fv(data.failure_reason),'err'],
+      {h:'TIMESTAMPS (UTC)'},
+      ['Created At',fdt(data.created_at),''],
+      ['Last Updated',fdt(data.updated_at),'']
     ];
   }else if(type==='m1'){
     title='M1 Tokenization Job — Certified Transaction Report';
+    sum=[fv(data.id),(fv(data.eur_amount)+' EUR \u2192 '+fv(data.usdt_amount)+' '+(data.target_asset||'SIG')),statusVal,fv(data.sender_name)];
     rows=[
-      ['Transaction Type','M1 Tokenization Job'],
-      ['Job ID',data.id||'—'],
-      ['Sender Reference',data.sender_reference||'—'],
-      ['Sender Name',data.sender_name||'—'],
-      ['Sender IBAN',data.sender_iban||'—'],
-      ['EUR Amount',(data.eur_amount||'—')+' EUR'],
-      ['FX Rate (EUR \u2192 USD)',data.fx_rate_eur_usd||data.fx_rate||'—'],
-      ['USD Equivalent',data.usd_amount?(data.usd_amount+' USD'):'—'],
-      ['Token Output',(data.usdt_amount||'—')+' '+(data.target_asset||'SIG')],
-      ['Network',(data.network||'—').toUpperCase()],
-      ['Destination Wallet',data.destination_wallet||'—'],
-      ['Status',data.status||'—'],
-      ['TX Hash',data.tx_hash||'—'],
-      ['Blockchain Explorer',{raw:explorerLink(data.tx_hash,net)}],
-      ['Created',data.created_at?new Date(data.created_at).toUTCString():'—'],
-      ['Completed',data.completed_at?new Date(data.completed_at).toUTCString():'—']
+      {h:'JOB IDENTITY'},
+      ['Job ID',fv(data.id),'id'],
+      ['Sender Reference',fv(data.sender_reference),''],
+      ['Related Payload ID',fv(data.payload_id),'id'],
+      ['Outbound Transfer ID',fv(data.outbound_transfer_id),'id'],
+      {h:'SENDER INFORMATION'},
+      ['Sender Name',fv(data.sender_name),''],
+      ['Sender IBAN',fv(data.sender_iban||((data.raw_data||{}).sender_iban)),'addr'],
+      {h:'CONVERSION DETAILS (EUR \u2192 USD \u2192 TOKEN)'},
+      ['EUR Input Amount',fv(data.eur_amount)+' EUR','amount'],
+      ['FX Rate (EUR \u2192 USD)',fv(data.fx_rate||data.fx_rate_eur_usd),''],
+      ['USD Equivalent',fv(data.usd_amount)+' USD','amount'],
+      ['SIG / Token Output',fv(data.usdt_amount)+' '+(data.target_asset||'SIG'),'amount'],
+      ['Target Asset',fv(data.target_asset)||'SIG',''],
+      {h:'BLOCKCHAIN DETAILS'},
+      ['Network',fv(data.network).toUpperCase(),''],
+      ['Destination Wallet',fv(data.destination_wallet),'addr'],
+      {h:'JOB STATUS'},
+      ['Status',statusVal,'status'],
+      ['Error Message',fv(data.error_message),'err'],
+      ['Notes',fv((data.raw_data||{}).notes||data.notes),''],
+      {h:'TIMESTAMPS (UTC)'},
+      ['Created At',fdt(data.created_at),''],
+      ['Completed At',fdt(data.completed_at),'']
     ];
   }else if(type==='payload'){
     title='Settlement Payload — Certified Transaction Report';
+    sum=[fv(data.id),(fv(data.amount)+' '+fv(data.asset)),statusVal,fv(data.network_name||data.network)];
     rows=[
-      ['Transaction Type','Settlement Payload'],
-      ['Payload ID',data.id||'—'],
-      ['Transaction Reference',data.transaction_reference||data.request_id||'—'],
-      ['Asset',data.asset||'—'],
-      ['Amount',(data.amount||'—')+' '+(data.asset||'')],
-      ['Network',data.network_name||'—'],
-      ['Status',data.verification_status||'—'],
-      ['TX Hash',data.tx_hash||'—'],
-      ['Blockchain Explorer',{raw:explorerLink(data.tx_hash,net)}],
-      ['From Address',data.from_address||'—'],
-      ['To Address',data.to_address||'—'],
-      ['Created',data.created_at?new Date(data.created_at).toUTCString():'—']
+      {h:'PAYLOAD IDENTITY'},
+      ['Payload ID',fv(data.id),'id'],
+      ['Transaction Reference',fv(data.transaction_reference),''],
+      {h:'AMOUNT & ASSET'},
+      ['Asset',fv(data.asset),''],
+      ['Amount',fv(data.amount)+' '+fv(data.asset),'amount'],
+      ['Network',fv(data.network_name||data.network),''],
+      {h:'WALLET ADDRESSES'},
+      ['Sender Wallet',fv(data.sender_wallet),'addr'],
+      ['Receiver Wallet',fv(data.receiver_wallet),'addr'],
+      {h:'BLOCKCHAIN DATA'},
+      ['TX Hash',fv(data.tx_hash),'hash'],
+      ['Blockchain Explorer',{raw:explorerLink(data.tx_hash,net,null)},''],
+      {h:'VERIFICATION & SECURITY'},
+      ['Verification Status',statusVal,'status'],
+      ['Security Level',fv(data.security_level),''],
+      ['Client IP',fv(data.client_ip),''],
+      {h:'TIMESTAMPS (UTC)'},
+      ['Created At',fdt(data.created_at),''],
+      ['Last Updated',fdt(data.updated_at),'']
     ];
   }else if(type==='transfer'){
     title='Outbound Transfer — Certified Transaction Report';
+    sum=[fv(data.id),(fv(data.amount)+' '+(data.asset||'USDT')+' on '+fv(data.network).toUpperCase()),statusVal,(fv(data.to_address).length>20?fv(data.to_address).slice(0,20)+'...':fv(data.to_address))];
     rows=[
-      ['Transaction Type','Outbound Transfer'],
-      ['Transfer ID',data.id||'—'],
-      ['Network',(data.network||'—').toUpperCase()],
-      ['Asset',data.asset||data.currency||'USDT'],
-      ['Amount',String(data.amount||'—')],
-      ['From Address',data.from_address||'—'],
-      ['To Address',data.to_address||'—'],
-      ['Status',data.status||'—'],
-      ['TX Hash',data.tx_hash||'—'],
-      ['Blockchain Explorer',{raw:explorerLink(data.tx_hash,net)}],
-      ['Created',data.created_at?new Date(data.created_at).toUTCString():'—'],
-      ['Updated',data.updated_at?new Date(data.updated_at).toUTCString():'—']
+      {h:'TRANSFER IDENTITY'},
+      ['Transfer ID',fv(data.id),'id'],
+      ['Related Order ID',fv(data.order_id),'id'],
+      ['Related Payload ID',fv(data.payload_id),'id'],
+      ['Related M1 Job ID',fv(data.tokenization_job_id),'id'],
+      {h:'TRANSFER DETAILS'},
+      ['Status',statusVal,'status'],
+      ['Network',fv(data.network).toUpperCase(),''],
+      ['Asset',fv(data.asset)||'USDT',''],
+      ['Amount',fv(data.amount),'amount'],
+      ['Contract Address',fv(data.contract_address),'addr'],
+      {h:'WALLET ADDRESSES'},
+      ['From Address',fv(data.from_address),'addr'],
+      ['To Address',fv(data.to_address),'addr'],
+      {h:'BLOCKCHAIN DATA'},
+      ['TX Hash',fv(data.tx_hash),'hash'],
+      ['Block Number',fv(data.block_number),''],
+      ['Confirmations',fv(data.confirmations),''],
+      ['Blockchain Explorer',{raw:explorerLink(data.tx_hash,net,data.explorer_url)},''],
+      {h:'APPROVAL & AUTHORIZATION'},
+      ['Initiated By',fv(data.initiated_by),''],
+      ['Approved By',fv(data.approved_by),''],
+      ['Approved At',fdt(data.approved_at),''],
+      ['Notes',fv(data.notes),''],
+      {h:'ERROR & RETRY'},
+      ['Error Message',fv(data.error_message),'err'],
+      ['Retry Count',fv(data.retry_count)||'0',''],
+      ['Cancelled By',fv(data.cancelled_by),''],
+      ['Cancel Reason',fv(data.cancel_reason),'err'],
+      {h:'WEBHOOK'},
+      ['Callback URL',fv(data.callback_url),'url'],
+      ['Webhook Status Code',fv(data.webhook_status_code),''],
+      {h:'TIMESTAMPS (UTC)'},
+      ['Created At',fdt(data.created_at),''],
+      ['Broadcasted At',fdt(data.broadcasted_at),''],
+      ['Completed At',fdt(data.completed_at),'']
     ];
   }
-  var statusVal=String(data.status||data.verification_status||'').toUpperCase();
-  var statusColor=statusVal==='COMPLETED'||statusVal==='VERIFIED'?'background:#d1fae5;color:#065f46':statusVal==='PENDING'||statusVal==='PROCESSING'?'background:#fef3c7;color:#92400e':statusVal==='FAILED'||statusVal==='REJECTED'?'background:#fee2e2;color:#991b1b':'background:#e5e7eb;color:#374151';
+
+  function renderCell(label,val,hint){
+    if(val&&typeof val==='object'&&val.raw) return val.raw;
+    var s=String(val===null||val===undefined?'—':val);
+    if(hint==='status') return '<span style="display:inline-block;padding:3px 14px;border-radius:12px;font-weight:700;font-size:11px;'+statusColor+';">'+esc(s)+'</span>';
+    if(hint==='hash'||label==='TX Hash') return s==='—'?'<span style="color:#bbb;">—</span>':'<div style="font-family:monospace;font-size:9.5px;word-break:break-all;color:#0d2240;background:#f0f4fb;padding:5px 8px;border-radius:4px;border:1px solid #d0dced;margin-top:2px;">'+esc(s)+'</div>';
+    if(hint==='id') return s==='—'?'<span style="color:#bbb;">—</span>':'<span style="font-family:monospace;font-size:10px;color:#555;">'+esc(s)+'</span>';
+    if(hint==='addr') return s==='—'?'<span style="color:#bbb;">—</span>':'<span style="font-family:monospace;font-size:10px;word-break:break-all;">'+esc(s)+'</span>';
+    if(hint==='amount') return s==='—'?'<span style="color:#bbb;">—</span>':'<strong style="font-size:14px;color:#0d2240;">'+esc(s)+'</strong>';
+    if(hint==='err') return s==='—'?'<span style="color:#bbb;">—</span>':'<span style="color:#991b1b;">'+esc(s)+'</span>';
+    if(hint==='url') return s==='—'?'<span style="color:#bbb;">—</span>':'<a href="'+esc(s)+'" target="_blank" style="color:#1a3a6b;word-break:break-all;font-size:10px;">'+esc(s)+'</a>';
+    return s==='—'?'<span style="color:#bbb;">—</span>':esc(s);
+  }
+
   var rowsHTML=rows.map(function(r){
-    var label=r[0],val=r[1];
-    var cell;
-    if(val&&typeof val==='object'&&val.raw){
-      cell=val.raw;
-    }else if(label==='Status'){
-      cell='<span style="display:inline-block;padding:3px 12px;border-radius:12px;font-weight:700;font-size:11px;'+statusColor+';">'+esc(statusVal)+'</span>';
-    }else if(label==='TX Hash'){
-      cell='<span style="font-family:monospace;font-size:10.5px;word-break:break-all;color:#0d2240;">'+esc(String(val))+'</span>';
-    }else if(label.indexOf('Wallet')!==-1||label.indexOf('Address')!==-1||label.indexOf('IBAN')!==-1){
-      cell='<span style="font-family:monospace;font-size:10.5px;word-break:break-all;">'+esc(String(val))+'</span>';
-    }else if(label.indexOf('Amount')!==-1||label.indexOf('Output')!==-1){
-      cell='<strong style="font-size:13px;color:#0d2240;">'+esc(String(val))+'</strong>';
-    }else{
-      cell=esc(String(val));
-    }
-    return '<tr><td style="padding:9px 16px;font-weight:700;color:#1a3a6b;background:#f0f4fb;width:220px;font-size:11px;border-bottom:1px solid #dde6f5;vertical-align:top;">'+esc(label)+'</td>'
-          +'<td style="padding:9px 16px;font-size:11px;border-bottom:1px solid #dde6f5;vertical-align:top;">'+cell+'</td></tr>';
+    if(r.h) return '<tr><td colspan="2" style="padding:7px 16px 5px;font-size:9px;font-weight:800;letter-spacing:1.4px;color:#c9a84c;background:#0d2240;text-transform:uppercase;">'+r.h+'</td></tr>';
+    return '<tr><td style="padding:8px 16px;font-weight:600;color:#1a3a6b;background:#f4f7fb;width:210px;font-size:11px;border-bottom:1px solid #e5eef8;vertical-align:top;white-space:nowrap;">'+esc(r[0])+'</td>'
+          +'<td style="padding:8px 16px;font-size:11px;border-bottom:1px solid #e5eef8;vertical-align:top;">'+renderCell(r[0],r[1],r[2])+'</td></tr>';
   }).join('');
+
+  var summaryHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;">'
+    +'<div style="background:#0d2240;color:#c9a84c;border-radius:8px;padding:13px 16px;"><div style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.7;margin-bottom:5px;">Transaction ID</div><div style="font-family:monospace;font-size:10px;word-break:break-all;">'+esc(sum[0]||'—')+'</div></div>'
+    +'<div style="background:#f0f4fb;border-radius:8px;padding:13px 16px;border:1.5px solid #c8d9f0;"><div style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:5px;">Amount / Conversion</div><div style="font-size:13px;font-weight:800;color:#0d2240;word-break:break-all;">'+esc(sum[1]||'—')+'</div></div>'
+    +'<div style="background:#f0f4fb;border-radius:8px;padding:13px 16px;border:1.5px solid #c8d9f0;"><div style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:5px;">Status</div><div style="display:inline-block;padding:4px 14px;border-radius:14px;font-weight:800;font-size:12px;'+statusColor+'">'+esc(sum[2]||'—')+'</div></div>'
+    +'<div style="background:#f0f4fb;border-radius:8px;padding:13px 16px;border:1.5px solid #c8d9f0;"><div style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:5px;">'+(type==='order'?'Provider':type==='m1'?'Sender':type==='payload'?'Network':'Recipient')+'</div><div style="font-size:11px;font-weight:700;color:#0d2240;word-break:break-all;">'+esc(sum[3]||'—')+'</div></div>'
+    +'</div>';
+
   var css='body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:11px;color:#0d1b2a;margin:0;padding:0;background:#fff;}'
     +'.gbar{height:5px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}'
     +'.cband{background:#0d2240;color:#fff;padding:8px 26px;font-size:8.5px;font-weight:700;letter-spacing:.6px;display:flex;justify-content:space-between;align-items:center;}'
@@ -3473,11 +3549,12 @@ function printTxReport(idx,type){
     +'.rpt-title{background:#0d2240;color:#c9a84c;padding:11px 26px;font-size:13px;font-weight:700;letter-spacing:.5px;}'
     +'.rpt-ref{background:#f7f9fc;padding:6px 26px;font-size:9px;color:#888;display:flex;justify-content:space-between;border-bottom:1px solid #dde6f5;}'
     +'.body{padding:20px 26px;}'
-    +'table{width:100%;border-collapse:collapse;border:1.5px solid #c8d9f0;border-radius:6px;overflow:hidden;box-shadow:0 1px 6px rgba(13,34,64,.07);}'
+    +'table{width:100%;border-collapse:collapse;border:1.5px solid #c8d9f0;overflow:hidden;box-shadow:0 1px 6px rgba(13,34,64,.07);}'
     +'.foot{margin-top:24px;padding:10px 26px 18px;border-top:2px solid #0d2240;display:flex;justify-content:space-between;align-items:flex-end;}'
     +'.ftxt{font-size:8px;color:#9aa;line-height:1.7;max-width:440px;}'
     +'.fseal{width:52px;height:52px;border:2px solid #c9a84c;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7.5px;font-weight:700;color:#8b6914;line-height:1.4;}'
     +'@page{size:A4;margin:10mm 12mm}@media print{.no-print{display:none!important}body{padding:0}}';
+
   var html='<!doctype html><html><head><meta charset=utf-8><title>'+title+'</title><style>'+css+'</style></head><body>'
     +'<div class="gbar"></div>'
     +'<div class="cband"><span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &mdash; BIC: ALSHAEXXXX &mdash; REG: UAE/FIN/2024/0081</span><span>CERTIFIED TRANSACTION REPORT</span></div>'
@@ -3485,12 +3562,16 @@ function printTxReport(idx,type){
     +'<div class="rpt-title">&#128196; '+title+'</div>'
     +'<div class="rpt-ref"><span>Report Reference: RPT-'+ref+'</span><span>Generated: '+new Date().toUTCString()+'</span></div>'
     +'<div class="body">'
-    +'<div class="no-print" style="margin-bottom:14px;display:flex;gap:8px;"><button onclick="window.print()" style="background:#0d2240;color:#c9a84c;border:none;padding:8px 22px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;">&#128424; Print / Save PDF</button><button onclick="window.close()" style="background:#e5e7eb;color:#374151;border:none;padding:8px 18px;font-size:12px;font-weight:600;border-radius:5px;cursor:pointer;">&#10005; Close</button></div>'
+    +'<div class="no-print" style="margin-bottom:16px;display:flex;gap:8px;">'
+      +'<button onclick="window.print()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 24px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;">&#128424; Print / Save PDF</button>'
+      +'<button onclick="window.close()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 18px;font-size:12px;font-weight:600;border-radius:5px;cursor:pointer;">&#10005; Close</button>'
+    +'</div>'
+    +summaryHTML
     +'<table>'+rowsHTML+'</table>'
     +'</div>'
-    +'<div class="foot"><div class="ftxt">This document is auto-generated by the ALSHUMOOKH internal system and is CONFIDENTIAL &mdash; authorised personnel only.<br>Blockchain data is subject to network confirmation. &copy; ALSHUMOOKH GROUP 2026 &mdash; compliance@alshumookh-pay.com</div><div class="fseal">ALSH<br>CERT<br>&#9733;</div></div>'
+    +'<div class="foot"><div class="ftxt">This document is auto-generated by the ALSHUMOOKH internal system and is CONFIDENTIAL &mdash; authorised personnel only.<br>Blockchain data is subject to network confirmation. All amounts are as recorded at time of transaction. &copy; ALSHUMOOKH GROUP 2026 &mdash; compliance@alshumookh-pay.com</div><div class="fseal">ALSH<br>CERT<br>&#9733;</div></div>'
     +'</body></html>';
-  var w=window.open('','_blank','width=840,height=920');w.document.write(html);w.document.close();
+  var w=window.open('','_blank','width=860,height=980');w.document.write(html);w.document.close();
 }
 
 function printTabData(tab){
