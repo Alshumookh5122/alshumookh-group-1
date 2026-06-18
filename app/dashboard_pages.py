@@ -4998,6 +4998,8 @@ function prRefreshAnnot() {
   if (sd) { sd.textContent = m.stamp || 'Not set'; sd.style.color = m.stamp ? (sc[m.stamp] || 'var(--ink)') : 'var(--muted)'; sd.style.fontWeight = m.stamp ? '700' : '400'; }
 }
 
+function prCloseModal() { var e = document.getElementById('_prMM'); if (e) e.remove(); }
+
 function prModal(title, fields, cb) {
   var key = prKey();
   var ex = PR.meta[key] || {};
@@ -5018,10 +5020,10 @@ function prModal(title, fields, cb) {
   m.innerHTML = '<div style="background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:24px 28px;width:400px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.5);">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">'
     + '<strong style="font-size:14px;color:var(--ink);">' + title + '</strong>'
-    + '<button onclick="document.getElementById(\'_prMM\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);">&#10005;</button>'
+    + '<button onclick="prCloseModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);">&#10005;</button>'
     + '</div>' + fHTML
     + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
-    + '<button onclick="document.getElementById(\'_prMM\').remove()" style="background:var(--glass);color:var(--ink);border:1px solid var(--line);padding:9px 18px;border-radius:6px;font-size:12px;cursor:pointer;">Cancel</button>'
+    + '<button onclick="prCloseModal()" style="background:var(--glass);color:var(--ink);border:1px solid var(--line);padding:9px 18px;border-radius:6px;font-size:12px;cursor:pointer;">Cancel</button>'
     + '<button id="_prMSv" style="background:var(--gold);color:#0d2240;border:none;padding:9px 22px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">&#10003; Save</button>'
     + '</div></div>';
   document.body.appendChild(m);
@@ -5030,11 +5032,11 @@ function prModal(title, fields, cb) {
     fields.forEach(function(f) { var el = document.getElementById('prMF_' + f.k); if (el) vals[f.k] = el.value.trim(); });
     PR.meta[key] = Object.assign(PR.meta[key] || {}, vals);
     cb(vals);
-    document.getElementById('_prMM').remove();
+    prCloseModal();
     prRefreshAnnot();
     prRenderList();
   };
-  m.addEventListener('click', function(e) { if (e.target === m) m.remove(); });
+  m.addEventListener('click', function(e) { if (e.target === m) prCloseModal(); });
 }
 
 function prOpenLiq() { prModal('Liquidation Rate', [{k:'liq_pct', lbl:'Liquidation Percentage (%)', ph:'e.g. 15.50'}], function(){}); }
