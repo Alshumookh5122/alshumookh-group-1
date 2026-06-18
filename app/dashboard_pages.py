@@ -4908,7 +4908,7 @@ _PRIVATE_REPORT_BODY = """
 
 <script>
 /* ══ PRIVATE REPORT — CLEAN v2 ══════════════════════════════════════ */
-var PR_DATA = { orders: [], m1: [], payloads: [], transfers: [] };
+var PR_DATA = { order: [], m1: [], payload: [], transfer: [] };
 var PR_META = {};
 var PR_SEL  = { idx: null, type: null };
 var PR_FILT = 'all';
@@ -4946,10 +4946,10 @@ function prLoadAll() {
     var r1 = results[1];
     var r2 = results[2];
     var r3 = results[3];
-    PR_DATA.orders    = r0 ? (Array.isArray(r0) ? r0 : (r0.orders || [])) : [];
-    PR_DATA.m1        = r1 ? (Array.isArray(r1) ? r1 : (r1.jobs || r1.items || [])) : [];
-    PR_DATA.payloads  = r2 ? (Array.isArray(r2) ? r2 : (r2.payloads || r2.items || [])) : [];
-    PR_DATA.transfers = r3 ? (Array.isArray(r3) ? r3 : (r3.transfers || r3.items || [])) : [];
+    PR_DATA.order    = r0 ? (Array.isArray(r0) ? r0 : (r0.orders || [])) : [];
+    PR_DATA.m1       = r1 ? (Array.isArray(r1) ? r1 : (r1.jobs || r1.items || [])) : [];
+    PR_DATA.payload  = r2 ? (Array.isArray(r2) ? r2 : (r2.payloads || r2.items || [])) : [];
+    PR_DATA.transfer = r3 ? (Array.isArray(r3) ? r3 : (r3.transfers || r3.items || [])) : [];
     prRender();
   }).catch(function(err) {
     el.innerHTML = '<div style="padding:20px;color:#f87171;font-size:12px;">Error: ' + String(err) + '</div>';
