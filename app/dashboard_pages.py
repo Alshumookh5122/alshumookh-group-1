@@ -4863,6 +4863,7 @@ _PRIVATE_REPORT_BODY = """
 </div>
 
 <script>
+var SQ = "'";
 var PR = {
   data: {orders:[], m1:[], payloads:[], transfers:[]},
   meta: {},
@@ -4953,13 +4954,13 @@ function prRenderList() {
   rows.forEach(function(r) {
     var bg = r.sel ? 'background:rgba(37,99,235,.08);' : '';
     var hasAnnot = !!PR.meta[r.t + '_' + r.i];
-    html += '<tr style="border-bottom:1px solid var(--line);cursor:pointer;' + bg + '" onclick="prSelect(' + r.i + ',\'' + r.t + '\')">'
+    html += '<tr style="border-bottom:1px solid var(--line);cursor:pointer;' + bg + '" onclick="prSelect(' + r.i + ',' + SQ + r.t + SQ + ')">'
       + '<td style="padding:8px 12px;"><span style="background:' + r.color + ';color:#fff;border-radius:3px;padding:2px 6px;font-size:8px;font-weight:800;">' + r.lbl + '</span>'
       + (hasAnnot ? ' <span style="background:#c9a84c;color:#fff;border-radius:3px;padding:1px 5px;font-size:7px;font-weight:800;">ANNOT</span>' : '') + '</td>'
       + '<td style="padding:8px 12px;font-family:monospace;font-size:9px;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + prEsc(r.d.id || '—') + '</td>'
       + '<td style="padding:8px 12px;font-weight:700;color:var(--ink);">' + prEsc(r.amt) + '</td>'
       + '<td style="padding:8px 12px;"><span style="background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;padding:2px 8px;font-size:9px;">' + prEsc(r.st) + '</span></td>'
-      + '<td style="padding:8px 12px;"><button onclick="event.stopPropagation();prSelect(' + r.i + ',\'' + r.t + '\');prPrintSel();" style="background:#0d2240;color:#c9a84c;border:none;padding:4px 10px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;">&#128424; Print</button></td>'
+      + '<td style="padding:8px 12px;"><button onclick="event.stopPropagation();prSelect(' + r.i + ',' + SQ + r.t + SQ + ');prPrintSel();" style="background:#0d2240;color:#c9a84c;border:none;padding:4px 10px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;">&#128424; Print</button></td>'
       + '</tr>';
   });
   html += '</tbody></table>';
