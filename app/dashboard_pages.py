@@ -156,7 +156,10 @@ function _prKey(idx,type){
   return type+'_'+(d?d.id:'x');
 }
 function _prApi(url){
-  return fetch(url,{headers:{'X-Admin-Key':localStorage.getItem('adminKey')||document.getElementById('_adminKey')?document.getElementById('_adminKey').value:''}}).then(function(r){return r.json();});
+  var ak=sessionStorage.getItem('als_admin_key')||localStorage.getItem('als_admin_key')||'';
+  var h={'Content-Type':'application/json'};
+  if(ak) h['X-Admin-API-Key']=ak;
+  return fetch(url,{headers:h,credentials:'include'}).then(function(r){return r.json();});
 }
 
 function openPrivatePanel(){
