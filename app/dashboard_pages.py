@@ -3304,7 +3304,68 @@ _REPORTS_BODY = """
 
 <script>
 var _rData={orders:[],m1:[],payloads:[],transfers:[]};
+var _rMeta={};
 var _rTab='orders';
+
+/* ── Side-button helpers ─────────────────────────────────── */
+function _rKey(idx,type){
+  var d=type==='order'?_rData.orders[idx]:type==='m1'?_rData.m1[idx]:type==='payload'?_rData.payloads[idx]:_rData.transfers[idx];
+  return type+'_'+(d?d.id:'x');
+}
+function closeRModal(){var m=document.getElementById('_rMM');if(m)m.remove();}
+function openRModal(title,fields,key,cb){
+  closeRModal();
+  var ex=_rMeta[key]||{};
+  var fHTML=fields.map(function(f){
+    var v=ex[f.k]||'';
+    var inp;
+    if(f.opts){
+      var os=f.opts.map(function(o){return '<option value="'+o+'"'+(v===o?' selected':'')+'>'+o+'</option>';}).join('');
+      inp='<select id="rmf_'+f.k+'" style="width:100%;padding:7px 10px;border:1.5px solid #c8d9f0;border-radius:5px;font-size:12px;margin-bottom:12px;"><option value="">— Select —</option>'+os+'</select>';
+    }else{
+      inp='<input id="rmf_'+f.k+'" value="'+esc(v)+'" placeholder="'+esc(f.ph||'')+'" style="width:100%;padding:7px 10px;border:1.5px solid #c8d9f0;border-radius:5px;font-size:12px;margin-bottom:12px;box-sizing:border-box;">';
+    }
+    return '<label style="font-size:11px;font-weight:700;color:#0d2240;display:block;margin-bottom:3px;">'+f.lbl+'</label>'+inp;
+  }).join('');
+  var m=document.createElement('div');
+  m.id='_rMM';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  m.innerHTML='<div style="background:#fff;border-radius:12px;padding:24px 28px;width:400px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.35);">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">'
+      +'<strong style="font-size:14px;color:#0d2240;">'+title+'</strong>'
+      +'<button onclick="closeRModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#aaa;line-height:1;">&#10005;</button>'
+    +'</div>'
+    +fHTML
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;">'
+      +'<button onclick="closeRModal()" style="background:#e5e7eb;color:#374151;border:none;padding:8px 18px;border-radius:6px;font-size:12px;cursor:pointer;">Cancel</button>'
+      +'<button id="_rMSv" style="background:#0d2240;color:#c9a84c;border:none;padding:8px 22px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">&#10003; Save</button>'
+    +'</div>'
+  +'</div>';
+  document.body.appendChild(m);
+  document.getElementById('_rMSv').onclick=function(){
+    var vals={};fields.forEach(function(f){var el=document.getElementById('rmf_'+f.k);if(el) vals[f.k]=el.value.trim();});
+    _rMeta[key]=Object.assign(_rMeta[key]||{},vals);cb(vals);closeRModal();
+  };
+  m.addEventListener('click',function(e){if(e.target===m) closeRModal();});
+}
+function openLiqModal(idx,type){
+  var key=_rKey(idx,type);
+  openRModal('&#128197; Liquidation Rate',
+    [{k:'liq_pct',lbl:'Liquidation Percentage (%)',ph:'e.g. 15.50'}],
+    key,function(){showToast('Liquidation rate saved','ok');});
+}
+function openAmtModal(idx,type){
+  var key=_rKey(idx,type);
+  openRModal('&#128181; Post-Liquidation Amount',
+    [{k:'custom_amt',lbl:'Amount After Liquidation',ph:'e.g. 500.00'},{k:'custom_cur',lbl:'Currency',ph:'USD'}],
+    key,function(){showToast('Post-liquidation amount saved','ok');});
+}
+function openStampModal(idx,type){
+  var key=_rKey(idx,type);
+  openRModal('&#128396; Status Stamp',
+    [{k:'stamp',lbl:'Select Transaction Status',opts:['APPROVED','PENDING','PROCESSING','REJECTED','CANCELLED']}],
+    key,function(v){if(v.stamp) showToast('Status stamp set: '+v.stamp,'ok');});
+}
 
 function switchRTab(tab){
   ['orders','m1','payloads','transfers'].forEach(function(t){
@@ -3514,11 +3575,30 @@ function printTxReport(idx,type){
     ];
   }
 
+  /* inject custom meta annotations */
+  var metaKey=type+'_'+(data.id||'');
+  var meta=_rMeta[metaKey]||{};
+  if(meta.stamp||meta.liq_pct||meta.custom_amt){
+    rows.push({h:'CUSTOM ANNOTATIONS'});
+    if(meta.stamp) rows.push(['Status Stamp',meta.stamp,'stamp_meta']);
+    if(meta.liq_pct){
+      rows.push(['Liquidation Rate',meta.liq_pct+'%','']);
+      var baseAmt=parseFloat(type==='order'?data.fiat_amount:type==='m1'?data.eur_amount:data.amount)||0;
+      if(baseAmt>0){var after=baseAmt*(1-(parseFloat(meta.liq_pct)||0)/100);rows.push(['Calculated Post-Liquidation',after.toFixed(6),'amount']);}
+    }
+    if(meta.custom_amt) rows.push(['Post-Liquidation Amount (Manual)',meta.custom_amt+' '+(meta.custom_cur||'USD'),'amount']);
+  }
+
+  var stampColors={'APPROVED':'background:#065f46;color:#d1fae5','PENDING':'background:#92400e;color:#fef3c7','PROCESSING':'background:#1e40af;color:#dbeafe','REJECTED':'background:#991b1b;color:#fee2e2','CANCELLED':'background:#374151;color:#e5e7eb'};
+  var stampWatermark=meta.stamp?'<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:96px;font-weight:900;opacity:.05;color:#0d2240;z-index:0;pointer-events:none;white-space:nowrap;letter-spacing:4px;">'+esc(meta.stamp)+'</div>':'';
+  var stampBanner=meta.stamp?'<div style="text-align:center;margin:14px 0;"><span style="display:inline-block;padding:7px 36px;border-radius:4px;font-size:18px;font-weight:900;letter-spacing:2px;border:3px solid currentColor;'+(stampColors[meta.stamp]||'background:#e5e7eb;color:#374151')+';">'+esc(meta.stamp)+'</span></div>':'';
+
   function renderCell(label,val,hint){
     if(val&&typeof val==='object'&&val.raw) return val.raw;
     var s=String(val===null||val===undefined?'—':val);
     var dash='<span style="color:#bbb;">—</span>';
     if(s==='—') return dash;
+    if(hint==='stamp_meta'){var sc=stampColors[s]||'background:#e5e7eb;color:#374151';return '<span style="display:inline-block;padding:5px 20px;border-radius:4px;font-size:13px;font-weight:900;letter-spacing:2px;border:2.5px solid currentColor;'+sc+'!important;">'+esc(s)+'</span>';}
     if(hint==='status') return '<span style="display:inline-block;padding:3px 14px;border-radius:12px;font-weight:700;font-size:11px;'+statusColor+'!important;">'+esc(s)+'</span>';
     if(hint==='hash'||label==='TX Hash') return '<span class="hash-box">'+esc(s)+'</span>';
     if(hint==='id') return '<span style="font-family:monospace;font-size:10px;color:#444;">'+esc(s)+'</span>';
@@ -3575,11 +3655,13 @@ function printTxReport(idx,type){
     +'<div class="rpt-title">&#128196; '+title+'</div>'
     +'<div class="rpt-ref"><span>Report Reference: RPT-'+ref+'</span><span>Generated: '+new Date().toUTCString()+'</span></div>'
     +'<div class="body">'
+    +stampWatermark
     +'<div class="no-print" style="margin-bottom:16px;display:flex;gap:8px;">'
       +'<button onclick="window.print()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 24px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;">&#128424; Print / Save PDF</button>'
       +'<button onclick="window.close()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 18px;font-size:12px;font-weight:600;border-radius:5px;cursor:pointer;">&#10005; Close</button>'
     +'</div>'
     +summaryHTML
+    +stampBanner
     +'<table>'+rowsHTML+'</table>'
     +'</div>'
     +'<div class="foot"><div class="ftxt">This document is auto-generated by the ALSHUMOOKH internal system and is CONFIDENTIAL &mdash; authorised personnel only.<br>Blockchain data is subject to network confirmation. All amounts are as recorded at time of transaction. &copy; ALSHUMOOKH GROUP 2026 &mdash; compliance@alshumookh-pay.com</div><div class="fseal">ALSH<br>CERT<br>&#9733;</div></div>'
@@ -3654,6 +3736,9 @@ function loadReportOrders(){
         +'<button class="btn btn-primary" data-id="'+esc(o.id||'')+'" onclick="window.open(\\\'/api/v1/admin/orders/\\\'+encodeURIComponent(this.dataset.id)+\\\'/documents/statement\\\',\\\'_blank\\\')" style="font-size:10px;padding:2px 7px;">Statement</button>'
         +'<button class="btn btn-ghost" data-id="'+esc(o.id||'')+'" onclick="window.open(\\\'/api/v1/admin/orders/\\\'+encodeURIComponent(this.dataset.id)+\\\'/documents/invoice\\\',\\\'_blank\\\')" style="font-size:10px;padding:2px 7px;">Invoice</button>'
         +'<button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'order\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
+        +'<button data-idx="'+i+'" onclick="openLiqModal(+this.dataset.idx,\\\'order\\\')" title="Liquidation Rate" style="font-size:11px;padding:2px 7px;background:#1e40af;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128197;%</button>'
+        +'<button data-idx="'+i+'" onclick="openAmtModal(+this.dataset.idx,\\\'order\\\')" title="Post-Liquidation Amount" style="font-size:11px;padding:2px 7px;background:#065f46;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128181;</button>'
+        +'<button data-idx="'+i+'" onclick="openStampModal(+this.dataset.idx,\\\'order\\\')" title="Status Stamp" style="font-size:11px;padding:2px 7px;background:#6d28d9;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128396;</button>'
         +'</div></td>'
       +'</tr>';}).join('');
     document.getElementById('reportOrders').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Reference</th><th>Provider</th><th>Status</th><th>Fiat</th><th>Crypto</th><th>Network</th><th>TX Hash</th><th>Date</th><th>Actions</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
@@ -3681,6 +3766,9 @@ function loadReportM1(){
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
       +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
         +'<button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'m1\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
+        +'<button data-idx="'+i+'" onclick="openLiqModal(+this.dataset.idx,\\\'m1\\\')" title="Liquidation Rate" style="font-size:11px;padding:2px 7px;background:#1e40af;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128197;%</button>'
+        +'<button data-idx="'+i+'" onclick="openAmtModal(+this.dataset.idx,\\\'m1\\\')" title="Post-Liquidation Amount" style="font-size:11px;padding:2px 7px;background:#065f46;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128181;</button>'
+        +'<button data-idx="'+i+'" onclick="openStampModal(+this.dataset.idx,\\\'m1\\\')" title="Status Stamp" style="font-size:11px;padding:2px 7px;background:#6d28d9;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128396;</button>'
         +'<button class="btn btn-ghost" data-ref="'+esc(r.id||'')+'" onclick="document.getElementById(\\\'reportOrderId\\\').value=this.dataset.ref;switchRTab(\\\'orders\\\')" style="font-size:10px;padding:2px 7px;">Find Order</button>'
       +'</div></td>'
       +'</tr>';}).join('');
@@ -3705,7 +3793,12 @@ function loadReportPayloads(){
       +'<td>'+badge(p.verification_status||'')+'</td>'
       +'<td>'+(p.tx_hash?'<span class="mono-id" title="'+esc(p.tx_hash)+'">'+esc(p.tx_hash.slice(0,12))+'&#8230;</span>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(p.created_at)+'</td>'
-      +'<td><button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'payload\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button></td>'
+      +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
+        +'<button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'payload\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
+        +'<button data-idx="'+i+'" onclick="openLiqModal(+this.dataset.idx,\\\'payload\\\')" title="Liquidation Rate" style="font-size:11px;padding:2px 7px;background:#1e40af;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128197;%</button>'
+        +'<button data-idx="'+i+'" onclick="openAmtModal(+this.dataset.idx,\\\'payload\\\')" title="Post-Liquidation Amount" style="font-size:11px;padding:2px 7px;background:#065f46;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128181;</button>'
+        +'<button data-idx="'+i+'" onclick="openStampModal(+this.dataset.idx,\\\'payload\\\')" title="Status Stamp" style="font-size:11px;padding:2px 7px;background:#6d28d9;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128396;</button>'
+      +'</div></td>'
       +'</tr>';}).join('');
     document.getElementById('reportPayloads').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Reference</th><th>Asset</th><th>Amount</th><th>Network</th><th>Status</th><th>TX Hash</th><th>Date</th><th>Actions</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('reportPayloads').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
@@ -3728,7 +3821,12 @@ function loadReportTransfers(){
       +'<td>'+badge(x.status||'')+'</td>'
       +'<td>'+(x.tx_hash?'<span class="mono-id" title="'+esc(x.tx_hash)+'">'+esc(x.tx_hash.slice(0,12))+'&#8230;</span>':'—')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(x.created_at)+'</td>'
-      +'<td><button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'transfer\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button></td>'
+      +'<td><div style="display:flex;gap:4px;flex-wrap:wrap;">'
+        +'<button class="btn btn-success" data-idx="'+i+'" onclick="printTxReport(+this.dataset.idx,\\\'transfer\\\')" style="font-size:10px;padding:2px 7px;">&#128424; Report</button>'
+        +'<button data-idx="'+i+'" onclick="openLiqModal(+this.dataset.idx,\\\'transfer\\\')" title="Liquidation Rate" style="font-size:11px;padding:2px 7px;background:#1e40af;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128197;%</button>'
+        +'<button data-idx="'+i+'" onclick="openAmtModal(+this.dataset.idx,\\\'transfer\\\')" title="Post-Liquidation Amount" style="font-size:11px;padding:2px 7px;background:#065f46;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128181;</button>'
+        +'<button data-idx="'+i+'" onclick="openStampModal(+this.dataset.idx,\\\'transfer\\\')" title="Status Stamp" style="font-size:11px;padding:2px 7px;background:#6d28d9;color:#fff;border:none;border-radius:4px;cursor:pointer;">&#128396;</button>'
+      +'</div></td>'
       +'</tr>';}).join('');
     document.getElementById('reportTransfers').innerHTML='<div class="table-wrap"><table class="rpt-table"><thead><tr><th>ID</th><th>Network</th><th>Asset</th><th>Amount</th><th>To Wallet</th><th>Status</th><th>TX Hash</th><th>Date</th><th>Actions</th></tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('reportTransfers').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
