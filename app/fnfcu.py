@@ -380,3 +380,288 @@ async def get_fnfcu_transfer(
     if not ep:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "transfer_not_found"})
     return _fnfcu_response(ep, getattr(request.state, "request_id", None) or "")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /api/v1/cash-transfer-request
+# FNFCU Cash Transfer Request API — Receiver Integration Guide V1.0
+# Accepts the standard envelope format: schema_version / type / message_id
+# ─────────────────────────────────────────────────────────────────────────────
+
+ALSHUMOOKH_RECEIVER_PROFILE = {
+    "receiver_institution": "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT",
+    "supported_currencies": ["USD", "EUR"],
+    "required_payload_fields": ["receiver_wallet_address", "network"],
+    "supported_networks": ["ethereum", "base", "tron"],
+    "settlement_asset": "USDT",
+    "endpoint": "https://api.alshumookh-pay.com/api/v1/cash-transfer-request",
+    "schema_version": "1.0",
+}
+
+
+def _standard_success_response(ep: ExternalPayload, request_id: str, idempotent: bool = False) -> dict:
+    """Standard FNFCU success acknowledgement as per Section 10.1."""
+    return {
+        "status": "success",
+        "acknowledged": True,
+        "message": "Validated and received. Transfer request queued for settlement review.",
+        "receiver_reference": ep.id,
+        "idempotency_key": ep.idempotency_key,
+        "payload_id": ep.id,
+        "transaction_reference": ep.transaction_reference,
+        "amount": str(ep.amount) if ep.amount else None,
+        "currency": ep.asset,
+        "idempotent": idempotent,
+        "request_id": request_id,
+    }
+
+
+@router.get("/cash-transfer-request/profile", status_code=status.HTTP_200_OK)
+async def fnfcu_receiver_profile() -> dict:
+    """Return ALSHUMOOKH Receiver Profile — shared with FNFCU for integration setup."""
+    return ALSHUMOOKH_RECEIVER_PROFILE
+
+
+@router.post("/cash-transfer-request", status_code=status.HTTP_202_ACCEPTED)
+async def receive_fnfcu_standard_transfer(
+    request: Request,
+    authorization: str | None = Header(default=None, alias="Authorization"),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Receive a Cash Transfer Request from FNFCU using the standard envelope
+    defined in their Integration Guide V1.0.
+
+    Authentication: Bearer token via Authorization header OR X-API-Key header.
+    Idempotency:    Idempotency-Key header is required.
+    Format:         application/json with schema_version=1.0
+    """
+    request_id = getattr(request.state, "request_id", None) or str(uuid.uuid4())
+
+    # ── 1. Require Idempotency-Key ───────────────────────────────────────────
+    if not idempotency_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "status": "error",
+                "acknowledged": False,
+                "error": {
+                    "code": "MISSING_FIELD",
+                    "message": "Idempotency-Key header is required",
+                    "details": {"field": "Idempotency-Key", "expected": "string", "received": "null"},
+                },
+            },
+        )
+
+    # ── 2. Authenticate via Bearer token or API key ──────────────────────────
+    bearer_token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        bearer_token = authorization.split(" ", 1)[1].strip()
+
+    effective_key = bearer_token or x_api_key
+    if not effective_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "status": "error",
+                "acknowledged": False,
+                "error": {"code": "AUTH_FAILED", "message": "Authorization header (Bearer) or X-API-Key is required"},
+            },
+        )
+
+    client = await _require_api_client(request, db, effective_key)
+
+    # ── 3. Idempotency check ─────────────────────────────────────────────────
+    storage_key = f"fnfcu-std:{idempotency_key}"
+    dup = await db.execute(
+        select(ExternalPayload).where(
+            ExternalPayload.api_client_id == client.id,
+            ExternalPayload.idempotency_key == storage_key,
+        )
+    )
+    existing: ExternalPayload | None = dup.scalar_one_or_none()
+    if existing:
+        return _standard_success_response(existing, request_id, idempotent=True)
+
+    # ── 4. Parse body ────────────────────────────────────────────────────────
+    raw_body = await request.body()
+    try:
+        payload = json.loads(raw_body.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"status": "error", "acknowledged": False, "error": {"code": "TYPE_MISMATCH", "message": "Request body must be valid JSON"}},
+        )
+
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"status": "error", "acknowledged": False, "error": {"code": "TYPE_MISMATCH", "message": "JSON root must be an object"}},
+        )
+
+    # ── 5. Validate envelope required fields ─────────────────────────────────
+    schema_version = str(payload.get("schema_version") or "").strip()
+    msg_type       = str(payload.get("type") or "").strip()
+    message_id     = str(payload.get("message_id") or "").strip()
+    created_at_raw = str(payload.get("created_at") or "").strip()
+    parties        = payload.get("parties") or {}
+    amounts        = payload.get("amounts") or {}
+    purpose        = payload.get("purpose") or {}
+    recv_specific  = (payload.get("payload") or {}).get("receiver_specific") or {}
+
+    missing = []
+    if not schema_version:   missing.append("schema_version")
+    if not msg_type:         missing.append("type")
+    if not message_id:       missing.append("message_id")
+    if not created_at_raw:   missing.append("created_at")
+    if not parties.get("sender"):   missing.append("parties.sender")
+    if not parties.get("receiver"): missing.append("parties.receiver")
+    if not amounts.get("amount"):   missing.append("amounts.amount")
+    if not amounts.get("currency"): missing.append("amounts.currency")
+
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "status": "error",
+                "acknowledged": False,
+                "error": {"code": "MISSING_FIELD", "message": "Required envelope fields are missing", "details": {"fields": missing}},
+            },
+        )
+
+    # ── 6. Validate amount ───────────────────────────────────────────────────
+    amount = _safe_decimal(amounts.get("amount"))
+    if amount is None or amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "status": "error",
+                "acknowledged": False,
+                "error": {"code": "INVALID_AMOUNT", "message": "amounts.amount must be a positive decimal string", "details": {"field": "amounts.amount", "received": amounts.get("amount")}},
+            },
+        )
+
+    # ── 7. Validate timestamp ────────────────────────────────────────────────
+    try:
+        datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "status": "error",
+                "acknowledged": False,
+                "error": {"code": "INVALID_DATETIME", "message": "created_at must be ISO-8601 format", "details": {"field": "created_at", "received": created_at_raw}},
+            },
+        )
+
+    # ── 8. Extract receiver_specific fields ──────────────────────────────────
+    receiver_wallet = str(recv_specific.get("receiver_wallet_address") or "").strip() or None
+    network         = str(recv_specific.get("network") or "ethereum").strip().lower()
+    routing_code    = str(recv_specific.get("routing_code") or "").strip() or None
+
+    sender   = parties.get("sender") or {}
+    receiver = parties.get("receiver") or {}
+
+    review_flags: list[str] = []
+    if msg_type != "cash_transfer.request":
+        review_flags.append(f"unexpected_message_type:{msg_type}")
+    if not receiver_wallet:
+        review_flags.append("receiver_wallet_address_missing_in_payload")
+
+    # ── 9. Build normalized parsed payload ───────────────────────────────────
+    normalized = {
+        "schema": "FNFCU CashTransfer Standard V1.0",
+        "schema_version": schema_version,
+        "message_type": msg_type,
+        "message_id": message_id,
+        "correlation_id": str(payload.get("correlation_id") or "").strip() or None,
+        "created_at": created_at_raw,
+        "source": payload.get("source") or {},
+        "sender": {
+            "name": str(sender.get("name") or "").strip(),
+            "account": str(sender.get("account") or "").strip(),
+            "institution": str(sender.get("institution") or "").strip(),
+        },
+        "receiver": {
+            "name": str(receiver.get("name") or "").strip(),
+            "account": str(receiver.get("account") or "").strip(),
+            "institution": str(receiver.get("institution") or "").strip(),
+        },
+        "amount": str(amount),
+        "currency": str(amounts.get("currency") or "").upper().strip(),
+        "purpose": {
+            "category": str((purpose or {}).get("category") or "").strip(),
+            "description": str((purpose or {}).get("description") or "").strip(),
+            "source_of_funds": str((purpose or {}).get("source_of_funds") or "").strip(),
+        },
+        "receiver_specific": recv_specific,
+        "receiver_wallet": receiver_wallet,
+        "network": network,
+        "routing_code": routing_code,
+        "review_flags": review_flags,
+    }
+
+    # ── 10. Persist ──────────────────────────────────────────────────────────
+    safe_headers = {k: v for k, v in request.headers.items() if k.lower() not in {"authorization", "x-api-key", "cookie"}}
+    review_priority     = "HIGH" if review_flags else "NORMAL"
+    hold_reason         = "; ".join(review_flags) if review_flags else None
+    verification_status = (
+        PayloadVerificationStatus.MANUAL_REVIEW.value if review_flags
+        else PayloadVerificationStatus.RECEIVED.value
+    )
+
+    ep = ExternalPayload(
+        id=str(uuid.uuid4()),
+        api_client_id=client.id,
+        client_ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        request_id=request_id,
+        idempotency_key=storage_key,
+        raw_payload=raw_body.decode("utf-8", errors="replace"),
+        pretty_payload=json.dumps(payload, indent=2, ensure_ascii=False, default=str),
+        headers_json=safe_headers,
+        parsed_payload=normalized,
+        transaction_reference=message_id,
+        sender_wallet=normalized["sender"]["account"],
+        receiver_wallet=receiver_wallet,
+        amount=amount,
+        asset=normalized["currency"],
+        network_name=network,
+        settlement_type="fnfcu_standard_v1",
+        payload_hash=payload_sha256(raw_body),
+        parsing_status="OK",
+        verification_status=verification_status,
+        security_level="bearer_token" if bearer_token else "api_key_only",
+        auth_method="bearer" if bearer_token else "api_key",
+        review_priority=review_priority,
+        hold_reason=hold_reason,
+    )
+
+    db.add(ep)
+    await db.commit()
+    await db.refresh(ep)
+
+    await log_event(
+        db,
+        "FNFCU_STANDARD_TRANSFER_RECEIVED",
+        {
+            "payload_id": ep.id,
+            "message_id": message_id,
+            "client_name": client.name,
+            "amount": str(amount),
+            "currency": normalized["currency"],
+            "network": network,
+            "review_flags": review_flags,
+        },
+        client_id=client.id,
+        endpoint=request.url.path,
+        method=request.method,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        status_code=status.HTTP_202_ACCEPTED,
+        request_id=request_id,
+    )
+
+    return _standard_success_response(ep, request_id)
