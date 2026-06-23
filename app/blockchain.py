@@ -260,7 +260,8 @@ def _find_transfer_event(
         if len(topics) < 3:
             continue
         topic0 = topics[0].hex() if hasattr(topics[0], "hex") else str(topics[0])
-        if topic0.lower() != TRANSFER_TOPIC.lower():
+        topic0_norm = topic0 if topic0.startswith("0x") else "0x" + topic0
+        if topic0_norm.lower() != TRANSFER_TOPIC.lower():
             continue
         if _log_contract(log) != expected_contract:
             continue

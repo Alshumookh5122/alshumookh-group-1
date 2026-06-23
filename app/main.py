@@ -130,6 +130,13 @@ API_CLIENT_SAFE_PATHS = {
     "/api/v1/payloads/ingest",
     "/api/v1/payloads/schema",
     "/api/v1/webhooks/stripe",
+    "/api/v1/webhooks/alchemy",
+    "/api/v1/webhooks/circle",
+    "/api/v1/webhooks/coinbase",
+    "/api/v1/webhooks/moonpay",
+    "/webhooks/alchemy",
+    "/webhooks/coinbase",
+    "/webhooks/moonpay",
     "/api/v1/transfer-request",
     "/api/v1/transfers",
 }
