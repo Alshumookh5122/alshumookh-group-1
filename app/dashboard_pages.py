@@ -3510,7 +3510,7 @@ function renderSec(rows){
     var ipVal=r.ip||(r.details&&r.details.ip)||'';
     return '<tr>'
       +'<td><strong style="color:'+(isAlert?'#ef4444':'var(--brand)')+';">'+r.event_type+'</strong></td>'
-      +'<td style="cursor:pointer;text-decoration:underline;color:var(--brand);" onclick="setInvIP(this.getAttribute(\'data-ip\'))" data-ip="'+ipVal+'">'+( ipVal||'—')+'</td>'
+      +'<td style="cursor:pointer;text-decoration:underline;color:var(--brand);" onclick="setInvIP(this.dataset.ip)" data-ip="'+ipVal+'">'+( ipVal||'—')+'</td>'
       +'<td><code style="font-size:10px;">'+(r.endpoint||(r.details&&r.details.path)||'—')+'</code></td>'
       +'<td>'+(r.status_code?'<span style="color:'+(r.status_code<300?'#10b981':r.status_code<400?'#f59e0b':'#ef4444')+';">'+r.status_code+'</span>':'—')+'</td>'
       +'<td>'+det+'</td>'
