@@ -3507,15 +3507,21 @@ function renderSec(rows){
     var isAlert=r.event_type&&(r.event_type.indexOf('BLOCK')>=0||r.event_type.indexOf('BAN')>=0||r.event_type.indexOf('LOCKED')>=0);
     var det=r.details&&r.details.identifier?('<span style="color:#f59e0b;font-weight:600;">'+r.details.identifier+'</span>'):
             (r.user_agent?'<span style="font-size:10px;color:var(--muted);" title="'+r.user_agent+'">'+r.user_agent.slice(0,28)+'</span>':'—');
+    var ipVal=r.ip||(r.details&&r.details.ip)||'';
     return '<tr>'
       +'<td><strong style="color:'+(isAlert?'#ef4444':'var(--brand)')+';">'+r.event_type+'</strong></td>'
-      +'<td style="cursor:pointer;text-decoration:underline;color:var(--brand);" onclick="document.getElementById(\'ipInput\').value=\''+(r.ip||'')+"';investigateIP()\">"+(r.ip||(r.details&&r.details.ip)||'—')+'</td>'
+      +'<td style="cursor:pointer;text-decoration:underline;color:var(--brand);" onclick="setInvIP(this.getAttribute(\'data-ip\'))" data-ip="'+ipVal+'">'+( ipVal||'—')+'</td>'
       +'<td><code style="font-size:10px;">'+(r.endpoint||(r.details&&r.details.path)||'—')+'</code></td>'
       +'<td>'+(r.status_code?'<span style="color:'+(r.status_code<300?'#10b981':r.status_code<400?'#f59e0b':'#ef4444')+';">'+r.status_code+'</span>':'—')+'</td>'
       +'<td>'+det+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
       +'</tr>';}).join('');
   document.getElementById('secBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
+}
+function setInvIP(ip){
+  if(!ip)return;
+  document.getElementById('ipInput').value=ip;
+  investigateIP();
 }
 function investigateIP(){
   var ip=(document.getElementById('ipInput').value||'').trim();
