@@ -3442,8 +3442,22 @@ loadClients();
 _SECURITY_BODY = """
 <div class="page-body">
   <div class="filter-bar">
-    <input id="secQ" placeholder="Search..." style="min-width:200px;" oninput="filterSec()">
+    <input id="secQ" placeholder="Search events..." style="min-width:200px;" oninput="filterSec()">
     <button class="btn btn-ghost" onclick="loadSec()">Refresh</button>
+  </div>
+
+  <!-- IP Investigation & Unlock Tool -->
+  <div class="panel" style="border-left:4px solid #f59e0b;">
+    <div class="panel-head" style="background:linear-gradient(90deg,rgba(245,158,11,0.08),transparent);">
+      <h3 style="color:#f59e0b;">🔍 IP Investigation & Unlock</h3>
+      <span style="color:var(--muted);font-size:11px;">Identify locked clients and clear login blocks</span>
+    </div>
+    <div style="padding:16px;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+      <input id="ipInput" placeholder="Enter IP address (e.g. 91.108.189.136)" style="flex:1;min-width:260px;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;">
+      <button class="btn" onclick="investigateIP()" style="background:#f59e0b;color:#000;font-weight:700;">Investigate IP</button>
+      <button class="btn btn-ghost" onclick="unlockIP()" style="border-color:#ef4444;color:#ef4444;">Unlock IP</button>
+    </div>
+    <div id="ipResult" style="padding:0 16px 16px;"></div>
   </div>
 
   <div class="panel">
@@ -3488,18 +3502,58 @@ function filterSec(){
 }
 function renderSec(rows){
   if(!rows.length){document.getElementById('secBody').innerHTML='<div class="empty-state"><div class="icon">🛡</div>No security events found</div>';return;}
-  var th='<th>Event</th><th>IP</th><th>Path</th><th>Status</th><th>User Agent</th><th>Date</th>';
+  var th='<th>Event</th><th>IP</th><th>Path</th><th>Status</th><th>Details</th><th>Date</th>';
   var tb=rows.map(function(r){
-    var isAlert=r.event_type&&(r.event_type.indexOf('BLOCK')>=0||r.event_type.indexOf('BAN')>=0);
+    var isAlert=r.event_type&&(r.event_type.indexOf('BLOCK')>=0||r.event_type.indexOf('BAN')>=0||r.event_type.indexOf('LOCKED')>=0);
+    var det=r.details&&r.details.identifier?('<span style="color:#f59e0b;font-weight:600;">'+r.details.identifier+'</span>'):
+            (r.user_agent?'<span style="font-size:10px;color:var(--muted);" title="'+r.user_agent+'">'+r.user_agent.slice(0,28)+'</span>':'—');
     return '<tr>'
       +'<td><strong style="color:'+(isAlert?'#ef4444':'var(--brand)')+';">'+r.event_type+'</strong></td>'
-      +'<td>'+(r.ip||(r.details&&r.details.ip)||'—')+'</td>'
+      +'<td style="cursor:pointer;text-decoration:underline;color:var(--brand);" onclick="document.getElementById(\'ipInput\').value=\''+(r.ip||'')+"';investigateIP()\">"+(r.ip||(r.details&&r.details.ip)||'—')+'</td>'
       +'<td><code style="font-size:10px;">'+(r.endpoint||(r.details&&r.details.path)||'—')+'</code></td>'
       +'<td>'+(r.status_code?'<span style="color:'+(r.status_code<300?'#10b981':r.status_code<400?'#f59e0b':'#ef4444')+';">'+r.status_code+'</span>':'—')+'</td>'
-      +'<td><span style="font-size:10px;color:var(--muted);" title="'+(r.user_agent||'')+'">'+((r.user_agent||'—').slice(0,30))+'</span></td>'
+      +'<td>'+det+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
       +'</tr>';}).join('');
   document.getElementById('secBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
+}
+function investigateIP(){
+  var ip=(document.getElementById('ipInput').value||'').trim();
+  if(!ip){alert('Enter an IP address first');return;}
+  var el=document.getElementById('ipResult');
+  el.innerHTML='<p style="color:var(--muted);">Investigating '+ip+'...</p>';
+  api('/api/v1/admin/ip-investigation/'+encodeURIComponent(ip)).then(function(d){
+    var lockBadge=d.is_locked
+      ?'<span style="background:#ef4444;color:#fff;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;">LOCKED — '+d.lock_seconds_remaining+'s remaining</span>'
+      :'<span style="background:#10b981;color:#fff;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;">NOT LOCKED</span>';
+    var idents=d.identifiers_tried.length
+      ?d.identifiers_tried.map(function(i){return '<code style="background:rgba(245,158,11,0.15);color:#f59e0b;padding:3px 8px;border-radius:4px;margin:2px;display:inline-block;">'+i+'</code>';}).join(' ')
+      :'<span style="color:var(--muted);">No identifiers found in logs</span>';
+    el.innerHTML='<div style="background:var(--surface2);border-radius:8px;padding:14px;">'
+      +'<div style="display:flex;gap:16px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">'
+      +'<span style="font-weight:700;font-size:14px;">IP: <code>'+ip+'</code></span>'+lockBadge
+      +'<span style="color:var(--muted);font-size:12px;">'+d.total_events_from_ip+' total events</span></div>'
+      +'<div style="margin-bottom:10px;"><strong style="font-size:12px;color:var(--muted);">IDENTIFIERS TRIED (emails/phones):</strong><br>'+idents+'</div>'
+      +(d.login_events.length?'<div><strong style="font-size:12px;color:var(--muted);">LOGIN EVENTS:</strong>'
+        +'<div class="table-wrap" style="margin-top:6px;"><table><thead><tr><th>Event</th><th>Status</th><th>Date</th></tr></thead><tbody>'
+        +d.login_events.map(function(r){return '<tr>'
+          +'<td style="color:'+(r.event_type&&r.event_type.indexOf('LOCKED')>=0?'#ef4444':'var(--text)')+';">'+r.event_type+'</td>'
+          +'<td>'+(r.status_code||'—')+'</td>'
+          +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
+          +'</tr>';}).join('')
+        +'</tbody></table></div></div>':'')
+      +'</div>';
+  }).catch(function(e){el.innerHTML='<p style="color:#ef4444;">Error: '+e.message+'</p>';});
+}
+function unlockIP(){
+  var ip=(document.getElementById('ipInput').value||'').trim();
+  if(!ip){alert('Enter an IP address first');return;}
+  if(!confirm('Unlock login access for IP '+ip+'?'))return;
+  api('/api/v1/admin/ip-unlock/'+encodeURIComponent(ip),{method:'POST'})
+    .then(function(d){
+      document.getElementById('ipResult').innerHTML='<div style="background:rgba(16,185,129,0.1);border:1px solid #10b981;border-radius:6px;padding:12px;color:#10b981;font-weight:600;">✓ '+d.message+'</div>';
+      setTimeout(function(){investigateIP();},800);
+    }).catch(function(e){alert('Error: '+e.message);});
 }
 loadSec();
 </script>

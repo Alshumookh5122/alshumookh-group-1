@@ -48,7 +48,7 @@ from app.models import (
 from app.provider_service import get_provider, OnramperProvider
 from app.reconciliation_service import reconcile
 from app.request_utils import get_client_ip
-from app.security import runtime_security_snapshot
+from app.security import runtime_security_snapshot, clear_login_failures
 from app.schemas import ApiClientCreate, ApiClientCreated, ApiClientRead, ApiClientUpdate
 from app.transfer_service import (
     approve_outbound_transfer,
@@ -1553,6 +1553,72 @@ async def audit_logs(
     logs = res.scalars().all()
 
     return [serialize_log(log) for log in logs]
+
+
+@router.get("/ip-investigation/{ip}")
+async def ip_investigation(
+    ip: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all login failures + identifiers attempted from a given IP, plus unlock status."""
+    import urllib.parse
+    ip = urllib.parse.unquote(ip)
+
+    res = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.ip == ip)
+        .order_by(AuditLog.created_at.desc())
+        .limit(200)
+    )
+    logs = list(res.scalars().all())
+
+    identifiers_tried: list[str] = []
+    login_events: list[dict] = []
+    for log in logs:
+        details = log.details if isinstance(log.details, dict) else {}
+        event_type = str(log.event_type or "")
+        if event_type in {"CLIENT_LOGIN_FAILED", "SECURITY_CLIENT_LOGIN_FAILED"}:
+            ident = details.get("identifier")
+            if ident and ident not in identifiers_tried:
+                identifiers_tried.append(str(ident))
+        if "LOGIN" in event_type or "LOCKED" in event_type or "RATE_LIMITED" in event_type:
+            login_events.append(serialize_log(log))
+
+    from app.security import _login_lock_until, _login_failures
+    import time
+    now = time.time()
+    lock_until = _login_lock_until.get(ip, 0)
+    is_locked = lock_until > now
+    lock_seconds_remaining = max(0, int(lock_until - now))
+
+    return {
+        "ip": ip,
+        "is_locked": is_locked,
+        "lock_seconds_remaining": lock_seconds_remaining,
+        "identifiers_tried": identifiers_tried,
+        "total_events_from_ip": len(logs),
+        "login_events": login_events[:50],
+    }
+
+
+@router.post("/ip-unlock/{ip}")
+async def ip_unlock(
+    ip: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually clear the login lock for a given IP address."""
+    import urllib.parse
+    ip = urllib.parse.unquote(ip)
+    clear_login_failures(ip)
+    await log_event(
+        db,
+        "ADMIN_IP_UNLOCKED",
+        {"ip": ip, "unlocked_by": "admin"},
+        None,
+    )
+    return {"success": True, "ip": ip, "message": f"Login lock cleared for {ip}"}
 
 
 @router.get("/alchemy-events")
