@@ -2418,7 +2418,10 @@ _M1_RESERVE_BODY = """
         <div class="form-field"><label>Amount</label><input id="m1rBurnAmount" type="number" step="0.01"></div>
         <div class="form-field"><label>Block Number</label><input id="m1rBurnBlock" placeholder="Optional"></div>
       </div>
-      <div style="padding:0 14px 14px;"><button class="btn btn-danger" onclick="m1rConfirmBurn()">Confirm Burn</button></div>
+      <div style="padding:0 14px 14px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-danger" onclick="m1rConfirmBurn()">Confirm Burn</button>
+        <button class="btn btn-ghost" onclick="m1rConfirmBurnOverride()" style="color:#f59e0b;border-color:#f59e0b;font-size:12px;" title="تسجيل يدوي بدون التحقق من Blockchain">⚡ Admin Override</button>
+      </div>
     </div>
   </div>
 
@@ -2793,8 +2796,13 @@ function m1rConfirmMint(){
   api('/api/v1/m1-funds/mint-confirmation',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('Mint confirmed','ok');m1rLoad();}).catch(function(e){showToast('Mint confirmation error: '+e.message,'error');});
 }
 function m1rConfirmBurn(){
-  var body={redeem_id:m1rVal('m1rRedeemId'),tx_hash:m1rVal('m1rBurnTx'),contract_address:m1rVal('m1rBurnContract'),wallet:m1rVal('m1rBurnWallet'),amount:m1rVal('m1rBurnAmount'),network:'ERC20',block_number:m1rVal('m1rBurnBlock')||null};
+  var body={redeem_id:m1rVal('m1rRedeemId'),tx_hash:m1rVal('m1rBurnTx'),contract_address:m1rVal('m1rBurnContract'),wallet:m1rVal('m1rBurnWallet'),amount:m1rVal('m1rBurnAmount'),network:'ERC20',block_number:m1rVal('m1rBurnBlock')||null,admin_override:false};
   api('/api/v1/m1-funds/burn-confirmation',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('Burn confirmed','ok');m1rLoad();}).catch(function(e){showToast('Burn confirmation error: '+e.message,'error');});
+}
+function m1rConfirmBurnOverride(){
+  if(!confirm('Admin Override: سيتم تسجيل العملية بدون التحقق من الـ Blockchain. هل أنت متأكد؟'))return;
+  var body={redeem_id:m1rVal('m1rRedeemId'),tx_hash:m1rVal('m1rBurnTx'),contract_address:m1rVal('m1rBurnContract'),wallet:m1rVal('m1rBurnWallet'),amount:m1rVal('m1rBurnAmount'),network:'ERC20',block_number:m1rVal('m1rBurnBlock')||null,admin_override:true};
+  api('/api/v1/m1-funds/burn-confirmation',{method:'POST',body:JSON.stringify(body)}).then(function(){showToast('Burn recorded (Admin Override)','ok');m1rLoad();}).catch(function(e){showToast('Override error: '+e.message,'error');});
 }
 m1rLoad();
 </script>

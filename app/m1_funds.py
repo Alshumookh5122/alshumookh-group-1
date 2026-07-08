@@ -87,6 +87,7 @@ class BurnConfirmationIn(BaseModel):
     amount: str
     network: str = "ERC20"
     block_number: str | None = None
+    admin_override: bool = False  # Skip blockchain verification for manual admin entries
 
 
 class WalletVerifyIn(BaseModel):
@@ -1176,14 +1177,22 @@ async def burn_confirmation(payload: BurnConfirmationIn, request: Request, db: D
     amount = _dec(payload.amount)
     if wallet.lower() != req.wallet.lower() or amount != Decimal(req.amount):
         raise HTTPException(400, {"code": "burn_confirmation_mismatch", "message": "Confirmation does not match the redeem request."})
-    try:
-        verification = verify_m1_burn_event(tx_hash, wallet, _money(amount))
-    except Exception as exc:
-        await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "burn", "request_id": req.redeem_id, "tx_hash": tx_hash, "error": str(exc)}, status="verification_failed")
-        raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": str(exc)}) from exc
-    if not verification.ok:
-        await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "burn", "request_id": req.redeem_id, "tx_hash": tx_hash, "status": verification.status, "detail": verification.detail}, status="verification_failed")
-        raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": verification.detail, "status": verification.status})
+    verification_level = "chain_verified"
+    block_number_used = payload.block_number or ""
+    if payload.admin_override:
+        # Admin manual override — skip blockchain verification, record as admin_override
+        verification_level = "admin_override"
+        await _record_webhook_event(db, "m1.blockchain.verification.skipped", req.fund_id, {"event": "m1.blockchain.verification.skipped", "request_type": "burn", "request_id": req.redeem_id, "tx_hash": tx_hash, "reason": "admin_override"}, status="admin_override")
+    else:
+        try:
+            verification = verify_m1_burn_event(tx_hash, wallet, _money(amount))
+        except Exception as exc:
+            await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "burn", "request_id": req.redeem_id, "tx_hash": tx_hash, "error": str(exc)}, status="verification_failed")
+            raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": str(exc)}) from exc
+        if not verification.ok:
+            await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "burn", "request_id": req.redeem_id, "tx_hash": tx_hash, "status": verification.status, "detail": verification.detail}, status="verification_failed")
+            raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": verification.detail, "status": verification.status})
+        block_number_used = str(verification.block_number or payload.block_number or "")
     fund = await _fund(db, req.fund_id)
     fund.issued_tokens = max(Decimal("0"), Decimal(fund.issued_tokens or 0) - amount)
     fund.available_to_mint, fund.backing_ratio = _calculate(Decimal(fund.total_reserve_value or 0), Decimal(fund.tokenized_value or 0), Decimal(fund.issued_tokens or 0))
@@ -1191,7 +1200,7 @@ async def burn_confirmation(payload: BurnConfirmationIn, request: Request, db: D
     req.status = "completed"
     req.tx_hash = tx_hash
     req.contract_address = settings.m1_token_contract_address
-    req.block_number = str(verification.block_number or payload.block_number or "")
+    req.block_number = block_number_used
     req.confirmed_at = _now()
     db.add(M1BlockchainConfirmation(
         fund_id=fund.fund_id,
@@ -1202,13 +1211,13 @@ async def burn_confirmation(payload: BurnConfirmationIn, request: Request, db: D
         wallet=wallet,
         amount=amount,
         network=payload.network,
-        block_number=str(verification.block_number or payload.block_number or ""),
-        verification_status="chain_verified",
-        metadata_json={"verification_status": verification.status, "verification_detail": verification.detail},
+        block_number=block_number_used,
+        verification_status=verification_level,
+        metadata_json={"verification_status": verification_level, "admin_override": payload.admin_override},
     ))
     await db.commit()
-    await _audit(db, request, "burn_confirmed", fund.fund_id, actor="admin", tx_hash=tx_hash, metadata={"redeem_id": req.redeem_id, "verification_level": "chain_verified", "block_number": req.block_number})
-    response = {"status": "completed", "redeem_id": req.redeem_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": "chain_verified", "block_number": req.block_number}
+    await _audit(db, request, "burn_confirmed", fund.fund_id, actor="admin", tx_hash=tx_hash, metadata={"redeem_id": req.redeem_id, "verification_level": verification_level, "block_number": req.block_number})
+    response = {"status": "completed", "redeem_id": req.redeem_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": verification_level, "block_number": req.block_number}
     await _record_signature(db, "m1.burn.confirmed", response)
     await _record_webhook_event(db, "m1.burn.confirmed", fund.fund_id, {"event": "m1.burn.confirmed", "fund_id": fund.fund_id, "redeem_id": req.redeem_id, "amount": _money(amount), "tx_hash": tx_hash, "status": "completed", "timestamp": _now().isoformat()})
     return response
