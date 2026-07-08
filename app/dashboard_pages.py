@@ -4224,80 +4224,8 @@ function printTxReport(idx,type){
     +summaryHTML
     +stampBanner
     +'<table>'+rowsHTML+'</table>'
-    +'<div id="notesDisplay" style="display:none;margin-top:22px;padding:14px 20px;border:2px solid #0d2240;border-radius:8px;background:#f7f9fc!important;">'
-      +'<div style="font-size:8.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#6b7a90;margin-bottom:8px;">REMARKS / NOTES</div>'
-      +'<div id="notesContent" style="font-size:12px;color:#0d2240;font-weight:600;line-height:1.7;white-space:pre-wrap;"></div>'
-      +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid #c8d9f0;display:flex;justify-content:space-between;font-size:9px;color:#888;">'
-        +'<span>Added by: Admin &mdash; ALSHUMOOKH GLOBAL</span>'
-        +'<span id="notesDate"></span>'
-      +'</div>'
-    +'</div>'
-    +'<div class="no-print" id="notesPanel" style="margin-top:22px;padding:16px 20px;background:#f0f4fb;border:2px dashed #c8d9f0;border-radius:10px;">'
-      +'<div style="font-size:13px;font-weight:800;color:#0d2240;margin-bottom:10px;">&#128203; Add Remarks / Notes</div>'
-
-      +'<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#128336; Settlement Timeframe</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">'
-        +'<button onclick="setPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 24 Business Hours</button>'
-        +'<button onclick="setPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 48 Business Hours</button>'
-        +'<button onclick="setPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 72 Business Hours</button>'
-        +'<button onclick="setPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 5 Business Days (T+5)</button>'
-        +'<button onclick="setPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Same Day Settlement &mdash; Value Date Today</button>'
-        +'<button onclick="setPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; T+1 Settlement &mdash; Next Business Day</button>'
-        +'<button onclick="setPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; T+2 Settlement &mdash; Standard SWIFT Value Date</button>'
-      +'</div>'
-
-      +'<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#9203; Transaction Status</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">'
-        +'<button onclick="setPreset(this)" style="background:#92400e;color:#fef3c7;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9203; Pending &mdash; Awaiting Approval</button>'
-        +'<button onclick="setPreset(this)" style="background:#065f46;color:#d1fae5;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#10003; Approved &mdash; Processed Successfully</button>'
-        +'<button onclick="setPreset(this)" style="background:#1e40af;color:#dbeafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#8635; Processing &mdash; Under Review</button>'
-        +'<button onclick="setPreset(this)" style="background:#78350f;color:#fef3c7;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9888; On Hold &mdash; Compliance Review Required</button>'
-        +'<button onclick="setPreset(this)" style="background:#7c3aed;color:#ede9fe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#8617; Reversed &mdash; Transaction Recalled</button>'
-        +'<button onclick="setPreset(this)" style="background:#991b1b;color:#fee2e2;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#10007; Rejected &mdash; Not Authorized</button>'
-        +'<button onclick="setPreset(this)" style="background:#374151;color:#e5e7eb;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128203; Cancelled &mdash; Withdrawn by Client</button>'
-      +'</div>'
-
-      +'<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#128200; Funds & Treasury</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">'
-        +'<button onclick="setPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128274; Funds Received &mdash; Confirmed by Treasury</button>'
-        +'<button onclick="setPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128200; Funds Transferred &mdash; Deducted from Reserve</button>'
-        +'<button onclick="setPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9989; Blockchain Confirmed &mdash; On-Chain Verified</button>'
-        +'<button onclick="setPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128182; Liquidity Settled &mdash; Post-Liquidation Completed</button>'
-        +'<button onclick="setPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128176; Payment Released &mdash; Funds Dispatched to Beneficiary</button>'
-      +'</div>'
-
-      +'<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#9878; Compliance & Legal</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">'
-        +'<button onclick="setPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128203; For Internal Use Only &mdash; Confidential</button>'
-        +'<button onclick="setPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9878; KYC / AML Verification Pending</button>'
-        +'<button onclick="setPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9989; KYC / AML Cleared &mdash; Verified</button>'
-        +'<button onclick="setPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128274; Frozen &mdash; Regulatory Hold</button>'
-        +'<button onclick="setPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128220; Awaiting Supporting Documents</button>'
-        +'<button onclick="setPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128221; Authorized by Management &mdash; Signed Off</button>'
-      +'</div>'
-      +'<textarea id="notesText" placeholder="Or write your own custom note here..." style="width:100%;height:72px;font-size:12px;padding:10px;border:1.5px solid #c8d9f0;border-radius:7px;font-family:Arial,sans-serif;color:#0d2240;resize:vertical;box-sizing:border-box;"></textarea>'
-      +'<div style="display:flex;gap:8px;margin-top:10px;">'
-        +'<button onclick="applyNotes()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 22px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">&#10003; Apply Notes</button>'
-        +'<button onclick="clearNotes()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 16px;font-size:12px;border-radius:6px;cursor:pointer;">&#10007; Clear</button>'
-      +'</div>'
-    +'</div>'
     +'</div>'
     +'<div class="foot"><div class="ftxt">This document is auto-generated by the ALSHUMOOKH internal system and is CONFIDENTIAL &mdash; authorised personnel only.<br>Blockchain data is subject to network confirmation. All amounts are as recorded at time of transaction. &copy; ALSHUMOOKH GROUP 2026 &mdash; compliance@alshumookh-pay.com</div><div class="fseal">ALSH<br>CERT<br>&#9733;</div></div>'
-    +'<script>'
-    +'function setPreset(btn){document.getElementById("notesText").value=btn.textContent.trim();}'
-    +'function applyNotes(){'
-      +'var txt=document.getElementById("notesText").value.trim();'
-      +'if(!txt)return;'
-      +'document.getElementById("notesContent").textContent=txt;'
-      +'document.getElementById("notesDate").textContent=new Date().toUTCString();'
-      +'document.getElementById("notesDisplay").style.display="block";'
-    +'}'
-    +'function clearNotes(){'
-      +'document.getElementById("notesText").value="";'
-      +'document.getElementById("notesContent").textContent="";'
-      +'document.getElementById("notesDisplay").style.display="none";'
-    +'}'
-    +'<\\/script>'
     +'</body></html>';
   var w=window.open('','_blank','width=860,height=980');w.document.write(html);w.document.close();
 }
@@ -5562,6 +5490,68 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     '<button onclick="window.close()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 18px;font-size:12px;border-radius:5px;cursor:pointer;">&#10005; Close</button></div>',
     stampWM, stampBN,
     '<table>' + rowsHTML + '</table>',
+    '<div id="prNotesDisplay" style="display:none;margin-top:22px;padding:14px 20px;border:2px solid #0d2240;border-radius:8px;background:#f7f9fc;">',
+    '<div style="font-size:8.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#6b7a90;margin-bottom:8px;">REMARKS / NOTES</div>',
+    '<div id="prNotesContent" style="font-size:12px;color:#0d2240;font-weight:600;line-height:1.7;white-space:pre-wrap;"></div>',
+    '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #c8d9f0;display:flex;justify-content:space-between;font-size:9px;color:#888;">',
+    '<span>Added by: Admin &mdash; ALSHUMOOKH GLOBAL</span><span id="prNotesDate"></span></div></div>',
+
+    '<div class="np" id="prNotesPanel" style="margin-top:22px;padding:16px 20px;background:#f0f4fb;border:2px dashed #c8d9f0;border-radius:10px;">',
+    '<div style="font-size:13px;font-weight:800;color:#0d2240;margin-bottom:10px;">&#128203; Add Remarks / Notes</div>',
+
+    '<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#128336; Settlement Timeframe</div>',
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">',
+    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 24 Business Hours</button>',
+    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 48 Business Hours</button>',
+    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 72 Business Hours</button>',
+    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 5 Business Days (T+5)</button>',
+    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Same Day Settlement &mdash; Value Date Today</button>',
+    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; T+1 Settlement &mdash; Next Business Day</button>',
+    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; T+2 Settlement &mdash; Standard SWIFT Value Date</button>',
+    '</div>',
+
+    '<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#9203; Transaction Status</div>',
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">',
+    '<button onclick="prSetPreset(this)" style="background:#92400e;color:#fef3c7;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9203; Pending &mdash; Awaiting Approval</button>',
+    '<button onclick="prSetPreset(this)" style="background:#065f46;color:#d1fae5;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#10003; Approved &mdash; Processed Successfully</button>',
+    '<button onclick="prSetPreset(this)" style="background:#1e40af;color:#dbeafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#8635; Processing &mdash; Under Review</button>',
+    '<button onclick="prSetPreset(this)" style="background:#78350f;color:#fef3c7;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9888; On Hold &mdash; Compliance Review Required</button>',
+    '<button onclick="prSetPreset(this)" style="background:#7c3aed;color:#ede9fe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#8617; Reversed &mdash; Transaction Recalled</button>',
+    '<button onclick="prSetPreset(this)" style="background:#991b1b;color:#fee2e2;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#10007; Rejected &mdash; Not Authorized</button>',
+    '<button onclick="prSetPreset(this)" style="background:#374151;color:#e5e7eb;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128203; Cancelled &mdash; Withdrawn by Client</button>',
+    '</div>',
+
+    '<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#128200; Funds & Treasury</div>',
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">',
+    '<button onclick="prSetPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128274; Funds Received &mdash; Confirmed by Treasury</button>',
+    '<button onclick="prSetPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128200; Funds Transferred &mdash; Deducted from Reserve</button>',
+    '<button onclick="prSetPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9989; Blockchain Confirmed &mdash; On-Chain Verified</button>',
+    '<button onclick="prSetPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128182; Liquidity Settled &mdash; Post-Liquidation Completed</button>',
+    '<button onclick="prSetPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128176; Payment Released &mdash; Funds Dispatched to Beneficiary</button>',
+    '</div>',
+
+    '<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#9878; Compliance & Legal</div>',
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">',
+    '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128203; For Internal Use Only &mdash; Confidential</button>',
+    '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9878; KYC / AML Verification Pending</button>',
+    '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9989; KYC / AML Cleared &mdash; Verified</button>',
+    '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128274; Frozen &mdash; Regulatory Hold</button>',
+    '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128220; Awaiting Supporting Documents</button>',
+    '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128221; Authorized by Management &mdash; Signed Off</button>',
+    '</div>',
+
+    '<textarea id="prNotesText" placeholder="Or write your own custom note here..." style="width:100%;height:72px;font-size:12px;padding:10px;border:1.5px solid #c8d9f0;border-radius:7px;font-family:Arial,sans-serif;color:#0d2240;resize:vertical;box-sizing:border-box;"></textarea>',
+    '<div style="display:flex;gap:8px;margin-top:10px;">',
+    '<button onclick="prApplyNotes()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 22px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">&#10003; Apply Notes</button>',
+    '<button onclick="prClearNotes()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 16px;font-size:12px;border-radius:6px;cursor:pointer;">&#10007; Clear</button>',
+    '</div></div>',
+
+    '<script>',
+    'function prSetPreset(btn){document.getElementById("prNotesText").value=btn.textContent.trim();}',
+    'function prApplyNotes(){var t=document.getElementById("prNotesText").value.trim();if(!t)return;document.getElementById("prNotesContent").textContent=t;document.getElementById("prNotesDate").textContent=new Date().toUTCString();document.getElementById("prNotesDisplay").style.display="block";}',
+    'function prClearNotes(){document.getElementById("prNotesText").value="";document.getElementById("prNotesContent").textContent="";document.getElementById("prNotesDisplay").style.display="none";}',
+    '<\/script>',
+
     '<div style="margin-top:16px;padding-top:8px;border-top:1px solid #d0d9ea;display:flex;justify-content:space-between;font-size:8px;color:#9aa;">',
     '<span>PRIVATE REPORT &mdash; ALSHUMOOKH GROUP 2026 &mdash; Ref: PR-' + ref + '</span>',
     '<span>Generated: ' + new Date().toLocaleString() + '</span></div>',
