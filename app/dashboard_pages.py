@@ -1851,7 +1851,7 @@ function deleteXfer(id){
 function reverseXfer(id){
   var r=_xferRows[id];
   if(!r){showToast('Transfer not found — refresh and try again.','error');return;}
-  var summary='REVERSE: '+fmtNum(r.amount)+' '+r.asset+' on '+r.network.toUpperCase()+'\nTo: '+(r.to_address||r.from_address||'master wallet')+'\n\nThis will create a new AWAITING_APPROVAL transfer. Confirm?';
+  var summary='REVERSE: '+fmtNum(r.amount)+' '+r.asset+' on '+r.network.toUpperCase()+'\\nTo: '+(r.to_address||r.from_address||'master wallet')+'\\n\\nThis will create a new AWAITING_APPROVAL transfer. Confirm?';
   if(!confirm(summary))return;
   var body={
     to_address: r.to_address||r.from_address,
