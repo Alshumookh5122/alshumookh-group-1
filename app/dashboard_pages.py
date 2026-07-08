@@ -1848,6 +1848,23 @@ function deleteXfer(id){
   if(!confirm('Delete this transfer? This cannot be undone.'))return;
   api('/api/v1/admin/outbound-transfers/'+id,{method:'DELETE'}).then(function(){showToast('Transfer deleted','ok');loadTransfers();}).catch(function(e){showToast('Delete error: '+e.message,'error');});
 }
+function reverseXfer(id){
+  var r=_xferRows[id];
+  if(!r){showToast('Transfer not found — refresh and try again.','error');return;}
+  var summary='REVERSE: '+fmtNum(r.amount)+' '+r.asset+' on '+r.network.toUpperCase()+'\nTo: '+(r.to_address||r.from_address||'master wallet')+'\n\nThis will create a new AWAITING_APPROVAL transfer. Confirm?';
+  if(!confirm(summary))return;
+  var body={
+    to_address: r.to_address||r.from_address,
+    amount: r.amount,
+    asset: r.asset||'SIG',
+    network: r.network||'ethereum',
+    notes: 'REVERSAL of transfer '+id+' — original amount '+fmtNum(r.amount)+' '+r.asset
+  };
+  api('/api/v1/admin/outbound-transfers',{method:'POST',body:JSON.stringify(body)}).then(function(res){
+    showToast('Reverse transfer created — ID: '+(res.id||'').slice(0,12)+'... Go to Approve + Broadcast','ok');
+    loadTransfers();
+  }).catch(function(e){showToast('Reverse error: '+e.message,'error');});
+}
 function closeXferDetails(){document.getElementById('xferDetailPanel').style.display='none';}
 function viewXfer(id){
   var r=_xferRows[id];
@@ -1912,6 +1929,8 @@ function loadTransfers(){
         btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="cancelXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Cancel</button>');
       if(['BROADCASTING','PENDING_CONFIRMATION'].indexOf(r.status)<0)
         btns.push('<button class="btn btn-danger" data-xid="'+r.id+'" onclick="deleteXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Delete</button>');
+      if(['CONFIRMED','COMPLETED'].indexOf(r.status)>=0)
+        btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="reverseXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;color:#a78bfa;border-color:#a78bfa;">↩ Reverse</button>');
       btns.unshift('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="viewXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">View</button>');
       return '<tr>'
         +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,10)+'...</code></td>'
@@ -3535,10 +3554,36 @@ function investigateIP(){
     var idents=d.identifiers_tried.length
       ?d.identifiers_tried.map(function(i){return '<code style="background:rgba(245,158,11,0.15);color:#f59e0b;padding:3px 8px;border-radius:4px;margin:2px;display:inline-block;">'+i+'</code>';}).join(' ')
       :'<span style="color:var(--muted);">No identifiers found in logs</span>';
+    // ── Geo block ──────────────────────────────────────────────────────────
+    var g=d.geo||{};
+    var flag=g.country_code?'https://flagcdn.com/24x18/'+g.country_code.toLowerCase()+'.png':'';
+    var riskTags='';
+    if(g.is_proxy)riskTags+='<span style="background:#ef4444;color:#fff;padding:2px 7px;border-radius:3px;font-size:11px;margin:2px;">⚠ PROXY/VPN</span>';
+    if(g.is_hosting)riskTags+='<span style="background:#f59e0b;color:#000;padding:2px 7px;border-radius:3px;font-size:11px;margin:2px;">🖥 HOSTING/DC</span>';
+    if(g.is_mobile)riskTags+='<span style="background:#6366f1;color:#fff;padding:2px 7px;border-radius:3px;font-size:11px;margin:2px;">📱 MOBILE</span>';
+    var geoHtml=g.country?
+      '<div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:8px;padding:12px;margin-bottom:10px;">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">'
+      +(flag?'<img src="'+flag+'" style="border-radius:2px;height:18px;">':'')
+      +'<strong style="font-size:13px;">'+g.country+(g.city?', '+g.city:'')+'</strong>'
+      +(g.region&&g.region!==g.city?'<span style="color:var(--muted);font-size:12px;">'+g.region+'</span>':'')
+      +riskTags
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;font-size:12px;">'
+      +(g.isp?'<div><span style="color:var(--muted);">ISP:</span> <strong>'+g.isp+'</strong></div>':'')
+      +(g.org?'<div><span style="color:var(--muted);">Org:</span> '+g.org+'</div>':'')
+      +(g.as?'<div><span style="color:var(--muted);">AS:</span> <code style="font-size:11px;">'+g.as+'</code></div>':'')
+      +(g.timezone?'<div><span style="color:var(--muted);">Timezone:</span> '+g.timezone+'</div>':'')
+      +(g.zip?'<div><span style="color:var(--muted);">ZIP:</span> '+g.zip+'</div>':'')
+      +(g.lat&&g.lon?'<div><span style="color:var(--muted);">Coords:</span> <a href="https://maps.google.com/?q='+g.lat+','+g.lon+'" target="_blank" style="color:var(--brand);">'+g.lat+', '+g.lon+'</a></div>':'')
+      +'</div>'
+      +'</div>'
+      :'<div style="color:var(--muted);font-size:12px;margin-bottom:8px;">Geo lookup unavailable</div>';
     el.innerHTML='<div style="background:var(--surface2);border-radius:8px;padding:14px;">'
       +'<div style="display:flex;gap:16px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">'
       +'<span style="font-weight:700;font-size:14px;">IP: <code>'+ip+'</code></span>'+lockBadge
       +'<span style="color:var(--muted);font-size:12px;">'+d.total_events_from_ip+' total events</span></div>'
+      +geoHtml
       +'<div style="margin-bottom:10px;"><strong style="font-size:12px;color:var(--muted);">IDENTIFIERS TRIED (emails/phones):</strong><br>'+idents+'</div>'
       +(d.login_events.length?'<div><strong style="font-size:12px;color:var(--muted);">LOGIN EVENTS:</strong>'
         +'<div class="table-wrap" style="margin-top:6px;"><table><thead><tr><th>Event</th><th>Status</th><th>Date</th></tr></thead><tbody>'
