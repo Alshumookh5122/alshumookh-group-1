@@ -5493,8 +5493,7 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     '<div id="prNotesDisplay" style="display:none;margin-top:22px;padding:14px 20px;border:2px solid #0d2240;border-radius:8px;background:#f7f9fc;">',
     '<div style="font-size:8.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#6b7a90;margin-bottom:8px;">REMARKS / NOTES</div>',
     '<div id="prNotesContent" style="font-size:12px;color:#0d2240;font-weight:600;line-height:1.7;white-space:pre-wrap;"></div>',
-    '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #c8d9f0;display:flex;justify-content:space-between;font-size:9px;color:#888;">',
-    '<span>Added by: Admin &mdash; ALSHUMOOKH GLOBAL</span><span id="prNotesDate"></span></div></div>',
+    '</div>',
 
     '<div class="np" id="prNotesPanel" style="margin-top:22px;padding:16px 20px;background:#f0f4fb;border:2px dashed #c8d9f0;border-radius:10px;">',
     '<div style="font-size:13px;font-weight:800;color:#0d2240;margin-bottom:10px;">&#128203; Add Remarks / Notes</div>',
