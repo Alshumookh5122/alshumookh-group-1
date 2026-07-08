@@ -5547,7 +5547,7 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
 
     '<script>',
     'function prSetPreset(btn){document.getElementById("prNotesText").value=btn.textContent.trim();}',
-    'function prApplyNotes(){var t=document.getElementById("prNotesText").value.trim();if(!t)return;document.getElementById("prNotesContent").textContent=t;document.getElementById("prNotesDate").textContent=new Date().toUTCString();document.getElementById("prNotesDisplay").style.display="block";}',
+    'function prApplyNotes(){var t=document.getElementById("prNotesText").value.trim();if(!t)return;document.getElementById("prNotesContent").textContent=t;document.getElementById("prNotesDisplay").style.display="block";}',
     'function prClearNotes(){document.getElementById("prNotesText").value="";document.getElementById("prNotesContent").textContent="";document.getElementById("prNotesDisplay").style.display="none";}',
     '<\/script>',
 
