@@ -1561,8 +1561,10 @@ async def ip_investigation(
     _: AdminKey,
     db: AsyncSession = Depends(get_db),
 ):
-    """Return all login failures + identifiers attempted from a given IP, plus unlock status."""
+    """Return all login failures + identifiers attempted from a given IP, plus unlock status and geo info."""
     import urllib.parse
+    import time
+    import httpx
     ip = urllib.parse.unquote(ip)
 
     res = await db.execute(
@@ -1586,11 +1588,40 @@ async def ip_investigation(
             login_events.append(serialize_log(log))
 
     from app.security import _login_lock_until, _login_failures
-    import time
     now = time.time()
     lock_until = _login_lock_until.get(ip, 0)
     is_locked = lock_until > now
     lock_seconds_remaining = max(0, int(lock_until - now))
+
+    # ── Geo lookup via ip-api.com (free, no key required) ──────────────────
+    geo: dict = {}
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            r = await client.get(
+                f"http://ip-api.com/json/{ip}",
+                params={"fields": "status,country,countryCode,regionName,city,zip,lat,lon,timezone,isp,org,as,proxy,hosting,mobile,query"},
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("status") == "success":
+                    geo = {
+                        "country":     data.get("country"),
+                        "country_code": data.get("countryCode"),
+                        "region":      data.get("regionName"),
+                        "city":        data.get("city"),
+                        "zip":         data.get("zip"),
+                        "lat":         data.get("lat"),
+                        "lon":         data.get("lon"),
+                        "timezone":    data.get("timezone"),
+                        "isp":         data.get("isp"),
+                        "org":         data.get("org"),
+                        "as":          data.get("as"),
+                        "is_proxy":    data.get("proxy", False),
+                        "is_hosting":  data.get("hosting", False),
+                        "is_mobile":   data.get("mobile", False),
+                    }
+    except Exception:
+        pass
 
     return {
         "ip": ip,
@@ -1599,6 +1630,7 @@ async def ip_investigation(
         "identifiers_tried": identifiers_tried,
         "total_events_from_ip": len(logs),
         "login_events": login_events[:50],
+        "geo": geo,
     }
 
 
@@ -3206,34 +3238,46 @@ async def reject_m1_fund(
 
 def _transfer_dict(ot: OutboundTransfer) -> dict:
     return {
-        "id": ot.id,
-        "status": ot.status,
-        "network": ot.network,
-        "asset": ot.asset,
-        "amount": str(ot.amount),
-        "to_address": ot.to_address,
-        "from_address": ot.from_address,
-        "contract_address": ot.contract_address,
-        "tx_hash": ot.tx_hash,
-        "block_number": ot.block_number,
-        "confirmations": ot.confirmations,
-        "explorer_url": ot.explorer_url,
-        "order_id": ot.order_id,
-        "payload_id": ot.payload_id,
-        "tokenization_job_id": ot.tokenization_job_id,
-        "initiated_by": ot.initiated_by,
-        "approved_by": ot.approved_by,
-        "approved_at": ot.approved_at.isoformat() if ot.approved_at else None,
-        "cancelled_by": ot.cancelled_by,
-        "cancel_reason": ot.cancel_reason,
-        "error_message": ot.error_message,
-        "retry_count": ot.retry_count,
-        "callback_url": ot.callback_url,
-        "webhook_status_code": ot.webhook_status_code,
-        "notes": ot.notes,
-        "created_at": ot.created_at.isoformat() if ot.created_at else None,
-        "broadcasted_at": ot.broadcasted_at.isoformat() if ot.broadcasted_at else None,
-        "completed_at": ot.completed_at.isoformat() if ot.completed_at else None,
+        # Identity
+        "id":                   ot.id,
+        "order_id":             ot.order_id,
+        "payload_id":           ot.payload_id,
+        "tokenization_job_id":  ot.tokenization_job_id,
+        # Transfer details
+        "network":              ot.network,
+        "asset":                ot.asset,
+        "amount":               str(ot.amount),
+        "to_address":           ot.to_address,
+        "from_address":         ot.from_address,
+        "contract_address":     ot.contract_address,
+        # Blockchain
+        "tx_hash":              ot.tx_hash,
+        "block_number":         ot.block_number,
+        "confirmations":        ot.confirmations,
+        "gas_used":             ot.gas_used,
+        "explorer_url":         ot.explorer_url,
+        # Approval & status
+        "status":               ot.status,
+        "initiated_by":         ot.initiated_by,
+        "approved_by":          ot.approved_by,
+        "approved_at":          ot.approved_at.isoformat() if ot.approved_at else None,
+        "cancelled_by":         ot.cancelled_by,
+        "cancelled_at":         ot.cancelled_at.isoformat() if ot.cancelled_at else None,
+        "cancel_reason":        ot.cancel_reason,
+        # Notes & errors
+        "notes":                ot.notes,
+        "error_message":        ot.error_message,
+        "retry_count":          ot.retry_count,
+        "last_retry_at":        ot.last_retry_at.isoformat() if ot.last_retry_at else None,
+        # Webhook
+        "callback_url":         ot.callback_url,
+        "webhook_sent_at":      ot.webhook_sent_at.isoformat() if ot.webhook_sent_at else None,
+        "webhook_status_code":  ot.webhook_status_code,
+        # Timestamps
+        "created_at":           ot.created_at.isoformat() if ot.created_at else None,
+        "updated_at":           ot.updated_at.isoformat() if ot.updated_at else None,
+        "broadcasted_at":       ot.broadcasted_at.isoformat() if ot.broadcasted_at else None,
+        "completed_at":         ot.completed_at.isoformat() if ot.completed_at else None,
     }
 
 

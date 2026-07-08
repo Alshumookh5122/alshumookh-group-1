@@ -5429,14 +5429,51 @@ function prBuildRows(type, d) {
       {h:'TIMESTAMPS'},{l:'Created',v:pd(d.created_at)},{l:'Updated',v:pd(d.updated_at)}
     ];
   } else {
+    var txLinkXf = d.tx_hash ? (d.explorer_url ? '<a href="'+pe(d.explorer_url)+'" target="_blank" style="font-family:monospace;font-size:9px;word-break:break-all;color:#1d4ed8;">'+pe(d.tx_hash)+'</a>' : '<code style="font-size:9px;word-break:break-all;">'+pe(d.tx_hash)+'</code>') : '&mdash;';
     rows = [
-      {h:'IDENTITY'},{l:'Transfer ID',v:pe(d.id)},{l:'Priority',v:pe(d.priority)},
-      {h:'DETAILS'},{l:'Network',v:pe((d.network||'').toUpperCase())},{l:'Asset',v:pe(d.asset||d.currency||'USDT')},{l:'Amount',v:'<strong>'+pn(d.amount)+' '+pe(d.asset||d.currency||'USDT')+'</strong>'},
-      {h:'WALLETS'},{l:'To Address',v:'<code>'+pe(d.to_address)+'</code>'},{l:'From Address',v:'<code>'+pe(d.from_address)+'</code>'},
-      {h:'BLOCKCHAIN'},{l:'TX Hash',v:'<code>'+pe(d.tx_hash)+'</code>'},
-      {h:'APPROVAL'},{l:'Status',v:pe(d.status)},{l:'Approved By',v:pe(d.approved_by)},{l:'Approved At',v:pd(d.approved_at)},
-      {h:'ERROR'},{l:'Retry Count',v:pe(d.retry_count)},{l:'Error',v:pe(d.error_message)},
-      {h:'TIMESTAMPS'},{l:'Created',v:pd(d.created_at)},{l:'Updated',v:pd(d.updated_at)},{l:'Completed',v:pd(d.completed_at)}
+      {h:'IDENTITY'},
+      {l:'Transfer ID',v:'<code style="font-size:9px;">'+pe(d.id)+'</code>'},
+      {l:'Order ID',v:d.order_id?'<code style="font-size:9px;">'+pe(d.order_id)+'</code>':'&mdash;'},
+      {l:'Payload ID',v:d.payload_id?'<code style="font-size:9px;">'+pe(d.payload_id)+'</code>':'&mdash;'},
+      {l:'Tokenization Job ID',v:d.tokenization_job_id?'<code style="font-size:9px;">'+pe(d.tokenization_job_id)+'</code>':'&mdash;'},
+      {h:'TRANSFER DETAILS'},
+      {l:'Network',v:'<strong>'+pe((d.network||'').toUpperCase())+'</strong>'},
+      {l:'Asset',v:'<strong>'+pe(d.asset||d.currency||'USDT')+'</strong>'},
+      {l:'Amount',v:'<strong style="color:#065f46;">'+pn(d.amount)+' '+pe(d.asset||d.currency||'USDT')+'</strong>'},
+      {l:'Priority',v:pe(d.priority)||'&mdash;'},
+      {h:'WALLET ADDRESSES'},
+      {l:'To Address',v:'<code style="font-size:9px;word-break:break-all;">'+pe(d.to_address)+'</code>'},
+      {l:'From Address',v:d.from_address?'<code style="font-size:9px;word-break:break-all;">'+pe(d.from_address)+'</code>':'&mdash;'},
+      {l:'Contract Address',v:d.contract_address?'<code style="font-size:9px;word-break:break-all;">'+pe(d.contract_address)+'</code>':'&mdash;'},
+      {h:'BLOCKCHAIN'},
+      {l:'TX Hash',v:txLinkXf},
+      {l:'Block Number',v:d.block_number?pe(String(d.block_number)):'&mdash;'},
+      {l:'Confirmations',v:d.confirmations?pe(String(d.confirmations)):'&mdash;'},
+      {l:'Gas Used',v:d.gas_used?pe(String(d.gas_used)):'&mdash;'},
+      {l:'Explorer',v:d.explorer_url?'<a href="'+pe(d.explorer_url)+'" target="_blank" style="color:#1d4ed8;font-size:10px;">View on Explorer &#8599;</a>':'&mdash;'},
+      {l:'Broadcasted At',v:pd(d.broadcasted_at)},
+      {h:'APPROVAL & STATUS'},
+      {l:'Status',v:'<strong>'+pe(d.status)+'</strong>'},
+      {l:'Initiated By',v:pe(d.initiated_by)||'&mdash;'},
+      {l:'Approved By',v:pe(d.approved_by)||'&mdash;'},
+      {l:'Approved At',v:pd(d.approved_at)},
+      {l:'Cancelled By',v:pe(d.cancelled_by)||'&mdash;'},
+      {l:'Cancelled At',v:pd(d.cancelled_at)},
+      {l:'Cancel Reason',v:pe(d.cancel_reason)||'&mdash;'},
+      {h:'NOTES & ERRORS'},
+      {l:'Notes',v:pe(d.notes)||'&mdash;'},
+      {l:'Error Message',v:d.error_message?'<span style="color:#b91c1c;">'+pe(d.error_message)+'</span>':'&mdash;'},
+      {l:'Retry Count',v:pe(String(d.retry_count||0))},
+      {l:'Last Retry At',v:pd(d.last_retry_at)},
+      {h:'WEBHOOK'},
+      {l:'Callback URL',v:d.callback_url?'<code style="font-size:9px;word-break:break-all;">'+pe(d.callback_url)+'</code>':'&mdash;'},
+      {l:'Webhook Sent At',v:pd(d.webhook_sent_at)},
+      {l:'Webhook Status',v:d.webhook_status_code?pe(String(d.webhook_status_code)):'&mdash;'},
+      {h:'TIMESTAMPS'},
+      {l:'Created',v:pd(d.created_at)},
+      {l:'Updated',v:pd(d.updated_at)},
+      {l:'Broadcasted',v:pd(d.broadcasted_at)},
+      {l:'Completed',v:pd(d.completed_at)}
     ];
   }
   return rows;
