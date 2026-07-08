@@ -1918,8 +1918,10 @@ function loadTransfers(){
         btns.push('<button class="btn btn-success" data-xid="'+r.id+'" onclick="approveXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Approve</button>');
       if(r.status==='APPROVED')
         btns.push('<button class="btn btn-primary" data-xid="'+r.id+'" data-action="broadcast" onclick="broadcastXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Broadcast</button>');
-      if(r.status==='FAILED')
+      if(r.status==='FAILED'){
         btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="retryXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;">Retry</button>');
+        btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="forceCompleteXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;color:#10b981;border-color:#10b981;" title="تسجيل العملية يدوياً كمؤكدة">✓ Force Confirm</button>');
+      }
       if(r.status==='PENDING_CONFIRMATION'){
         btns.push('<button class="btn btn-success" data-xid="'+r.id+'" onclick="forceCheckXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;background:linear-gradient(135deg,#059669,#047857);" title="Check blockchain for confirmations">⛓ Check</button>');
         btns.push('<button class="btn btn-ghost" data-xid="'+r.id+'" onclick="rebroadcastXfer(this.dataset.xid)" style="font-size:11px;padding:3px 8px;color:#f59e0b;border-color:#f59e0b;" title="Re-broadcast with fresh nonce if stuck">↺ Re-broadcast</button>');
