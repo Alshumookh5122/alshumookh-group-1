@@ -1600,7 +1600,7 @@ function loadPayloads() {
       document.getElementById('plBody').innerHTML='<div class="empty-state"><div class="icon">📥</div>No payloads found</div>';
       return;
     }
-    var th = '<th>ID</th><th>Amount</th><th>Network</th><th>Sender</th><th>TX Hash</th><th>Security</th><th>Status</th><th>Date</th><th>View</th>';
+    var th = '<th>ID</th><th>Amount</th><th>Network</th><th>Sender</th><th>TX Hash</th><th>Security</th><th>Status</th><th>Date</th><th>Actions</th>';
     var tb = rows.map(function(r){var rid=r.id||r.payload_id;return '<tr data-rid="'+rid+'" onclick="viewPayload(this.dataset.rid)" style="cursor:pointer;">'
       +'<td><code style="font-size:10px;cursor:pointer;color:var(--brand);">'+rid.slice(0,10)+'...</code></td>'
       +'<td>'+fmtNum(r.amount)+' '+(r.asset||'USDT')+'</td>'
@@ -1610,7 +1610,10 @@ function loadPayloads() {
       +'<td><span style="font-size:10px;color:var(--muted);">'+(r.security_level||'—')+'</span></td>'
       +'<td>'+badge(r.verification_status)+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><button class="btn btn-ghost" data-rid="'+rid+'" onclick="event.stopPropagation();viewPayload(this.dataset.rid)" style="font-size:11px;padding:4px 10px;">View</button></td>'
+      +'<td style="white-space:nowrap;">'
+      +'<button class="btn btn-ghost" data-rid="'+rid+'" onclick="event.stopPropagation();viewPayload(this.dataset.rid)" style="font-size:11px;padding:4px 10px;">View</button> '
+      +'<button class="btn btn-danger" data-rid="'+rid+'" onclick="event.stopPropagation();deletePayload(this.dataset.rid)" style="font-size:11px;padding:4px 10px;">🗑 Delete</button>'
+      +'</td>'
       +'</tr>';}).join('');
     document.getElementById('plBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e) {
@@ -1650,6 +1653,7 @@ function viewPayload(id) {
     }
     acts.push('<button class="btn btn-success" data-pid="'+id+'" data-act="approve" onclick="reviewPl(this.dataset.pid,this.dataset.act)">Approve</button>');
     acts.push('<button class="btn btn-danger"  data-pid="'+id+'" data-act="reject"  onclick="reviewPl(this.dataset.pid,this.dataset.act)">Reject</button>');
+    acts.push('<button class="btn btn-danger" data-pid="'+id+'" onclick="deletePayload(this.dataset.pid)" style="margin-left:12px;background:#7f1d1d;border-color:#991b1b;">🗑 Delete Permanently</button>');
     // Route to Provider section
     var eurAmt = p.amount ? parseFloat(p.amount).toFixed(2) : '0.00';
     var routeHtml = '<div style="margin-top:16px;padding:16px;background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:10px;">'
@@ -1696,6 +1700,16 @@ function reviewPl(id,decision){
   var note=prompt('Review note ('+(decision==='approve'?'approve':'reject')+'): ')||'';
   var action=(decision||'').toUpperCase();
   api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})}).then(function(){showToast(action==='APPROVE'?'Approved':'Rejected','ok');loadPayloads();}).catch(function(e){showToast('Error: '+e.message,'error');});
+}
+function deletePayload(id){
+  if(!confirm('⚠️ Delete this payload permanently?\n\nID: '+id+'\n\nThis action cannot be undone and will remove the record from the entire system.')) return;
+  api('/api/v1/admin/payloads/'+id,{method:'DELETE'})
+    .then(function(){
+      showToast('✅ Payload deleted permanently','ok');
+      document.getElementById('plDetail').style.display='none';
+      loadPayloads();
+    })
+    .catch(function(e){showToast('❌ Delete failed: '+e.message,'error');});
 }
 loadPayloads();
 </script>

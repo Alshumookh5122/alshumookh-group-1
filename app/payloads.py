@@ -904,6 +904,50 @@ async def mark_manual_review(
     }
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# DELETE /api/v1/admin/payloads/{payload_id}
+# ─────────────────────────────────────────────────────────────────────────────
+
+@admin_payloads_router.delete("/{payload_id}", status_code=status.HTTP_200_OK)
+async def delete_payload(
+    request: Request,
+    payload_id: str,
+    _admin: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Permanently delete a settlement payload from the database."""
+    ep = await _load_payload(db, payload_id)
+    actor = _admin_actor(request)
+
+    await log_event(
+        db,
+        event_type="PAYLOAD_DELETED",
+        payload_id=ep.id,
+        data={
+            "payload_id": ep.id,
+            "verification_status": ep.verification_status,
+            "amount": str(ep.amount) if ep.amount else None,
+            "deleted_by": actor,
+        },
+        client_id=ep.api_client_id,
+        endpoint=request.url.path,
+        method=request.method,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+    await db.delete(ep)
+    await db.commit()
+
+    return {
+        "payload_id": payload_id,
+        "deleted": True,
+        "message": "Settlement payload permanently deleted.",
+        "deleted_by": actor,
+    }
+
+
 @admin_payloads_router.post("/{payload_id}/review", status_code=status.HTTP_200_OK)
 async def review_payload(
     request: Request,
