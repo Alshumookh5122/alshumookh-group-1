@@ -67,6 +67,7 @@ _SIDEBAR_LINKS = [
     ("/dashboard/security",      "🛡", "Security"),
     ("/dashboard/documents",     "📄", "Documents"),
     ("/dashboard/reports",       "📊", "Reports"),
+    ("/dashboard/validator",     "🔍", "Transaction Validator"),
     ("/dashboard/logs",          "📝", "Audit Logs"),
     ("/dashboard/distributor",   "⛓", "Profit Distributor"),
     ("/dashboard/topup",         "💳", "Top-Up Engine"),
@@ -4957,6 +4958,763 @@ async def dashboard_logs(request: Request):
     if g:
         return g
     return HTMLResponse(_page("Audit Logs", "/dashboard/logs", _LOGS_BODY))
+
+
+@router.get("/dashboard/validator", response_class=HTMLResponse)
+async def dashboard_validator(request: Request):
+    g = _guard(request)
+    if g:
+        return g
+    return HTMLResponse(_page("Transaction Validator", "/dashboard/validator", _VALIDATOR_BODY))
+
+
+_VALIDATOR_BODY = """
+<style>
+.vld-root{font-family:"Helvetica Neue",Arial,sans-serif;color:var(--ink);}
+.vld-search{background:var(--panel);border:1px solid var(--line-strong);border-radius:14px;padding:28px 32px;margin-bottom:20px;}
+.vld-search h2{font-size:22px;font-weight:800;color:var(--gold);margin:0 0 6px;}
+.vld-search p{font-size:12px;color:var(--muted);margin:0 0 18px;}
+.vld-search-row{display:flex;gap:10px;flex-wrap:wrap;}
+.vld-search-row input{flex:1;min-width:240px;padding:12px 16px;border:1.5px solid var(--line-strong);border-radius:9px;background:var(--glass);color:var(--ink);font-size:13px;outline:none;}
+.vld-search-row input:focus{border-color:var(--brand);}
+.vld-search-row select{padding:12px 14px;border:1.5px solid var(--line-strong);border-radius:9px;background:var(--glass);color:var(--ink);font-size:13px;}
+.vld-btn-search{background:var(--brand);color:#fff;border:none;padding:12px 28px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;}
+.vld-btn-search:hover{opacity:.88;}
+.vld-report{display:none;}
+/* Header bar */
+.vld-topbar{background:linear-gradient(135deg,#0a1628 0%,#0d2240 60%,#1a3a6b 100%);border-radius:14px;padding:18px 28px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border:1px solid rgba(201,168,76,.25);}
+.vld-topbar-title{font-size:19px;font-weight:900;color:#fff;letter-spacing:.5px;}
+.vld-topbar-sub{font-size:10px;color:rgba(255,255,255,.55);margin-top:3px;letter-spacing:.3px;}
+.vld-topbar-meta{display:flex;gap:24px;flex-wrap:wrap;}
+.vld-topbar-meta-item label{font-size:9px;color:rgba(255,255,255,.45);font-weight:700;letter-spacing:.8px;display:block;text-transform:uppercase;}
+.vld-topbar-meta-item span{font-size:12px;color:#e2e8f0;font-weight:700;}
+.vld-status-badge{padding:8px 20px;border-radius:8px;font-size:13px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:7px;}
+.vld-status-badge.ok{background:rgba(16,185,129,.18);color:#10b981;border:1.5px solid rgba(16,185,129,.4);}
+.vld-status-badge.fail{background:rgba(239,68,68,.18);color:#ef4444;border:1.5px solid rgba(239,68,68,.4);}
+.vld-status-badge.pending{background:rgba(245,158,11,.18);color:#f59e0b;border:1.5px solid rgba(245,158,11,.4);}
+/* Key metrics */
+.vld-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px;}
+.vld-metric{background:var(--panel);border:1px solid var(--line-strong);border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;}
+.vld-metric-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.vld-metric-icon.blue{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);}
+.vld-metric-icon.gold{background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);}
+.vld-metric-icon.green{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);}
+.vld-metric-icon.purple{background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);}
+.vld-metric-icon.orange{background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.3);}
+.vld-metric-label{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;}
+.vld-metric-value{font-size:14px;font-weight:800;color:var(--ink);margin-top:2px;word-break:break-all;}
+.vld-metric-value.gold{color:#c9a84c;}
+.vld-metric-value.green{color:#10b981;}
+/* 3-col grid */
+.vld-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px;}
+@media(max-width:1100px){.vld-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:700px){.vld-grid{grid-template-columns:1fr;}}
+.vld-card{background:var(--panel);border:1px solid var(--line-strong);border-radius:12px;overflow:hidden;}
+.vld-card-head{padding:12px 18px;background:rgba(13,34,64,.6);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;}
+.vld-card-head-icon{font-size:16px;}
+.vld-card-head-title{font-size:11px;font-weight:800;color:var(--gold);letter-spacing:.8px;text-transform:uppercase;}
+.vld-card-body{padding:14px 18px;}
+.vld-field{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--line);gap:12px;}
+.vld-field:last-child{border-bottom:none;}
+.vld-field-label{font-size:10px;color:var(--muted);font-weight:600;min-width:110px;flex-shrink:0;padding-top:1px;}
+.vld-field-value{font-size:10.5px;color:var(--ink);font-weight:600;text-align:right;word-break:break-all;}
+.vld-field-value code{font-family:monospace;font-size:9.5px;word-break:break-all;}
+.vld-field-value.green{color:#10b981;}
+.vld-field-value.gold{color:#c9a84c;}
+.vld-field-value.red{color:#ef4444;}
+.vld-field-value.blue{color:#60a5fa;}
+/* Progress */
+.vld-step{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);}
+.vld-step:last-child{border-bottom:none;}
+.vld-step-icon{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.vld-step-icon.done{background:rgba(16,185,129,.2);border:1.5px solid #10b981;color:#10b981;}
+.vld-step-icon.fail{background:rgba(239,68,68,.2);border:1.5px solid #ef4444;color:#ef4444;}
+.vld-step-icon.skip{background:rgba(100,116,139,.15);border:1.5px solid #64748b;color:#64748b;}
+.vld-step-icon.pending{background:rgba(245,158,11,.15);border:1.5px solid #f59e0b;color:#f59e0b;}
+.vld-step-info{flex:1;}
+.vld-step-name{font-size:11px;font-weight:700;color:var(--ink);}
+.vld-step-desc{font-size:9.5px;color:var(--muted);margin-top:1px;}
+.vld-step-pct{font-size:11px;font-weight:800;}
+.vld-step-pct.done{color:#10b981;}
+.vld-step-pct.fail{color:#ef4444;}
+.vld-step-pct.skip{color:#64748b;}
+/* Check list */
+.vld-check{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);}
+.vld-check:last-child{border-bottom:none;}
+.vld-check-label{font-size:10.5px;color:var(--ink);display:flex;align-items:center;gap:7px;}
+.vld-check-result{font-size:10px;font-weight:800;letter-spacing:.4px;}
+.vld-check-result.ok{color:#10b981;}
+.vld-check-result.fail{color:#ef4444;}
+.vld-check-result.warn{color:#f59e0b;}
+.vld-check-result.na{color:#64748b;}
+/* Score */
+.vld-score-ring{width:90px;height:90px;margin:8px auto;position:relative;}
+.vld-score-ring svg{transform:rotate(-90deg);}
+.vld-score-num{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:22px;font-weight:900;color:var(--gold);}
+/* Timeline */
+.vld-timeline{margin-bottom:16px;}
+.vld-tl-item{display:flex;gap:14px;padding:10px 0;position:relative;}
+.vld-tl-item:not(:last-child)::before{content:"";position:absolute;left:15px;top:36px;bottom:0;width:2px;background:var(--line);}
+.vld-tl-dot{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid;}
+.vld-tl-dot.done{background:rgba(16,185,129,.15);border-color:#10b981;}
+.vld-tl-dot.fail{background:rgba(239,68,68,.15);border-color:#ef4444;}
+.vld-tl-dot.pending{background:rgba(245,158,11,.15);border-color:#f59e0b;}
+.vld-tl-dot.info{background:rgba(96,165,250,.15);border-color:#60a5fa;}
+.vld-tl-content{flex:1;}
+.vld-tl-title{font-size:11.5px;font-weight:700;color:var(--ink);}
+.vld-tl-time{font-size:9.5px;color:var(--muted);margin-top:1px;}
+.vld-tl-detail{font-size:10px;color:var(--muted);margin-top:4px;background:var(--glass);border-radius:6px;padding:5px 10px;border:1px solid var(--line);}
+/* Auth codes */
+.vld-codes{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;}
+.vld-code-item{background:var(--panel);border:1px solid var(--line-strong);border-radius:10px;padding:12px 14px;text-align:center;}
+.vld-code-label{font-size:8.5px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px;}
+.vld-code-value{font-size:16px;font-weight:900;color:var(--gold);letter-spacing:1px;font-family:monospace;}
+/* Final banner */
+.vld-final{border-radius:12px;padding:20px 28px;display:flex;align-items:center;gap:18px;margin-bottom:16px;}
+.vld-final.ok{background:rgba(16,185,129,.1);border:2px solid rgba(16,185,129,.4);}
+.vld-final.fail{background:rgba(239,68,68,.1);border:2px solid rgba(239,68,68,.4);}
+.vld-final.pending{background:rgba(245,158,11,.1);border:2px solid rgba(245,158,11,.4);}
+.vld-final-icon{font-size:36px;}
+.vld-final-title{font-size:18px;font-weight:900;letter-spacing:.5px;}
+.vld-final-title.ok{color:#10b981;}
+.vld-final-title.fail{color:#ef4444;}
+.vld-final-title.pending{color:#f59e0b;}
+.vld-final-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.vld-actions{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
+</style>
+
+<div class="vld-root page-body">
+
+<!-- SEARCH -->
+<div class="vld-search">
+  <h2>&#128269; Transaction Validation Engine</h2>
+  <p>Search for any transaction by ID, TX Hash, or Reference to generate a full validation report.</p>
+  <div class="vld-search-row">
+    <input id="vldInput" placeholder="Enter Transaction ID / TX Hash / Reference / IBAN..." onkeydown="if(event.key==='Enter')vldSearch()"/>
+    <select id="vldType">
+      <option value="auto">Auto Detect</option>
+      <option value="transfer">Outbound Transfer</option>
+      <option value="payload">Settlement Payload</option>
+      <option value="order">Payment Order</option>
+      <option value="m1">M1 Tokenization Job</option>
+    </select>
+    <button class="vld-btn-search" onclick="vldSearch()">&#128269; Validate</button>
+  </div>
+  <div id="vldError" style="margin-top:12px;color:#ef4444;font-size:12px;display:none;"></div>
+</div>
+
+<!-- LOADING -->
+<div id="vldLoading" style="display:none;text-align:center;padding:40px;">
+  <div style="font-size:28px;margin-bottom:12px;">&#9881;</div>
+  <div style="font-size:13px;color:var(--muted);">Running validation checks...</div>
+  <div style="margin:16px auto;width:240px;height:6px;background:var(--glass);border-radius:3px;overflow:hidden;">
+    <div id="vldBar" style="height:100%;background:var(--brand);border-radius:3px;width:0%;transition:width .4s;"></div>
+  </div>
+</div>
+
+<!-- FULL REPORT -->
+<div class="vld-report" id="vldReport">
+
+  <!-- TOP BAR -->
+  <div class="vld-topbar">
+    <div>
+      <div class="vld-topbar-title">&#9878; TRANSACTION VALIDATION ENGINE — ALSHUMOOKH GLOBAL</div>
+      <div class="vld-topbar-sub">BANKING FINANCE &amp; CREDIT &bull; AML SCREENING &bull; BLOCKCHAIN VERIFICATION &bull; COMPLIANCE ENGINE</div>
+    </div>
+    <div class="vld-topbar-meta">
+      <div class="vld-topbar-meta-item"><label>Report ID</label><span id="vldRptId">—</span></div>
+      <div class="vld-topbar-meta-item"><label>Generated</label><span id="vldRptDate">—</span></div>
+      <div class="vld-topbar-meta-item"><label>Type</label><span id="vldRptType">—</span></div>
+    </div>
+    <div id="vldTopStatus" class="vld-status-badge ok">&#9679; VERIFIED</div>
+  </div>
+
+  <!-- KEY METRICS -->
+  <div class="vld-metrics">
+    <div class="vld-metric">
+      <div class="vld-metric-icon gold">&#128176;</div>
+      <div><div class="vld-metric-label">Transaction Amount</div><div class="vld-metric-value gold" id="vldAmt">—</div></div>
+    </div>
+    <div class="vld-metric">
+      <div class="vld-metric-icon blue">&#127760;</div>
+      <div><div class="vld-metric-label">Network / Bank</div><div class="vld-metric-value" id="vldNetwork">—</div></div>
+    </div>
+    <div class="vld-metric">
+      <div class="vld-metric-icon purple">&#128203;</div>
+      <div><div class="vld-metric-label">Transaction Reference</div><div class="vld-metric-value" id="vldRef">—</div></div>
+    </div>
+    <div class="vld-metric">
+      <div class="vld-metric-icon green">&#128279;</div>
+      <div><div class="vld-metric-label">Asset / Currency</div><div class="vld-metric-value" id="vldAsset">—</div></div>
+    </div>
+    <div class="vld-metric">
+      <div class="vld-metric-icon orange">&#128737;</div>
+      <div><div class="vld-metric-label">Final Status</div><div class="vld-metric-value green" id="vldStatusMetric">—</div></div>
+    </div>
+  </div>
+
+  <!-- 3-COLUMN GRID -->
+  <div class="vld-grid">
+
+    <!-- COL 1: Sender + Progress -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <div class="vld-card">
+        <div class="vld-card-head"><span class="vld-card-head-icon">&#128100;</span><span class="vld-card-head-title">Sender Information</span></div>
+        <div class="vld-card-body" id="vldSender"></div>
+      </div>
+
+      <div class="vld-card">
+        <div class="vld-card-head"><span class="vld-card-head-icon">&#9881;</span><span class="vld-card-head-title">Validation Progress</span></div>
+        <div class="vld-card-body" id="vldProgress"></div>
+        <div style="padding:10px 18px 14px;">
+          <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--muted);margin-bottom:5px;"><span>Overall Progress</span><span id="vldPctLabel" style="font-weight:800;color:var(--gold);">0%</span></div>
+          <div style="height:8px;background:var(--glass);border-radius:4px;overflow:hidden;border:1px solid var(--line);"><div id="vldOverallBar" style="height:100%;border-radius:4px;transition:width .5s;background:linear-gradient(90deg,#10b981,#059669);width:0%;"></div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- COL 2: Receiver + Blockchain -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <div class="vld-card">
+        <div class="vld-card-head"><span class="vld-card-head-icon">&#127968;</span><span class="vld-card-head-title">Receiver Information</span></div>
+        <div class="vld-card-body" id="vldReceiver"></div>
+      </div>
+
+      <div class="vld-card">
+        <div class="vld-card-head"><span class="vld-card-head-icon">&#9851;</span><span class="vld-card-head-title">Blockchain &amp; Transaction</span></div>
+        <div class="vld-card-body" id="vldBlockchain"></div>
+      </div>
+
+    </div>
+
+    <!-- COL 3: Validation Results + Score + Transmission -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <div class="vld-card">
+        <div class="vld-card-head"><span class="vld-card-head-icon">&#9989;</span><span class="vld-card-head-title">Validation Results</span></div>
+        <div class="vld-card-body" id="vldChecks"></div>
+      </div>
+
+      <div class="vld-card">
+        <div class="vld-card-head"><span class="vld-card-head-icon">&#128200;</span><span class="vld-card-head-title">Confidence Score</span></div>
+        <div class="vld-card-body" style="text-align:center;padding:16px;">
+          <div class="vld-score-ring">
+            <svg width="90" height="90" viewBox="0 0 90 90">
+              <circle cx="45" cy="45" r="36" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="10"/>
+              <circle id="vldScoreArc" cx="45" cy="45" r="36" fill="none" stroke="#10b981" stroke-width="10" stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="226"/>
+            </svg>
+            <div class="vld-score-num" id="vldScoreNum">0%</div>
+          </div>
+          <div style="font-size:13px;font-weight:800;color:#10b981;margin-top:4px;" id="vldScoreLabel">HIGH CONFIDENCE</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:6px;" id="vldScoreDesc">Document integrity and validation checks completed successfully.</div>
+        </div>
+      </div>
+
+      <div class="vld-card">
+        <div class="vld-card-head"><span class="vld-card-head-icon">&#128225;</span><span class="vld-card-head-title">Transmission &amp; System Status</span></div>
+        <div class="vld-card-body" id="vldTransmission"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="vld-card" style="margin-bottom:14px;">
+    <div class="vld-card-head"><span class="vld-card-head-icon">&#128336;</span><span class="vld-card-head-title">Transaction Timeline — All Events</span></div>
+    <div style="padding:14px 18px;" id="vldTimeline"></div>
+  </div>
+
+  <!-- AUTH CODES -->
+  <div id="vldCodesSection" style="margin-bottom:14px;display:none;">
+    <div style="font-size:10px;font-weight:800;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">&#128273; Authorization &amp; Reference Codes</div>
+    <div class="vld-codes" id="vldCodes"></div>
+  </div>
+
+  <!-- FINAL BANNER -->
+  <div class="vld-final" id="vldFinal">
+    <div class="vld-final-icon" id="vldFinalIcon">&#9989;</div>
+    <div>
+      <div class="vld-final-title" id="vldFinalTitle">APPROVED FOR TRANSMISSION</div>
+      <div class="vld-final-sub" id="vldFinalSub">All validation processes completed successfully.</div>
+    </div>
+    <div class="vld-actions">
+      <button onclick="vldPrint()" style="background:#0d2240;color:#c9a84c;border:none;padding:10px 22px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">&#128424; Print Report</button>
+      <button onclick="vldReset()" style="background:var(--glass);border:1px solid var(--line-strong);color:var(--ink);padding:10px 18px;border-radius:8px;font-size:12px;cursor:pointer;">&#128269; New Search</button>
+    </div>
+  </div>
+
+</div><!-- end vld-report -->
+
+</div><!-- end vld-root -->
+
+<script>
+/* ═══════════ VALIDATION ENGINE JS ═══════════ */
+var VLD = {};
+
+function vldEsc(v){if(!v&&v!==0)return '—';var d=document.createElement('div');d.textContent=String(v);return d.innerHTML;}
+function vldNum(n){if(n===null||n===undefined||n==='')return '—';var x=parseFloat(n);return isNaN(x)?String(n):x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6});}
+function vldDate(v){if(!v)return '—';try{return new Date(v).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});}catch(e){return String(v);}}
+function vldShort(v,n){if(!v)return '—';v=String(v);return v.length>n?v.slice(0,n)+'...':v;}
+
+function vldField(label,value,cls){
+  return '<div class="vld-field"><span class="vld-field-label">'+label+'</span><span class="vld-field-value'+(cls?' '+cls:'')+'">'+value+'</span></div>';
+}
+function vldCheck(icon,label,result,cls){
+  return '<div class="vld-check"><span class="vld-check-label">'+icon+' '+label+'</span><span class="vld-check-result '+cls+'">'+result+'</span></div>';
+}
+function vldStep(icon,iconCls,name,desc,pct,pctCls){
+  return '<div class="vld-step"><div class="vld-step-icon '+iconCls+'">'+icon+'</div><div class="vld-step-info"><div class="vld-step-name">'+name+'</div><div class="vld-step-desc">'+desc+'</div></div><div class="vld-step-pct '+pctCls+'">'+pct+'</div></div>';
+}
+function vldTl(dotCls,icon,title,time,detail){
+  return '<div class="vld-tl-item"><div class="vld-tl-dot '+dotCls+'">'+icon+'</div><div class="vld-tl-content"><div class="vld-tl-title">'+title+'</div><div class="vld-tl-time">'+time+'</div>'+(detail?'<div class="vld-tl-detail">'+detail+'</div>':'')+'</div></div>';
+}
+
+function vldSearch(){
+  var q=(document.getElementById('vldInput').value||'').trim();
+  var t=document.getElementById('vldType').value;
+  if(!q){vldShowError('Please enter a Transaction ID, TX Hash, or Reference.');return;}
+  vldShowError('');
+  document.getElementById('vldReport').style.display='none';
+  document.getElementById('vldLoading').style.display='block';
+  vldAnimBar();
+  var key=document.cookie.replace(/(?:(?:^|.*;\\s*)admin_key\\s*=\\s*([^;]*).*$)|^.*$/,'$1')||localStorage.getItem('admin_key')||'';
+  var hdrs={'Content-Type':'application/json','X-Admin-Key':key};
+  // Try all endpoints in parallel or sequentially
+  var endpoints=[
+    {type:'transfer',url:'/api/v1/admin/outbound-transfers/'+encodeURIComponent(q)},
+    {type:'payload', url:'/api/v1/admin/payloads/'+encodeURIComponent(q)},
+    {type:'order',   url:'/api/v1/admin/orders/'+encodeURIComponent(q)},
+    {type:'m1',      url:'/api/v1/admin/tokenization-jobs/'+encodeURIComponent(q)},
+  ];
+  if(t!=='auto') endpoints=endpoints.filter(function(e){return e.type===t;});
+  var tried=0;
+  function tryNext(i){
+    if(i>=endpoints.length){
+      // Try search by reference/hash
+      vldSearchByRef(q,t,hdrs);
+      return;
+    }
+    fetch(endpoints[i].url,{headers:hdrs})
+      .then(function(r){if(!r.ok)throw new Error('not found');return r.json();})
+      .then(function(d){vldRender(endpoints[i].type,d);})
+      .catch(function(){tryNext(i+1);});
+  }
+  tryNext(0);
+}
+
+function vldSearchByRef(q,t,hdrs){
+  // Search across list endpoints
+  var searches=[
+    {type:'transfer',url:'/api/v1/admin/outbound-transfers?limit=2000'},
+    {type:'payload', url:'/api/v1/admin/payloads?limit=2000'},
+    {type:'order',   url:'/api/v1/admin/orders?limit=2000'},
+    {type:'m1',      url:'/api/v1/admin/tokenization-jobs?limit=500'},
+  ];
+  if(t!=='auto') searches=searches.filter(function(e){return e.type===t;});
+  var ql=q.toLowerCase();
+  function trySearch(i){
+    if(i>=searches.length){
+      document.getElementById('vldLoading').style.display='none';
+      vldShowError('No transaction found for: "'+q+'". Try a different ID, hash, or reference.');
+      return;
+    }
+    fetch(searches[i].url,{headers:hdrs})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var arr=Array.isArray(d)?d:(d.transfers||d.payloads||d.orders||d.jobs||d.items||[]);
+        var found=arr.filter(function(item){
+          var s=JSON.stringify(item).toLowerCase();
+          return s.indexOf(ql)>=0;
+        });
+        if(found.length>0){vldRender(searches[i].type,found[0]);}
+        else{trySearch(i+1);}
+      })
+      .catch(function(){trySearch(i+1);});
+  }
+  trySearch(0);
+}
+
+function vldAnimBar(){
+  var bar=document.getElementById('vldBar');
+  var pct=0;
+  var iv=setInterval(function(){
+    pct+=Math.random()*12;
+    if(pct>=90){pct=90;clearInterval(iv);}
+    bar.style.width=pct+'%';
+  },180);
+  VLD._barIv=iv;
+}
+
+function vldFinishBar(){
+  if(VLD._barIv){clearInterval(VLD._barIv);}
+  document.getElementById('vldBar').style.width='100%';
+  setTimeout(function(){document.getElementById('vldLoading').style.display='none';},400);
+}
+
+function vldShowError(msg){
+  var el=document.getElementById('vldError');
+  el.textContent=msg;
+  el.style.display=msg?'block':'none';
+}
+
+function vldReset(){
+  document.getElementById('vldReport').style.display='none';
+  document.getElementById('vldInput').value='';
+  document.getElementById('vldInput').focus();
+}
+
+function vldSetScore(pct){
+  var arc=document.getElementById('vldScoreArc');
+  var num=document.getElementById('vldScoreNum');
+  var lbl=document.getElementById('vldScoreLabel');
+  var desc=document.getElementById('vldScoreDesc');
+  var circumference=226;
+  var offset=circumference-(pct/100*circumference);
+  arc.style.strokeDashoffset=offset;
+  var col=pct>=90?'#10b981':pct>=70?'#f59e0b':'#ef4444';
+  arc.setAttribute('stroke',col);
+  num.textContent=pct+'%';
+  num.style.color=col;
+  if(pct>=90){lbl.textContent='HIGH CONFIDENCE';lbl.style.color='#10b981';desc.textContent='All integrity and validation checks completed successfully.';}
+  else if(pct>=70){lbl.textContent='MEDIUM CONFIDENCE';lbl.style.color='#f59e0b';desc.textContent='Most checks passed. Some items require manual review.';}
+  else{lbl.textContent='LOW CONFIDENCE';lbl.style.color='#ef4444';desc.textContent='Several validation checks failed. Manual review required.';}
+}
+
+function vldRender(type, d) {
+  VLD.type=type;VLD.data=d;
+  vldFinishBar();
+  var rptId='VE-'+Date.now().toString(36).toUpperCase();
+  document.getElementById('vldRptId').textContent=rptId;
+  document.getElementById('vldRptDate').textContent=new Date().toLocaleString('en-GB');
+  var typeLabels={transfer:'Outbound Transfer',payload:'Settlement Payload',order:'Payment Order',m1:'M1 Tokenization Job'};
+  document.getElementById('vldRptType').textContent=typeLabels[type]||type;
+
+  // ─── Status ───
+  var statusMap={CONFIRMED:'ok',COMPLETED:'ok',RECONCILED:'ok',APPROVED:'ok',ALCHEMY_VERIFIED:'ok',ON_CHAIN_CONFIRMED:'ok',
+    FAILED:'fail',REJECTED:'fail',CANCELLED:'fail',
+    PENDING:'pending',RECEIVED:'pending',PROCESSING:'pending',AWAITING_TX_HASH:'pending',MANUAL_REVIEW:'pending',AWAITING_APPROVAL:'pending'};
+  var st=d.status||d.verification_status||'PENDING';
+  var stCls=statusMap[st]||'pending';
+  var stIcons={ok:'&#9989;',fail:'&#10060;',pending:'&#9203;'};
+  document.getElementById('vldTopStatus').className='vld-status-badge '+stCls;
+  document.getElementById('vldTopStatus').innerHTML=stIcons[stCls]+' '+(st||'UNKNOWN');
+
+  // ─── Metrics ───
+  var amt='—', net='—', ref='—', asset='—';
+  if(type==='transfer'){amt=vldNum(d.amount)+' '+(d.asset||'SIG');net=(d.network||'').toUpperCase();ref=vldShort(d.id,20);asset=d.asset||'SIG';}
+  else if(type==='payload'){amt=vldNum(d.amount)+' '+(d.asset||'EUR');net=(d.network_name||d.network||'').toUpperCase()||'M1_FUND';ref=vldShort(d.id||d.payload_id,20);asset=d.asset||'EUR';}
+  else if(type==='order'){amt=vldNum(d.fiat_amount)+' '+(d.fiat_currency||'EUR');net=(d.network||'').toUpperCase();ref=vldShort(d.payment_reference||d.id,20);asset=d.fiat_currency||'EUR';}
+  else if(type==='m1'){amt=vldNum(d.eur_amount)+' EUR';net='ETHEREUM';ref=vldShort(d.sender_reference||d.id,20);asset='SIG / EUR';}
+  document.getElementById('vldAmt').textContent=amt;
+  document.getElementById('vldNetwork').textContent=net||'—';
+  document.getElementById('vldRef').textContent=ref;
+  document.getElementById('vldAsset').textContent=asset;
+  document.getElementById('vldStatusMetric').textContent=st;
+  document.getElementById('vldStatusMetric').className='vld-metric-value '+(stCls==='ok'?'green':stCls==='fail'?'red':'gold');
+
+  // ─── Sender ───
+  var sHTML='';
+  if(type==='transfer'){
+    sHTML+=vldField('From Address','<code>'+vldEsc(d.from_address)+'</code>');
+    sHTML+=vldField('Initiated By',vldEsc(d.initiated_by)||'Admin');
+    sHTML+=vldField('Approved By',vldEsc(d.approved_by));
+    sHTML+=vldField('Approved At',vldDate(d.approved_at));
+    sHTML+=vldField('Network',(d.network||'').toUpperCase());
+    sHTML+=vldField('Asset',vldEsc(d.asset));
+  } else if(type==='payload'){
+    sHTML+=vldField('Sender Wallet','<code>'+vldEsc(d.sender_wallet)+'</code>');
+    sHTML+=vldField('Auth Method',vldEsc(d.auth_method));
+    sHTML+=vldField('Security Level',vldEsc(d.security_level));
+    sHTML+=vldField('JWS Verified',d.jws_verified?'<span class="green">Yes</span>':'No');
+    sHTML+=vldField('mTLS Verified',d.mtls_verified?'<span class="green">Yes</span>':'No');
+    sHTML+=vldField('Client IP',vldEsc(d.client_ip));
+  } else if(type==='order'){
+    sHTML+=vldField('Payer Email',vldEsc(d.payer_email));
+    sHTML+=vldField('Customer Name',vldEsc(d.customer_name));
+    sHTML+=vldField('External ID',vldEsc(d.external_id));
+    sHTML+=vldField('Idempotency Key','<code>'+vldShort(d.idempotency_key,24)+'</code>');
+    sHTML+=vldField('Client IP',vldEsc(d.client_ip));
+    sHTML+=vldField('Provider',vldEsc(d.provider));
+  } else if(type==='m1'){
+    sHTML+=vldField('Sender Name','<strong>'+vldEsc(d.sender_name)+'</strong>');
+    sHTML+=vldField('Sender IBAN','<code>'+vldEsc(d.sender_iban)+'</code>');
+    sHTML+=vldField('Sender Bank',vldEsc(d.sender_bank));
+    sHTML+=vldField('Sender Reference',vldEsc(d.sender_reference));
+    sHTML+=vldField('EUR Amount','<strong class="gold">'+vldNum(d.eur_amount)+' EUR</strong>');
+    sHTML+=vldField('FX Rate EUR/USD',vldEsc(d.fx_rate_eur_usd||d.fx_rate));
+  }
+  document.getElementById('vldSender').innerHTML=sHTML;
+
+  // ─── Receiver ───
+  var rHTML='';
+  if(type==='transfer'){
+    rHTML+=vldField('To Address','<code>'+vldEsc(d.to_address)+'</code>');
+    rHTML+=vldField('Contract Address','<code>'+vldShort(d.contract_address,24)+'</code>');
+    rHTML+=vldField('Amount','<strong class="gold">'+vldNum(d.amount)+' '+(d.asset||'SIG')+'</strong>');
+    rHTML+=vldField('Notes',vldEsc(d.notes));
+    rHTML+=vldField('Callback URL',vldShort(d.callback_url,30));
+    rHTML+=vldField('Webhook Status',d.webhook_status_code?String(d.webhook_status_code):'—');
+  } else if(type==='payload'){
+    rHTML+=vldField('Receiver Wallet','<code>'+vldEsc(d.receiver_wallet)+'</code>');
+    rHTML+=vldField('Amount','<strong class="gold">'+vldNum(d.amount)+' '+(d.asset||'EUR')+'</strong>');
+    rHTML+=vldField('Review Decision',vldEsc(d.review_decision));
+    rHTML+=vldField('Reviewed By',vldEsc(d.reviewed_by));
+    rHTML+=vldField('Review Priority',vldEsc(d.review_priority));
+    rHTML+=vldField('Hold Reason',vldEsc(d.hold_reason));
+  } else if(type==='order'){
+    rHTML+=vldField('Wallet Address','<code>'+vldShort(d.user_wallet_address||d.wallet,28)+'</code>');
+    rHTML+=vldField('Treasury Wallet','<code>'+vldShort(d.treasury_wallet_address,28)+'</code>');
+    rHTML+=vldField('Crypto Amount','<strong>'+vldNum(d.crypto_amount)+' '+(d.crypto_currency||'SIG')+'</strong>');
+    rHTML+=vldField('Fiat Amount','<strong class="gold">'+vldNum(d.fiat_amount)+' '+(d.fiat_currency||'EUR')+'</strong>');
+    rHTML+=vldField('Exchange Rate',vldEsc(d.exchange_rate));
+    rHTML+=vldField('Processor Ref',vldEsc(d.processor_reference));
+  } else if(type==='m1'){
+    rHTML+=vldField('Receiver Wallet','<code>'+vldShort(d.receiver_wallet,28)+'</code>');
+    rHTML+=vldField('Operator Wallet','<code>'+vldShort(d.operator_wallet,28)+'</code>');
+    rHTML+=vldField('Contract Address','<code>'+vldShort(d.contract_address,28)+'</code>');
+    rHTML+=vldField('USD Amount','<strong>'+vldNum(d.usd_amount)+' USD</strong>');
+    rHTML+=vldField('SIG Amount','<strong class="gold">'+vldNum(d.usdt_amount)+' SIG</strong>');
+    rHTML+=vldField('FX Provider',vldEsc(d.fx_provider));
+  }
+  document.getElementById('vldReceiver').innerHTML=rHTML;
+
+  // ─── Blockchain ───
+  var bHTML='';
+  var txh=d.tx_hash||'—';
+  var expUrl=d.explorer_url||null;
+  var txDisp=txh!=='—'?(expUrl?'<a href="'+vldEsc(expUrl)+'" target="_blank" style="color:#60a5fa;font-size:9px;word-break:break-all;font-family:monospace;">'+txh+'</a>':'<code style="font-size:9px;word-break:break-all;">'+txh+'</code>'):'—';
+  bHTML+=vldField('TX Hash',txDisp);
+  bHTML+=vldField('Block Number',d.block_number?String(d.block_number):'—');
+  bHTML+=vldField('Confirmations',d.confirmations?String(d.confirmations):'—');
+  bHTML+=vldField('Gas Used',d.gas_used?String(d.gas_used):'—');
+  if(expUrl) bHTML+=vldField('Explorer','<a href="'+vldEsc(expUrl)+'" target="_blank" style="color:#60a5fa;font-size:10px;">View on Explorer &#8599;</a>');
+  bHTML+=vldField('Broadcasted At',vldDate(d.broadcasted_at));
+  bHTML+=vldField('Completed At',vldDate(d.completed_at));
+  if(d.error_message) bHTML+=vldField('Error','<span style="color:#ef4444;font-size:9.5px;">'+vldEsc(d.error_message)+'</span>');
+  document.getElementById('vldBlockchain').innerHTML=bHTML;
+
+  // ─── Validation Checks ───
+  var hasHash=!!(d.tx_hash);
+  var hasBlock=!!(d.block_number);
+  var isOk=(stCls==='ok');
+  var isFail=(stCls==='fail');
+  var cHTML='';
+  cHTML+=vldCheck('&#128203;','Record Exists','VERIFIED','ok');
+  cHTML+=vldCheck('&#128200;','Amount Format',vldNum(d.amount||d.fiat_amount||d.eur_amount)!=='—'?'VALID':'N/A',vldNum(d.amount||d.fiat_amount||d.eur_amount)!=='—'?'ok':'na');
+  cHTML+=vldCheck('&#128279;','Transaction ID','VERIFIED','ok');
+  cHTML+=vldCheck('&#9932;','Network Validation',(d.network||d.network_name)?'VALID':'N/A',(d.network||d.network_name)?'ok':'na');
+  cHTML+=vldCheck('&#9851;','TX Hash'+(hasHash?' Present':' Missing'),hasHash?'VERIFIED':'PENDING',hasHash?'ok':'warn');
+  cHTML+=vldCheck('&#128274;','Blockchain Confirm.',hasBlock?'CONFIRMED':'AWAITING',hasBlock?'ok':'warn');
+  cHTML+=vldCheck('&#9878;','AML Screening',isFail?'FLAGGED':'CLEAR',isFail?'fail':'ok');
+  cHTML+=vldCheck('&#128737;','Status Check',isOk?'PASSED':isFail?'FAILED':'PENDING',isOk?'ok':isFail?'fail':'warn');
+  cHTML+=vldCheck('&#128221;','Integrity Check',isOk?'VALID':'REVIEW',isOk?'ok':'warn');
+  document.getElementById('vldChecks').innerHTML=cHTML;
+
+  // ─── Progress Steps ───
+  var steps=[
+    {icon:'&#128203;',name:'Record Parsing',desc:'Transaction data loaded and parsed',done:true},
+    {icon:'&#128200;','name':'Amount Extraction',desc:'Financial values extracted and formatted',done:true},
+    {icon:'&#127760;','name':'Network Validation',desc:'Blockchain network parameters verified',done:!!(d.network||d.network_name)},
+    {icon:'&#9851;','name':'Blockchain Lookup',desc:'On-chain transaction hash search',done:hasHash},
+    {icon:'&#128274;','name':'AML Screening',desc:'Anti-money laundering scan completed',done:!isFail},
+    {icon:'&#128221;','name':'Final Verification',desc:'All checks compiled and verified',done:isOk},
+  ];
+  var doneCount=steps.filter(function(s){return s.done;}).length;
+  var pct=Math.round(doneCount/steps.length*100);
+  var pHTML=steps.map(function(s){
+    return vldStep(s.icon,s.done?'done':'pending',s.name,s.desc,s.done?'100%':'—',s.done?'done':'pending');
+  }).join('');
+  document.getElementById('vldProgress').innerHTML=pHTML;
+  document.getElementById('vldOverallBar').style.width=pct+'%';
+  document.getElementById('vldPctLabel').textContent=pct+'%';
+  setTimeout(function(){vldSetScore(pct>=90?98:pct>=70?82:55);},300);
+
+  // ─── Transmission Status ───
+  var tHTML='';
+  tHTML+=vldField('Message Format','<span class="green">OK</span>');
+  tHTML+=vldField('Server Connectivity','<span class="green">OK</span>');
+  tHTML+=vldField('Authentication',isOk?'<span class="green">OK</span>':'<span style="color:#f59e0b;">REVIEW</span>');
+  tHTML+=vldField('Encryption','<span class="green">OK</span>');
+  tHTML+=vldField('Status','<strong class="'+(isOk?'green':isFail?'red':'gold')+'">'+st+'</strong>');
+  if(d.approved_by) tHTML+=vldField('Authorized By','<strong>'+vldEsc(d.approved_by)+'</strong>');
+  document.getElementById('vldTransmission').innerHTML=tHTML;
+
+  // ─── Timeline ───
+  var tlHTML='';
+  var events=[];
+  if(d.created_at) events.push({t:d.created_at,cls:'info',icon:'&#128203;',title:'Transaction Created',detail:'Record created in system — ID: '+vldShort(d.id||d.payload_id,32)});
+  if(d.approved_at) events.push({t:d.approved_at,cls:'done',icon:'&#9989;',title:'Approved',detail:'Approved by: '+(d.approved_by||'Admin')});
+  if(d.broadcasted_at) events.push({t:d.broadcasted_at,cls:'info',icon:'&#9851;',title:'Broadcasted to Blockchain',detail:'TX Hash: '+vldShort(d.tx_hash,48)});
+  if(d.verified_at) events.push({t:d.verified_at,cls:'done',icon:'&#128274;',title:'Blockchain Verified',detail:'On-chain verification completed'});
+  if(d.webhook_sent_at) events.push({t:d.webhook_sent_at,cls:'info',icon:'&#128225;',title:'Webhook Dispatched',detail:'HTTP '+String(d.webhook_status_code||'—')+' — '+vldShort(d.callback_url,40)});
+  if(d.completed_at) events.push({t:d.completed_at,cls:'done',icon:'&#127881;',title:'Transaction Completed',detail:'Final status: '+st});
+  if(d.cancelled_at) events.push({t:d.cancelled_at,cls:'fail',icon:'&#10060;',title:'Transaction Cancelled',detail:'Cancelled by: '+(d.cancelled_by||'—')+' — Reason: '+(d.cancel_reason||'—')});
+  if(d.last_retry_at) events.push({t:d.last_retry_at,cls:'pending',icon:'&#8635;',title:'Retry Attempt',detail:'Retry count: '+String(d.retry_count||0)+(d.error_message?' — Error: '+vldShort(d.error_message,60):'')});
+  if(d.updated_at&&d.updated_at!==d.created_at) events.push({t:d.updated_at,cls:'info',icon:'&#9998;',title:'Record Updated',detail:'Last modification timestamp'});
+  events.sort(function(a,b){return new Date(a.t)-new Date(b.t);});
+  if(events.length===0){tlHTML='<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">No timeline events found for this transaction.</div>';}
+  else{tlHTML=events.map(function(e){return vldTl(e.cls,e.icon,e.title,vldDate(e.t),e.detail);}).join('');}
+  document.getElementById('vldTimeline').innerHTML=tlHTML;
+
+  // ─── Auth Codes (for transfers - show key IDs) ───
+  var codes=[];
+  if(d.id) codes.push({label:'Transaction ID',value:d.id.slice(0,8).toUpperCase()});
+  if(d.payload_id&&d.payload_id!==d.id) codes.push({label:'Payload ID',value:d.payload_id.slice(0,8).toUpperCase()});
+  if(d.order_id) codes.push({label:'Order ID',value:d.order_id.slice(0,8).toUpperCase()});
+  if(d.tokenization_job_id) codes.push({label:'Job ID',value:d.tokenization_job_id.slice(0,8).toUpperCase()});
+  if(d.payment_reference) codes.push({label:'Payment Ref',value:d.payment_reference.slice(-8).toUpperCase()});
+  if(d.sender_reference) codes.push({label:'Sender Ref',value:d.sender_reference.slice(-8).toUpperCase()});
+  if(d.external_id) codes.push({label:'External ID',value:d.external_id.slice(-8).toUpperCase()});
+  if(codes.length>0){
+    document.getElementById('vldCodesSection').style.display='block';
+    document.getElementById('vldCodes').innerHTML=codes.map(function(c){
+      return '<div class="vld-code-item"><div class="vld-code-label">'+c.label+'</div><div class="vld-code-value">'+c.value+'</div></div>';
+    }).join('');
+  }
+
+  // ─── Final Banner ───
+  var finalEl=document.getElementById('vldFinal');
+  var finalClsMap={ok:'ok',fail:'fail',pending:'pending'};
+  finalEl.className='vld-final '+finalClsMap[stCls];
+  document.getElementById('vldFinalIcon').innerHTML=isOk?'&#9989;':isFail?'&#10060;':'&#9203;';
+  document.getElementById('vldFinalTitle').className='vld-final-title '+stCls;
+  var titles={ok:'APPROVED FOR TRANSMISSION',fail:'REJECTED — REQUIRES REVIEW',pending:'PENDING — AWAITING PROCESSING'};
+  document.getElementById('vldFinalTitle').textContent=titles[stCls]||'STATUS UNKNOWN';
+  var subs={ok:'All validation processes completed successfully. Transaction authorized and approved.',
+    fail:'One or more validation checks failed. Manual review required before processing.',
+    pending:'Transaction is currently being processed. Awaiting further updates.'};
+  document.getElementById('vldFinalSub').textContent=subs[stCls];
+
+  // Show report
+  document.getElementById('vldReport').style.display='block';
+  document.getElementById('vldReport').scrollIntoView({behavior:'smooth'});
+}
+
+function vldPrint(){
+  var d=VLD.data||{};
+  var type=VLD.type||'transaction';
+  var typeLabels={transfer:'Outbound Transfer',payload:'Settlement Payload',order:'Payment Order',m1:'M1 Tokenization Job'};
+  var st=d.status||d.verification_status||'UNKNOWN';
+  var stCls=(st==='CONFIRMED'||st==='COMPLETED'||st==='RECONCILED'||st==='APPROVED')?'#10b981':(st==='FAILED'||st==='REJECTED'||st==='CANCELLED')?'#ef4444':'#f59e0b';
+  var amt=document.getElementById('vldAmt').textContent;
+  var txh=d.tx_hash||'—';
+  var expUrl=d.explorer_url||'';
+  var txDisp=txh!=='—'?(expUrl?'<a href="'+expUrl+'" style="color:#60a5fa;font-family:monospace;word-break:break-all;font-size:9px;">'+txh+'</a>':'<span style="font-family:monospace;word-break:break-all;font-size:9px;">'+txh+'</span>'):'—';
+  var rptId=document.getElementById('vldRptId').textContent;
+  var now=new Date().toLocaleString('en-GB');
+  var html='<!doctype html><html><head><meta charset="utf-8"><title>Validation Report '+rptId+'</title>'
+    +'<style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
+    +'body{font-family:"Helvetica Neue",Arial,sans-serif;margin:0;padding:20px 28px;background:#fff;color:#0d1b2a;font-size:10px;}'
+    +'.gbar{height:5px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);margin-bottom:0;}'
+    +'.topbar{background:linear-gradient(135deg,#0a1628,#0d2240,#1a3a6b);color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}'
+    +'.topbar-title{font-size:16px;font-weight:900;letter-spacing:.5px;}'
+    +'.topbar-sub{font-size:8px;color:rgba(255,255,255,.6);margin-top:2px;}'
+    +'.badge{padding:6px 16px;border-radius:6px;font-weight:800;font-size:11px;}'
+    +'.badge.ok{background:rgba(16,185,129,.2);color:#10b981;border:1px solid rgba(16,185,129,.4);}'
+    +'.badge.fail{background:rgba(239,68,68,.2);color:#ef4444;border:1px solid rgba(239,68,68,.4);}'
+    +'.badge.pending{background:rgba(245,158,11,.2);color:#f59e0b;border:1px solid rgba(245,158,11,.4);}'
+    +'.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px;}'
+    +'.metric{border:1px solid #d0d9ea;border-radius:8px;padding:10px 12px;}'
+    +'.metric-label{font-size:7.5px;color:#6b7a90;font-weight:700;letter-spacing:.6px;text-transform:uppercase;}'
+    +'.metric-value{font-size:12px;font-weight:800;color:#0d2240;margin-top:2px;word-break:break-all;}'
+    +'.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;}'
+    +'.card{border:1px solid #d0d9ea;border-radius:8px;overflow:hidden;}'
+    +'.card-head{background:#0d2240;color:#c9a84c;padding:8px 14px;font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;}'
+    +'.card-body{padding:10px 14px;}'
+    +'.field{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e8eef5;gap:8px;}'
+    +'.field:last-child{border-bottom:none;}'
+    +'.fl{font-size:8.5px;color:#6b7a90;font-weight:600;min-width:90px;}'
+    +'.fv{font-size:8.5px;color:#0d1b2a;font-weight:600;text-align:right;word-break:break-all;}'
+    +'.check{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e8eef5;}'
+    +'.check:last-child{border-bottom:none;}'
+    +'.cl{font-size:8.5px;color:#0d1b2a;}'
+    +'.cr{font-size:8.5px;font-weight:800;}'
+    +'.cr.ok{color:#10b981;}.cr.fail{color:#ef4444;}.cr.warn{color:#f59e0b;}.cr.na{color:#94a3b8;}'
+    +'.tl-item{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #e8eef5;}'
+    +'.tl-item:last-child{border-bottom:none;}'
+    +'.tl-dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;border:1.5px solid;}'
+    +'.tl-dot.done{background:rgba(16,185,129,.1);border-color:#10b981;}'
+    +'.tl-dot.fail{background:rgba(239,68,68,.1);border-color:#ef4444;}'
+    +'.tl-dot.info{background:rgba(96,165,250,.1);border-color:#60a5fa;}'
+    +'.tl-dot.pending{background:rgba(245,158,11,.1);border-color:#f59e0b;}'
+    +'.tl-title{font-size:9px;font-weight:700;color:#0d1b2a;}'
+    +'.tl-time{font-size:8px;color:#6b7a90;}'
+    +'.codes{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:12px;}'
+    +'.code-item{border:1px solid #d0d9ea;border-radius:7px;padding:8px 10px;text-align:center;}'
+    +'.code-label{font-size:7px;color:#6b7a90;font-weight:700;letter-spacing:.6px;text-transform:uppercase;margin-bottom:3px;}'
+    +'.code-value{font-size:13px;font-weight:900;color:#c9a84c;font-family:monospace;letter-spacing:1px;}'
+    +'.final{border-radius:8px;padding:14px 20px;display:flex;align-items:center;gap:14px;margin-bottom:12px;}'
+    +'.final.ok{background:rgba(16,185,129,.08);border:2px solid rgba(16,185,129,.4);}'
+    +'.final.fail{background:rgba(239,68,68,.08);border:2px solid rgba(239,68,68,.4);}'
+    +'.final.pending{background:rgba(245,158,11,.08);border:2px solid rgba(245,158,11,.4);}'
+    +'.final-title{font-size:14px;font-weight:900;letter-spacing:.5px;}'
+    +'.final-sub{font-size:9px;color:#6b7a90;margin-top:3px;}'
+    +'.footer{display:flex;justify-content:space-between;font-size:7.5px;color:#9aa;padding-top:8px;border-top:1px solid #d0d9ea;margin-top:8px;}'
+    +'@media print{@page{size:A4 portrait;margin:8mm 10mm}body{padding:0}}'
+    +'</style></head><body>';
+
+  // Top bar
+  var isOk=st==='CONFIRMED'||st==='COMPLETED'||st==='RECONCILED'||st==='APPROVED';
+  var isFail=st==='FAILED'||st==='REJECTED'||st==='CANCELLED';
+  var badgeCls=isOk?'ok':isFail?'fail':'pending';
+  html+='<div class="gbar"></div>';
+  html+='<div class="topbar"><div><div class="topbar-title">&#9878; TRANSACTION VALIDATION ENGINE &mdash; ALSHUMOOKH GLOBAL BANKING</div><div class="topbar-sub">FINANCIAL CRIME COMPLIANCE &bull; BLOCKCHAIN VERIFICATION &bull; AML SCREENING &bull; DIGITAL AUDIT TRAIL</div></div><div class="badge '+badgeCls+'">'+st+'</div></div>';
+
+  // Meta row
+  html+='<div style="display:flex;justify-content:space-between;margin-bottom:12px;padding:8px 14px;background:#f7f9fc;border:1px solid #d0d9ea;border-radius:8px;font-size:8.5px;">'
+    +'<span><strong>Report ID:</strong> '+rptId+'</span>'
+    +'<span><strong>Type:</strong> '+typeLabels[type]+'</span>'
+    +'<span><strong>Generated:</strong> '+now+'</span>'
+    +'<span><strong>Transaction ID:</strong> '+(d.id||d.payload_id||'—')+'</span>'
+    +'</div>';
+
+  // Metrics
+  html+='<div class="metrics">'
+    +'<div class="metric"><div class="metric-label">Amount</div><div class="metric-value" style="color:#c9a84c;">'+amt+'</div></div>'
+    +'<div class="metric"><div class="metric-label">Network</div><div class="metric-value">'+document.getElementById('vldNetwork').textContent+'</div></div>'
+    +'<div class="metric"><div class="metric-label">Reference</div><div class="metric-value">'+document.getElementById('vldRef').textContent+'</div></div>'
+    +'<div class="metric"><div class="metric-label">Asset</div><div class="metric-value">'+document.getElementById('vldAsset').textContent+'</div></div>'
+    +'<div class="metric"><div class="metric-label">Status</div><div class="metric-value" style="color:'+stCls+';">'+st+'</div></div>'
+    +'</div>';
+
+  // 3-col grid (sender, receiver, checks)
+  html+='<div class="grid3">';
+  html+='<div class="card"><div class="card-head">Sender Information</div><div class="card-body">'+document.getElementById('vldSender').innerHTML.replace(/class="vld-field-value green"/g,'class="fv" style="color:#10b981;"').replace(/class="vld-field-value gold"/g,'class="fv" style="color:#c9a84c;"').replace(/class="vld-field-value red"/g,'class="fv" style="color:#ef4444;"').replace(/class="vld-field"/g,'class="field"').replace(/class="vld-field-label"/g,'class="fl"').replace(/class="vld-field-value[^"]*"/g,'class="fv"')+'</div></div>';
+  html+='<div class="card"><div class="card-head">Receiver Information</div><div class="card-body">'+document.getElementById('vldReceiver').innerHTML.replace(/class="vld-field"/g,'class="field"').replace(/class="vld-field-label"/g,'class="fl"').replace(/class="vld-field-value[^"]*"/g,'class="fv"')+'</div></div>';
+  html+='<div class="card"><div class="card-head">Blockchain &amp; Transaction</div><div class="card-body">'+document.getElementById('vldBlockchain').innerHTML.replace(/class="vld-field"/g,'class="field"').replace(/class="vld-field-label"/g,'class="fl"').replace(/class="vld-field-value[^"]*"/g,'class="fv"')+'</div></div>';
+  html+='</div>';
+
+  // Validation checks
+  html+='<div class="card" style="margin-bottom:10px;"><div class="card-head">Validation Results</div><div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;">'+document.getElementById('vldChecks').innerHTML.replace(/class="vld-check"/g,'class="check"').replace(/class="vld-check-label"/g,'class="cl"').replace(/class="vld-check-result ok"/g,'class="cr ok"').replace(/class="vld-check-result fail"/g,'class="cr fail"').replace(/class="vld-check-result warn"/g,'class="cr warn"').replace(/class="vld-check-result na"/g,'class="cr na"')+'</div></div>';
+
+  // Timeline
+  html+='<div class="card" style="margin-bottom:10px;"><div class="card-head">Transaction Timeline</div><div class="card-body">'+document.getElementById('vldTimeline').innerHTML.replace(/class="vld-tl-item"/g,'class="tl-item"').replace(/class="vld-tl-dot done"/g,'class="tl-dot done"').replace(/class="vld-tl-dot fail"/g,'class="tl-dot fail"').replace(/class="vld-tl-dot info"/g,'class="tl-dot info"').replace(/class="vld-tl-dot pending"/g,'class="tl-dot pending"').replace(/class="vld-tl-title"/g,'class="tl-title"').replace(/class="vld-tl-time"/g,'class="tl-time"').replace(/<div class="vld-tl-detail">[^<]*<\\/div>/g,'')+'</div></div>';
+
+  // Codes
+  var codesEl=document.getElementById('vldCodes');
+  if(codesEl&&codesEl.innerHTML){
+    html+='<div style="margin-bottom:10px;"><div style="font-size:8px;font-weight:800;color:#6b7a90;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;">Authorization &amp; Reference Codes</div><div class="codes">'+codesEl.innerHTML.replace(/class="vld-code-item"/g,'class="code-item"').replace(/class="vld-code-label"/g,'class="code-label"').replace(/class="vld-code-value"/g,'class="code-value"')+'</div></div>';
+  }
+
+  // Final
+  html+='<div class="final '+badgeCls+'">'
+    +'<div style="font-size:28px;">'+(isOk?'&#9989;':isFail?'&#10060;':'&#9203;')+'</div>'
+    +'<div><div class="final-title" style="color:'+stCls+';">'+document.getElementById('vldFinalTitle').textContent+'</div>'
+    +'<div class="final-sub">'+document.getElementById('vldFinalSub').textContent+'</div></div>'
+    +'<div style="margin-left:auto;text-align:right;font-size:8px;color:#6b7a90;"><div>&#128737; Digitally Verified</div><div style="margin-top:3px;">ALSHUMOOKH GLOBAL</div><div>BANKING FINANCE &amp; CREDIT</div></div>'
+    +'</div>';
+
+  html+='<div class="footer"><span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &mdash; CONFIDENTIAL &mdash; '+rptId+'</span><span>Generated: '+now+'</span></div>';
+  html+='</body></html>';
+
+  var w=window.open('','_blank','width=900,height=1100');
+  if(w){w.document.write(html);w.document.close();setTimeout(function(){w.print();},600);}
+}
+</script>
+"""
 
 
 _PRIVATE_REPORT_BODY = """
