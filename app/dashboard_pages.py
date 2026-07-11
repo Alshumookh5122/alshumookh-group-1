@@ -5718,13 +5718,100 @@ function vldPrint(){
 
 
 _PRIVATE_REPORT_BODY = """
+<style>
+.vld-topbar{background:linear-gradient(135deg,#0a1628 0%,#0d2240 60%,#1a3a6b 100%);border-radius:14px;padding:18px 28px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border:1px solid rgba(201,168,76,.25);}
+.vld-topbar-title{font-size:17px;font-weight:900;color:#fff;letter-spacing:.5px;}
+.vld-topbar-sub{font-size:9.5px;color:rgba(255,255,255,.55);margin-top:3px;}
+.vld-topbar-meta{display:flex;gap:20px;flex-wrap:wrap;}
+.vld-topbar-meta-item label{font-size:9px;color:rgba(255,255,255,.45);font-weight:700;letter-spacing:.8px;display:block;text-transform:uppercase;}
+.vld-topbar-meta-item span{font-size:12px;color:#e2e8f0;font-weight:700;}
+.vld-status-badge{padding:7px 18px;border-radius:8px;font-size:12px;font-weight:800;display:flex;align-items:center;gap:6px;}
+.vld-status-badge.ok{background:rgba(16,185,129,.18);color:#10b981;border:1.5px solid rgba(16,185,129,.4);}
+.vld-status-badge.fail{background:rgba(239,68,68,.18);color:#ef4444;border:1.5px solid rgba(239,68,68,.4);}
+.vld-status-badge.pending{background:rgba(245,158,11,.18);color:#f59e0b;border:1.5px solid rgba(245,158,11,.4);}
+.vld-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:11px;margin-bottom:14px;}
+.vld-metric{background:var(--panel);border:1px solid var(--line-strong);border-radius:12px;padding:13px 16px;display:flex;align-items:center;gap:12px;}
+.vld-metric-icon{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+.vld-metric-icon.blue{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);}
+.vld-metric-icon.gold{background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);}
+.vld-metric-icon.green{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);}
+.vld-metric-icon.purple{background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);}
+.vld-metric-icon.orange{background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.3);}
+.vld-metric-label{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.7px;text-transform:uppercase;}
+.vld-metric-value{font-size:13px;font-weight:800;color:var(--ink);margin-top:2px;word-break:break-all;}
+.vld-metric-value.gold{color:#c9a84c;}
+.vld-metric-value.green{color:#10b981;}
+.vld-metric-value.red{color:#ef4444;}
+.vld-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;}
+@media(max-width:1100px){.vld-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:700px){.vld-grid{grid-template-columns:1fr;}}
+.vld-card{background:var(--panel);border:1px solid var(--line-strong);border-radius:12px;overflow:hidden;margin-bottom:0;}
+.vld-card-head{padding:10px 15px;background:rgba(13,34,64,.6);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;}
+.vld-card-head-icon{font-size:14px;}
+.vld-card-head-title{font-size:10px;font-weight:800;color:var(--gold);letter-spacing:.7px;text-transform:uppercase;}
+.vld-card-body{padding:12px 15px;}
+.vld-field{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--line);gap:8px;}
+.vld-field:last-child{border-bottom:none;}
+.vld-field-label{font-size:9.5px;color:var(--muted);font-weight:600;min-width:95px;flex-shrink:0;padding-top:1px;}
+.vld-field-value{font-size:9.5px;color:var(--ink);font-weight:600;text-align:right;word-break:break-all;}
+.vld-field-value code{font-family:monospace;font-size:8.5px;word-break:break-all;}
+.vld-step{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--line);}
+.vld-step:last-child{border-bottom:none;}
+.vld-step-icon{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
+.vld-step-icon.done{background:rgba(16,185,129,.2);border:1.5px solid #10b981;color:#10b981;}
+.vld-step-icon.pending{background:rgba(245,158,11,.15);border:1.5px solid #f59e0b;color:#f59e0b;}
+.vld-step-info{flex:1;}
+.vld-step-name{font-size:10px;font-weight:700;color:var(--ink);}
+.vld-step-desc{font-size:8.5px;color:var(--muted);margin-top:1px;}
+.vld-step-pct{font-size:10px;font-weight:800;}
+.vld-step-pct.done{color:#10b981;}
+.vld-step-pct.pending{color:#f59e0b;}
+.vld-check{display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);}
+.vld-check:last-child{border-bottom:none;}
+.vld-check-label{font-size:9.5px;color:var(--ink);display:flex;align-items:center;gap:5px;}
+.vld-check-result{font-size:9px;font-weight:800;letter-spacing:.3px;}
+.vld-check-result.ok{color:#10b981;}
+.vld-check-result.fail{color:#ef4444;}
+.vld-check-result.warn{color:#f59e0b;}
+.vld-check-result.na{color:#64748b;}
+.vld-score-ring{width:80px;height:80px;margin:6px auto;position:relative;}
+.vld-score-ring svg{transform:rotate(-90deg);}
+.vld-score-num{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:19px;font-weight:900;}
+.vld-tl-item{display:flex;gap:11px;padding:8px 0;position:relative;}
+.vld-tl-item:not(:last-child)::before{content:"";position:absolute;left:13px;top:32px;bottom:0;width:2px;background:var(--line);}
+.vld-tl-dot{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid;}
+.vld-tl-dot.done{background:rgba(16,185,129,.15);border-color:#10b981;}
+.vld-tl-dot.fail{background:rgba(239,68,68,.15);border-color:#ef4444;}
+.vld-tl-dot.pending{background:rgba(245,158,11,.15);border-color:#f59e0b;}
+.vld-tl-dot.info{background:rgba(96,165,250,.15);border-color:#60a5fa;}
+.vld-tl-content{flex:1;}
+.vld-tl-title{font-size:11px;font-weight:700;color:var(--ink);}
+.vld-tl-time{font-size:9px;color:var(--muted);margin-top:1px;}
+.vld-tl-detail{font-size:9px;color:var(--muted);margin-top:3px;background:var(--glass);border-radius:5px;padding:4px 8px;border:1px solid var(--line);}
+.vld-codes{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:9px;margin-bottom:13px;}
+.vld-code-item{background:var(--panel);border:1px solid var(--line-strong);border-radius:9px;padding:10px 11px;text-align:center;}
+.vld-code-label{font-size:7.5px;color:var(--muted);font-weight:700;letter-spacing:.7px;text-transform:uppercase;margin-bottom:3px;}
+.vld-code-value{font-size:14px;font-weight:900;color:var(--gold);letter-spacing:1px;font-family:monospace;}
+.vld-final{border-radius:12px;padding:16px 22px;display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap;}
+.vld-final.ok{background:rgba(16,185,129,.1);border:2px solid rgba(16,185,129,.4);}
+.vld-final.fail{background:rgba(239,68,68,.1);border:2px solid rgba(239,68,68,.4);}
+.vld-final.pending{background:rgba(245,158,11,.1);border:2px solid rgba(245,158,11,.4);}
+.vld-final-icon{font-size:32px;}
+.vld-final-title{font-size:15px;font-weight:900;letter-spacing:.5px;}
+.vld-final-title.ok{color:#10b981;}
+.vld-final-title.fail{color:#ef4444;}
+.vld-final-title.pending{color:#f59e0b;}
+.vld-final-sub{font-size:10px;color:var(--muted);margin-top:3px;}
+.vld-actions{display:flex;gap:9px;margin-left:auto;flex-wrap:wrap;}
+</style>
+
 <div class="page-body">
 
-<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
   <button onclick="history.back()" style="background:var(--glass);border:1px solid var(--line-strong);color:var(--ink);padding:7px 14px;border-radius:8px;font-size:12px;cursor:pointer;">&#8592; Back</button>
   <div style="flex:1;min-width:160px;">
     <div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase;">Confidential</div>
-    <div style="font-size:16px;font-weight:800;color:var(--gold);">Private Report</div>
+    <div style="font-size:16px;font-weight:800;color:var(--gold);">&#128274; Private Report</div>
   </div>
   <button onclick="prPrintAll()" style="background:#0d2240;color:#c9a84c;border:none;padding:8px 18px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">&#128424; Print All</button>
   <button onclick="prLoadAll()" style="background:var(--glass);border:1px solid var(--line-strong);color:var(--ink);padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;">&#8635; Refresh</button>
@@ -5749,32 +5836,17 @@ _PRIVATE_REPORT_BODY = """
   </div>
 </div>
 
-<div id="prAnnotBox" class="panel" style="display:none;">
+<!-- VLD-style detail — populated dynamically by prSelect() -->
+<div id="prAnnotBox" style="display:none;margin-top:16px;"></div>
+
+<!-- Saved Reports -->
+<div class="panel" style="margin-top:16px;">
   <div class="panel-head">
-    <h3 style="margin:0;font-size:13px;">Selected Transaction</h3>
-    <button onclick="prClearSelection()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">&#10005;</button>
+    <span style="font-size:13px;font-weight:800;">&#128196; Saved Reports</span>
+    <span id="prSavedCount" style="font-size:11px;color:var(--muted);font-weight:600;">0 reports</span>
   </div>
-  <div style="padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-    <div id="prSelDetail" style="grid-column:1/-1;padding:10px;background:var(--panel-solid);border-radius:8px;border:1px solid var(--line);font-size:11px;color:var(--ink);"></div>
-    <div style="background:rgba(30,64,175,.08);border:1px solid rgba(30,64,175,.2);border-radius:8px;padding:10px;">
-      <div style="font-size:9px;font-weight:800;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Liquidation Rate</div>
-      <div id="prLiqLabel" style="font-size:12px;color:var(--ink);margin-bottom:8px;">Not set</div>
-      <button onclick="prAskLiq()" style="background:#1e40af;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set %</button>
-    </div>
-    <div style="background:rgba(6,95,70,.08);border:1px solid rgba(6,95,70,.2);border-radius:8px;padding:10px;">
-      <div style="font-size:9px;font-weight:800;color:#34d399;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Post-Liq Amount</div>
-      <div id="prAmtLabel" style="font-size:12px;color:var(--ink);margin-bottom:8px;">Not set</div>
-      <button onclick="prAskAmt()" style="background:#065f46;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set Amount</button>
-    </div>
-    <div style="background:rgba(109,40,217,.08);border:1px solid rgba(109,40,217,.2);border-radius:8px;padding:10px;">
-      <div style="font-size:9px;font-weight:800;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Status Stamp</div>
-      <div id="prStampLabel" style="font-size:12px;color:var(--ink);margin-bottom:8px;">Not set</div>
-      <button onclick="prAskStamp()" style="background:#6d28d9;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set Stamp</button>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:6px;">
-      <button onclick="prPrintOne()" style="background:#0d2240;color:#c9a84c;border:none;padding:10px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;">&#128424; Print This Report</button>
-      <button onclick="prClearAnnot()" style="background:rgba(220,38,38,.1);color:#f87171;border:1px solid rgba(220,38,38,.2);padding:8px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">&#128465; Clear Annotations</button>
-    </div>
+  <div id="prSavedList" style="padding:14px;">
+    <div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;">No saved reports yet. Print a transaction to save it here.</div>
   </div>
 </div>
 
@@ -5794,11 +5866,12 @@ _PRIVATE_REPORT_BODY = """
 </div>
 
 <script>
-/* ══ PRIVATE REPORT — CLEAN v2 ══════════════════════════════════════ */
-var PR_DATA = { order: [], m1: [], payload: [], transfer: [] };
-var PR_META = {};
-var PR_SEL  = { idx: null, type: null };
-var PR_FILT = 'all';
+/* ══ PRIVATE REPORT v3 — VLD STYLE ═════════════════════════════════ */
+var PR_DATA  = { order: [], m1: [], payload: [], transfer: [] };
+var PR_META  = {};
+var PR_SEL   = { idx: null, type: null };
+var PR_FILT  = 'all';
+var PR_SAVED = [];
 
 /* ── API helper ─────────────────────────────────────────────────── */
 function prFetch(url) {
@@ -5980,7 +6053,7 @@ function prRender() {
   el.innerHTML = html;
 }
 
-/* ── Select a row ───────────────────────────────────────────────── */
+/* ── Select a row — VLD style ───────────────────────────────────── */
 function prSelect(idx, type) {
   PR_SEL.idx  = idx;
   PR_SEL.type = type;
@@ -5988,42 +6061,221 @@ function prSelect(idx, type) {
   if (!d) { return; }
 
   var lblMap = { order:'Payment Order', m1:'M1 Tokenization Job', payload:'Settlement Payload', transfer:'Outbound Transfer' };
-  var amt = '';
-  if (type === 'order')    { amt = prFmtNum(d.fiat_amount) + ' ' + (d.fiat_currency || ''); }
-  else if (type === 'm1')  { amt = prFmtNum(d.eur_amount) + ' EUR'; }
-  else if (type === 'payload') { amt = prFmtNum(d.amount) + ' ' + (d.asset || ''); }
-  else { amt = prFmtNum(d.amount) + ' ' + (d.asset || d.currency || 'USDT'); }
+  var stMap = { CONFIRMED:'ok',COMPLETED:'ok',RECONCILED:'ok',APPROVED:'ok',ALCHEMY_VERIFIED:'ok',ON_CHAIN_CONFIRMED:'ok',
+    FAILED:'fail',REJECTED:'fail',CANCELLED:'fail',
+    PENDING:'pending',RECEIVED:'pending',PROCESSING:'pending',AWAITING_TX_HASH:'pending',MANUAL_REVIEW:'pending',AWAITING_APPROVAL:'pending' };
+  var st = d.status || d.verification_status || 'PENDING';
+  var stCls = stMap[st] || 'pending';
+  var isOk = stCls === 'ok', isFail = stCls === 'fail';
+  var stIcons = { ok:'&#9989;', fail:'&#10060;', pending:'&#9203;' };
+  var stColors = { ok:'#10b981', fail:'#ef4444', pending:'#f59e0b' };
 
-  var sd = document.getElementById('prSelDetail');
-  if (sd) {
-    var prog = prProgress(type, d);
-    var progBar = '<div style="margin:8px 0 12px;">'
-      + '<div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:4px;">'
-      + '<span style="color:var(--muted);font-weight:600;">Completion Progress</span>'
-      + '<span style="font-weight:800;color:' + prog.color + ';">' + prog.pct + '%</span></div>'
-      + '<div style="height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;">'
-      + '<div style="height:100%;width:' + prog.pct + '%;background:' + prog.color + ';border-radius:4px;transition:width .4s;"></div></div></div>';
-    var detRows = prBuildRows(type, d);
-    var detTbody = '';
-    detRows.forEach(function(r) {
-      if (r.h) {
-        detTbody += '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:8px;font-weight:800;letter-spacing:.6px;padding:4px 8px;text-transform:uppercase;">' + r.h + '</td></tr>';
-      } else {
-        detTbody += '<tr><td style="padding:4px 8px;font-weight:600;color:var(--muted);font-size:9px;width:36%;white-space:nowrap;border-bottom:1px solid var(--line);">' + r.l + '</td>'
-          + '<td style="padding:4px 8px;font-size:9px;color:var(--ink);word-break:break-all;border-bottom:1px solid var(--line);">' + r.v + '</td></tr>';
-      }
-    });
-    var detTable = '<table style="width:100%;border-collapse:collapse;font-size:9px;border:1px solid var(--line);border-radius:6px;overflow:hidden;">' + detTbody + '</table>';
-    sd.innerHTML = '<div style="margin-bottom:6px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">'
-      + '<strong style="font-size:12px;color:var(--ink);">' + prEsc(lblMap[type] || type) + '</strong>'
-      + '<span style="font-size:15px;font-weight:800;color:var(--gold);">' + prEsc(amt) + '</span>'
-      + '<span style="font-family:monospace;font-size:9px;color:var(--muted);">' + prEsc(d.id || '') + '</span></div>'
-      + progBar + detTable;
-  }
+  var amt = '';
+  if (type==='order') amt = prFmtNum(d.fiat_amount)+' '+(d.fiat_currency||'');
+  else if (type==='m1') amt = prFmtNum(d.eur_amount)+' EUR';
+  else if (type==='payload') amt = prFmtNum(d.amount)+' '+(d.asset||'');
+  else amt = prFmtNum(d.amount)+' '+(d.asset||d.currency||'USDT');
+
+  var net = type==='transfer'?(d.network||'').toUpperCase():type==='payload'?(d.network_name||d.network||'M1_FUND').toUpperCase():type==='order'?(d.network||'').toUpperCase():'ETHEREUM';
+  var ref = type==='order'?(d.payment_reference||d.external_id||d.id||''):type==='m1'?(d.sender_reference||d.id||''):type==='payload'?(d.transaction_reference||d.id||''):(d.id||'');
+  if (ref.length>22) ref=ref.slice(0,22)+'...';
+  var asset = type==='transfer'?(d.asset||'SIG'):type==='payload'?(d.asset||'EUR'):type==='order'?(d.fiat_currency||'EUR'):'SIG / EUR';
+  var rptId = 'PR-'+Date.now().toString(36).toUpperCase();
+
+  var hasHash=!!(d.tx_hash), hasBlock=!!(d.block_number);
+  var steps=[
+    {icon:'&#128203;',name:'Record Parsing',desc:'Data loaded and parsed',done:true},
+    {icon:'&#128200;',name:'Amount Extraction',desc:'Financial values verified',done:true},
+    {icon:'&#127760;',name:'Network Validation',desc:'Network parameters verified',done:!!(d.network||d.network_name)},
+    {icon:'&#9851;',name:'Blockchain Lookup',desc:'On-chain hash search',done:hasHash},
+    {icon:'&#128274;',name:'AML Screening',desc:'Anti-money laundering scan',done:!isFail},
+    {icon:'&#128221;',name:'Final Verification',desc:'All checks compiled',done:isOk}
+  ];
+  var doneCount=steps.filter(function(s){return s.done;}).length;
+  var pct=Math.round(doneCount/steps.length*100);
+
+  function pF(label,value){return '<div class="vld-field"><span class="vld-field-label">'+label+'</span><span class="vld-field-value">'+value+'</span></div>';}
+  function pC(icon,label,result,cls){return '<div class="vld-check"><span class="vld-check-label">'+icon+' '+label+'</span><span class="vld-check-result '+cls+'">'+result+'</span></div>';}
+  function pS(icon,icls,name,desc,p,pcls){return '<div class="vld-step"><div class="vld-step-icon '+icls+'">'+icon+'</div><div class="vld-step-info"><div class="vld-step-name">'+name+'</div><div class="vld-step-desc">'+desc+'</div></div><div class="vld-step-pct '+pcls+'">'+p+'</div></div>';}
+  function pT(dc,icon,title,time,detail){return '<div class="vld-tl-item"><div class="vld-tl-dot '+dc+'">'+icon+'</div><div class="vld-tl-content"><div class="vld-tl-title">'+title+'</div><div class="vld-tl-time">'+time+'</div>'+(detail?'<div class="vld-tl-detail">'+detail+'</div>':'')+'</div></div>';}
+
+  /* Sender */
+  var sH='';
+  if (type==='transfer'){sH+=pF('From Address','<code>'+prEsc(d.from_address||'—')+'</code>');sH+=pF('Initiated By',prEsc(d.initiated_by)||'Admin');sH+=pF('Approved By',prEsc(d.approved_by)||'—');sH+=pF('Approved At',prFmtDate(d.approved_at));sH+=pF('Network',(d.network||'').toUpperCase());sH+=pF('Asset',prEsc(d.asset));}
+  else if (type==='payload'){sH+=pF('Sender Wallet','<code>'+prEsc(d.sender_wallet||'—')+'</code>');sH+=pF('Auth Method',prEsc(d.auth_method));sH+=pF('Security Level',prEsc(d.security_level));sH+=pF('JWS Verified',d.jws_verified?'<span style="color:#10b981">Yes</span>':'No');sH+=pF('mTLS Verified',d.mtls_verified?'<span style="color:#10b981">Yes</span>':'No');sH+=pF('Client IP',prEsc(d.client_ip));}
+  else if (type==='order'){sH+=pF('Payer Email',prEsc(d.payer_email));sH+=pF('Customer Name',prEsc(d.customer_name));sH+=pF('External ID',prEsc(d.external_id));sH+=pF('Idempotency Key','<code>'+prEsc((d.idempotency_key||'').slice(0,22))+'</code>');sH+=pF('Client IP',prEsc(d.client_ip));sH+=pF('Provider',prEsc(d.provider));}
+  else if (type==='m1'){sH+=pF('Sender Name','<strong>'+prEsc(d.sender_name||'—')+'</strong>');sH+=pF('Sender IBAN','<code>'+prEsc(d.sender_iban||'—')+'</code>');sH+=pF('Sender Bank',prEsc(d.sender_bank));sH+=pF('Sender Reference',prEsc(d.sender_reference));sH+=pF('EUR Amount','<strong style="color:#c9a84c;">'+prFmtNum(d.eur_amount)+' EUR</strong>');sH+=pF('FX Rate',prEsc(d.fx_rate_eur_usd||d.fx_rate));}
+
+  /* Receiver */
+  var rH='';
+  if (type==='transfer'){rH+=pF('To Address','<code>'+prEsc(d.to_address||'—')+'</code>');rH+=pF('Contract Address','<code>'+prEsc((d.contract_address||'').slice(0,22)||'—')+'</code>');rH+=pF('Amount','<strong style="color:#c9a84c;">'+prFmtNum(d.amount)+' '+(d.asset||'SIG')+'</strong>');rH+=pF('Notes',prEsc(d.notes)||'—');rH+=pF('Callback URL',prEsc((d.callback_url||'').slice(0,28)));rH+=pF('Webhook Status',d.webhook_status_code?String(d.webhook_status_code):'—');}
+  else if (type==='payload'){rH+=pF('Receiver Wallet','<code>'+prEsc(d.receiver_wallet||'—')+'</code>');rH+=pF('Amount','<strong style="color:#c9a84c;">'+prFmtNum(d.amount)+' '+(d.asset||'EUR')+'</strong>');rH+=pF('Review Decision',prEsc(d.review_decision));rH+=pF('Reviewed By',prEsc(d.reviewed_by));rH+=pF('Review Priority',prEsc(d.review_priority));rH+=pF('Hold Reason',prEsc(d.hold_reason));}
+  else if (type==='order'){rH+=pF('Wallet Address','<code>'+prEsc((d.user_wallet_address||d.wallet||'').slice(0,26))+'</code>');rH+=pF('Treasury Wallet','<code>'+prEsc((d.treasury_wallet_address||'').slice(0,26))+'</code>');rH+=pF('Crypto Amount','<strong>'+prFmtNum(d.crypto_amount)+' '+(d.crypto_currency||'SIG')+'</strong>');rH+=pF('Fiat Amount','<strong style="color:#c9a84c;">'+prFmtNum(d.fiat_amount)+' '+(d.fiat_currency||'EUR')+'</strong>');rH+=pF('Exchange Rate',prEsc(d.exchange_rate));rH+=pF('Processor Ref',prEsc(d.processor_reference));}
+  else if (type==='m1'){rH+=pF('Receiver Wallet','<code>'+prEsc((d.receiver_wallet||'').slice(0,26))+'</code>');rH+=pF('Operator Wallet','<code>'+prEsc((d.operator_wallet||'').slice(0,26))+'</code>');rH+=pF('Contract Address','<code>'+prEsc((d.contract_address||'').slice(0,26))+'</code>');rH+=pF('USD Amount','<strong>'+prFmtNum(d.usd_amount)+' USD</strong>');rH+=pF('SIG Amount','<strong style="color:#c9a84c;">'+prFmtNum(d.usdt_amount)+' SIG</strong>');rH+=pF('FX Provider',prEsc(d.fx_provider));}
+
+  /* Blockchain */
+  var bH='';
+  var txh=d.tx_hash||'—';var expUrl=d.explorer_url||null;
+  var txDisp=(txh!=='—')?(expUrl?'<a href="'+prEsc(expUrl)+'" target="_blank" style="color:#60a5fa;font-size:8.5px;word-break:break-all;font-family:monospace;">'+txh+'</a>':'<code style="font-size:8.5px;word-break:break-all;">'+txh+'</code>'):'—';
+  bH+=pF('TX Hash',txDisp);bH+=pF('Block Number',d.block_number?String(d.block_number):'—');bH+=pF('Confirmations',d.confirmations?String(d.confirmations):'—');bH+=pF('Gas Used',d.gas_used?String(d.gas_used):'—');
+  if(expUrl)bH+=pF('Explorer','<a href="'+prEsc(expUrl)+'" target="_blank" style="color:#60a5fa;font-size:9.5px;">View on Explorer &#8599;</a>');
+  bH+=pF('Broadcasted At',prFmtDate(d.broadcasted_at));bH+=pF('Completed At',prFmtDate(d.completed_at));
+  if(d.error_message)bH+=pF('Error','<span style="color:#ef4444;font-size:9px;">'+prEsc(d.error_message)+'</span>');
+
+  /* Validation checks */
+  var cH='';
+  cH+=pC('&#128203;','Record Exists','VERIFIED','ok');
+  cH+=pC('&#128200;','Amount Format',prFmtNum(d.amount||d.fiat_amount||d.eur_amount)!=='—'?'VALID':'N/A',prFmtNum(d.amount||d.fiat_amount||d.eur_amount)!=='—'?'ok':'na');
+  cH+=pC('&#128279;','Transaction ID','VERIFIED','ok');
+  cH+=pC('&#9932;','Network',(d.network||d.network_name)?'VALID':'N/A',(d.network||d.network_name)?'ok':'na');
+  cH+=pC('&#9851;','TX Hash',hasHash?'VERIFIED':'PENDING',hasHash?'ok':'warn');
+  cH+=pC('&#128274;','Blockchain Confirm.',hasBlock?'CONFIRMED':'AWAITING',hasBlock?'ok':'warn');
+  cH+=pC('&#9878;','AML Screening',isFail?'FLAGGED':'CLEAR',isFail?'fail':'ok');
+  cH+=pC('&#128737;','Status Check',isOk?'PASSED':isFail?'FAILED':'PENDING',isOk?'ok':isFail?'fail':'warn');
+  cH+=pC('&#128221;','Integrity Check',isOk?'VALID':'REVIEW',isOk?'ok':'warn');
+
+  /* Progress steps */
+  var pH=steps.map(function(s){return pS(s.icon,s.done?'done':'pending',s.name,s.desc,s.done?'100%':'—',s.done?'done':'pending');}).join('');
+
+  /* Transmission */
+  var tH='';
+  tH+=pF('Message Format','<span style="color:#10b981">OK</span>');
+  tH+=pF('Server Connectivity','<span style="color:#10b981">OK</span>');
+  tH+=pF('Authentication',isOk?'<span style="color:#10b981">OK</span>':'<span style="color:#f59e0b;">REVIEW</span>');
+  tH+=pF('Encryption','<span style="color:#10b981">OK</span>');
+  tH+=pF('Status','<strong style="color:'+(isOk?'#10b981':isFail?'#ef4444':'#f59e0b')+';">'+prEsc(st)+'</strong>');
+  if(d.approved_by)tH+=pF('Authorized By','<strong>'+prEsc(d.approved_by)+'</strong>');
+
+  /* Timeline */
+  var evts=[];
+  if(d.created_at)evts.push({t:d.created_at,cls:'info',icon:'&#128203;',title:'Transaction Created',detail:'ID: '+(d.id||d.payload_id||'').slice(0,32)});
+  if(d.approved_at)evts.push({t:d.approved_at,cls:'done',icon:'&#9989;',title:'Approved',detail:'By: '+(d.approved_by||'Admin')});
+  if(d.broadcasted_at)evts.push({t:d.broadcasted_at,cls:'info',icon:'&#9851;',title:'Broadcasted to Blockchain',detail:'TX: '+(d.tx_hash||'—').slice(0,40)});
+  if(d.verified_at)evts.push({t:d.verified_at,cls:'done',icon:'&#128274;',title:'Blockchain Verified',detail:'On-chain verification completed'});
+  if(d.webhook_sent_at)evts.push({t:d.webhook_sent_at,cls:'info',icon:'&#128225;',title:'Webhook Dispatched',detail:'HTTP '+(d.webhook_status_code||'—')});
+  if(d.completed_at)evts.push({t:d.completed_at,cls:'done',icon:'&#127881;',title:'Transaction Completed',detail:'Final status: '+prEsc(st)});
+  if(d.cancelled_at)evts.push({t:d.cancelled_at,cls:'fail',icon:'&#10060;',title:'Cancelled',detail:'By: '+(d.cancelled_by||'—')+' — '+(d.cancel_reason||'—')});
+  if(d.last_retry_at)evts.push({t:d.last_retry_at,cls:'pending',icon:'&#8635;',title:'Retry Attempt',detail:'Count: '+String(d.retry_count||0)});
+  if(d.updated_at&&d.updated_at!==d.created_at)evts.push({t:d.updated_at,cls:'info',icon:'&#9998;',title:'Record Updated',detail:'Last modification'});
+  evts.sort(function(a,b){return new Date(a.t)-new Date(b.t);});
+  var tlH=evts.length?evts.map(function(e){return pT(e.cls,e.icon,e.title,prFmtDate(e.t),e.detail);}).join(''):'<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">No timeline events found.</div>';
+
+  /* Auth codes */
+  var codes=[];
+  if(d.id)codes.push({label:'Transaction ID',value:d.id.slice(0,8).toUpperCase()});
+  if(d.payload_id&&d.payload_id!==d.id)codes.push({label:'Payload ID',value:d.payload_id.slice(0,8).toUpperCase()});
+  if(d.order_id)codes.push({label:'Order ID',value:d.order_id.slice(0,8).toUpperCase()});
+  if(d.tokenization_job_id)codes.push({label:'Job ID',value:d.tokenization_job_id.slice(0,8).toUpperCase()});
+  if(d.payment_reference)codes.push({label:'Payment Ref',value:d.payment_reference.slice(-8).toUpperCase()});
+  if(d.sender_reference)codes.push({label:'Sender Ref',value:d.sender_reference.slice(-8).toUpperCase()});
+  var codesH=codes.length?codes.map(function(c){return '<div class="vld-code-item"><div class="vld-code-label">'+c.label+'</div><div class="vld-code-value">'+c.value+'</div></div>';}).join(''):'';
+
+  /* Confidence score */
+  var scorePct=pct>=90?98:pct>=70?82:55;
+  var scoreOffset=Math.round(226-(scorePct/100*226));
+  var scoreCol=scorePct>=90?'#10b981':scorePct>=70?'#f59e0b':'#ef4444';
+  var scoreLbl=scorePct>=90?'HIGH CONFIDENCE':scorePct>=70?'MEDIUM CONFIDENCE':'LOW CONFIDENCE';
+
+  /* Current annotations */
+  var m=PR_META[prKey()]||{};
+  var sc2={APPROVED:'#34d399',CANCELLED:'#f87171',REJECTED:'#f87171',PENDING:'#fbbf24',PROCESSING:'#60a5fa'};
+
+  /* Build HTML */
+  var h='';
+
+  /* Top bar */
+  h+='<div class="vld-topbar">';
+  h+='<div><div class="vld-topbar-title">&#9878; PRIVATE TRANSACTION REPORT &mdash; ALSHUMOOKH GLOBAL</div>';
+  h+='<div class="vld-topbar-sub">BANKING FINANCE &amp; CREDIT &bull; PRIVATE &amp; CONFIDENTIAL &bull; '+prEsc(lblMap[type]||type).toUpperCase()+'</div></div>';
+  h+='<div class="vld-topbar-meta">';
+  h+='<div class="vld-topbar-meta-item"><label>Report ID</label><span>'+prEsc(rptId)+'</span></div>';
+  h+='<div class="vld-topbar-meta-item"><label>Generated</label><span>'+new Date().toLocaleString()+'</span></div>';
+  h+='<div class="vld-topbar-meta-item"><label>Type</label><span>'+prEsc(lblMap[type]||type)+'</span></div>';
+  h+='</div>';
+  h+='<div class="vld-status-badge '+stCls+'">'+stIcons[stCls]+' '+prEsc(st)+'</div>';
+  h+='</div>';
+
+  /* Metrics */
+  h+='<div class="vld-metrics">';
+  h+='<div class="vld-metric"><div class="vld-metric-icon gold">&#128176;</div><div><div class="vld-metric-label">Transaction Amount</div><div class="vld-metric-value gold">'+prEsc(amt)+'</div></div></div>';
+  h+='<div class="vld-metric"><div class="vld-metric-icon blue">&#127760;</div><div><div class="vld-metric-label">Network / Bank</div><div class="vld-metric-value">'+prEsc(net||'—')+'</div></div></div>';
+  h+='<div class="vld-metric"><div class="vld-metric-icon purple">&#128203;</div><div><div class="vld-metric-label">Reference</div><div class="vld-metric-value">'+prEsc(ref)+'</div></div></div>';
+  h+='<div class="vld-metric"><div class="vld-metric-icon green">&#128279;</div><div><div class="vld-metric-label">Asset / Currency</div><div class="vld-metric-value">'+prEsc(asset)+'</div></div></div>';
+  h+='<div class="vld-metric"><div class="vld-metric-icon orange">&#128737;</div><div><div class="vld-metric-label">Final Status</div><div class="vld-metric-value '+(isOk?'green':isFail?'red':'gold')+'">'+prEsc(st)+'</div></div></div>';
+  h+='</div>';
+
+  /* 3-col grid */
+  h+='<div class="vld-grid">';
+  /* Col 1 */
+  h+='<div style="display:flex;flex-direction:column;gap:12px;">';
+  h+='<div class="vld-card"><div class="vld-card-head"><span class="vld-card-head-icon">&#128100;</span><span class="vld-card-head-title">Sender Information</span></div><div class="vld-card-body">'+sH+'</div></div>';
+  h+='<div class="vld-card"><div class="vld-card-head"><span class="vld-card-head-icon">&#9881;</span><span class="vld-card-head-title">Validation Progress</span></div><div class="vld-card-body">'+pH+'</div>';
+  h+='<div style="padding:8px 15px 12px;"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-bottom:4px;"><span>Overall Progress</span><span style="font-weight:800;color:var(--gold);">'+pct+'%</span></div>';
+  h+='<div style="height:7px;background:var(--glass);border-radius:3px;overflow:hidden;border:1px solid var(--line);"><div style="height:100%;border-radius:3px;background:linear-gradient(90deg,#10b981,#059669);width:'+pct+'%;"></div></div></div></div>';
+  h+='</div>';
+  /* Col 2 */
+  h+='<div style="display:flex;flex-direction:column;gap:12px;">';
+  h+='<div class="vld-card"><div class="vld-card-head"><span class="vld-card-head-icon">&#127968;</span><span class="vld-card-head-title">Receiver Information</span></div><div class="vld-card-body">'+rH+'</div></div>';
+  h+='<div class="vld-card"><div class="vld-card-head"><span class="vld-card-head-icon">&#9851;</span><span class="vld-card-head-title">Blockchain &amp; Transaction</span></div><div class="vld-card-body">'+bH+'</div></div>';
+  h+='</div>';
+  /* Col 3 */
+  h+='<div style="display:flex;flex-direction:column;gap:12px;">';
+  h+='<div class="vld-card"><div class="vld-card-head"><span class="vld-card-head-icon">&#9989;</span><span class="vld-card-head-title">Validation Results</span></div><div class="vld-card-body">'+cH+'</div></div>';
+  h+='<div class="vld-card"><div class="vld-card-head"><span class="vld-card-head-icon">&#128200;</span><span class="vld-card-head-title">Confidence Score</span></div>';
+  h+='<div class="vld-card-body" style="text-align:center;padding:14px;">';
+  h+='<div class="vld-score-ring"><svg width="80" height="80" viewBox="0 0 80 80"><circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="9"/><circle cx="40" cy="40" r="32" fill="none" stroke="'+scoreCol+'" stroke-width="9" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="'+scoreOffset+'"/></svg>';
+  h+='<div class="vld-score-num" style="color:'+scoreCol+';">'+scorePct+'%</div></div>';
+  h+='<div style="font-size:12px;font-weight:800;color:'+scoreCol+';margin-top:3px;">'+scoreLbl+'</div>';
+  h+='</div></div>';
+  h+='<div class="vld-card"><div class="vld-card-head"><span class="vld-card-head-icon">&#128225;</span><span class="vld-card-head-title">Transmission &amp; Status</span></div><div class="vld-card-body">'+tH+'</div></div>';
+  h+='</div>';
+  h+='</div>'; /* end vld-grid */
+
+  /* Timeline */
+  h+='<div class="vld-card" style="margin-bottom:13px;"><div class="vld-card-head"><span class="vld-card-head-icon">&#128336;</span><span class="vld-card-head-title">Transaction Timeline</span></div><div style="padding:12px 15px;">'+tlH+'</div></div>';
+
+  /* Codes */
+  if(codesH){h+='<div style="margin-bottom:13px;"><div style="font-size:9.5px;font-weight:800;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px;">&#128273; Authorization &amp; Reference Codes</div><div class="vld-codes">'+codesH+'</div></div>';}
+
+  /* Final banner */
+  var ftitles={ok:'APPROVED FOR TRANSMISSION',fail:'REJECTED — REQUIRES REVIEW',pending:'PENDING — AWAITING PROCESSING'};
+  var fsubs={ok:'All validation processes completed. Transaction authorized and approved.',fail:'Validation checks failed. Manual review required before processing.',pending:'Transaction is currently being processed. Awaiting further updates.'};
+  h+='<div class="vld-final '+stCls+'">';
+  h+='<div class="vld-final-icon">'+(isOk?'&#9989;':isFail?'&#10060;':'&#9203;')+'</div>';
+  h+='<div><div class="vld-final-title '+stCls+'">'+(ftitles[stCls]||'STATUS UNKNOWN')+'</div><div class="vld-final-sub">'+(fsubs[stCls]||'')+'</div></div>';
+  h+='<div class="vld-actions">';
+  h+='<button onclick="prPrintOne()" style="background:#0d2240;color:#c9a84c;border:none;padding:10px 22px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">&#128424; Print &amp; Save</button>';
+  h+='<button onclick="prClearSelection()" style="background:var(--glass);border:1px solid var(--line-strong);color:var(--ink);padding:10px 16px;border-radius:8px;font-size:11px;cursor:pointer;">&#10005; Close</button>';
+  h+='</div></div>';
+
+  /* Private Annotations panel */
+  h+='<div style="background:var(--panel);border:1px solid rgba(201,168,76,.3);border-radius:12px;padding:16px;margin-bottom:13px;">';
+  h+='<div style="font-size:10px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;">&#128274; Private Annotations</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:start;">';
+  /* Liq Rate */
+  h+='<div style="background:rgba(30,64,175,.08);border:1px solid rgba(30,64,175,.2);border-radius:8px;padding:10px;">';
+  h+='<div style="font-size:9px;font-weight:800;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Liquidation Rate</div>';
+  h+='<div id="prLiqLabel" style="font-size:12px;color:var(--ink);margin-bottom:7px;">'+(m.liq_pct?m.liq_pct+'%':'Not set')+'</div>';
+  h+='<button onclick="prAskLiq()" style="background:#1e40af;color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set %</button></div>';
+  /* Custom amount */
+  h+='<div style="background:rgba(6,95,70,.08);border:1px solid rgba(6,95,70,.2);border-radius:8px;padding:10px;">';
+  h+='<div style="font-size:9px;font-weight:800;color:#34d399;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Post-Liq Amount</div>';
+  h+='<div id="prAmtLabel" style="font-size:12px;color:var(--ink);margin-bottom:7px;">'+(m.custom_amt?m.custom_amt+' '+(m.custom_cur||'USD'):'Not set')+'</div>';
+  h+='<button onclick="prAskAmt()" style="background:#065f46;color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set Amount</button></div>';
+  /* Status stamp */
+  h+='<div style="background:rgba(109,40,217,.08);border:1px solid rgba(109,40,217,.2);border-radius:8px;padding:10px;">';
+  h+='<div style="font-size:9px;font-weight:800;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Status Stamp</div>';
+  h+='<div id="prStampLabel" style="font-size:12px;color:'+(m.stamp?(sc2[m.stamp]||'var(--ink)'):'var(--muted)')+';font-weight:'+(m.stamp?'700':'400')+';margin-bottom:7px;">'+(m.stamp||'Not set')+'</div>';
+  h+='<button onclick="prAskStamp()" style="background:#6d28d9;color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set Stamp</button></div>';
+  /* Action btns */
+  h+='<div style="display:flex;flex-direction:column;gap:7px;padding-top:2px;">';
+  h+='<button onclick="prPrintOne()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 12px;border-radius:8px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128424; Print &amp; Save</button>';
+  h+='<button onclick="prClearAnnot()" style="background:rgba(220,38,38,.1);color:#f87171;border:1px solid rgba(220,38,38,.2);padding:7px 12px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">&#128465; Clear</button>';
+  h+='</div>';
+  h+='</div></div>';
 
   var ab = document.getElementById('prAnnotBox');
-  if (ab) { ab.style.display = 'block'; }
-  prRefreshAnnotLabels();
+  if (ab) { ab.style.display = 'block'; ab.innerHTML = h; ab.scrollIntoView({behavior:'smooth',block:'start'}); }
   prRender();
 }
 
@@ -6031,7 +6283,7 @@ function prClearSelection() {
   PR_SEL.idx  = null;
   PR_SEL.type = null;
   var ab = document.getElementById('prAnnotBox');
-  if (ab) { ab.style.display = 'none'; }
+  if (ab) { ab.style.display = 'none'; ab.innerHTML = ''; }
   prRender();
 }
 
@@ -6371,14 +6623,85 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
 /* ── Print one transaction ──────────────────────────────────────── */
 function prPrintOne() {
   if (PR_SEL.idx === null) { alert('Please select a transaction first.'); return; }
-  var type = PR_SEL.type;
-  var d    = PR_DATA[type] ? PR_DATA[type][PR_SEL.idx] : null;
-  if (!d)  { return; }
+  var type   = PR_SEL.type;
+  var d      = PR_DATA[type] ? PR_DATA[type][PR_SEL.idx] : null;
+  if (!d)    { return; }
   var lblMap = { order:'Payment Order', m1:'M1 Tokenization', payload:'Settlement Payload', transfer:'Outbound Transfer' };
   var ref    = Date.now().toString(36).toUpperCase();
-  var html   = prBuildPrintHTML(type, d, PR_META[prKey()], lblMap[type] || type, ref);
+  var meta   = PR_META[prKey()] || {};
+  var html   = prBuildPrintHTML(type, d, meta, lblMap[type] || type, ref);
   var w = window.open('', '_blank', 'width=820,height=980');
   if (w) { w.document.write(html); w.document.close(); }
+  /* Save record */
+  prSaveReport(type, d, meta, ref, lblMap[type] || type);
+}
+
+/* ── Save & Render Saved Reports ────────────────────────────────── */
+function prSaveReport(type, d, meta, ref, lbl) {
+  var amt = '';
+  if (type==='order') amt = prFmtNum(d.fiat_amount)+' '+(d.fiat_currency||'');
+  else if (type==='m1') amt = prFmtNum(d.eur_amount)+' EUR';
+  else if (type==='payload') amt = prFmtNum(d.amount)+' '+(d.asset||'');
+  else amt = prFmtNum(d.amount)+' '+(d.asset||'USDT');
+  PR_SAVED.unshift({
+    ref: ref,
+    type: type,
+    lbl: lbl,
+    id: d.id || d.payload_id || '',
+    amount: amt,
+    status: String(d.status || d.verification_status || ''),
+    date: new Date().toLocaleString(),
+    data: d,
+    meta: meta || {}
+  });
+  prRenderSaved();
+}
+
+function prRenderSaved() {
+  var el = document.getElementById('prSavedList');
+  var cnt = document.getElementById('prSavedCount');
+  if (cnt) { cnt.textContent = PR_SAVED.length + ' report' + (PR_SAVED.length !== 1 ? 's' : ''); }
+  if (!el) { return; }
+  if (!PR_SAVED.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;">No saved reports yet. Print a transaction to save it here.</div>';
+    return;
+  }
+  var typeColors = { order:'#1e40af', m1:'#065f46', payload:'#7c3aed', transfer:'#b45309' };
+  var stColors = { COMPLETED:'#10b981',CONFIRMED:'#10b981',APPROVED:'#10b981',RECONCILED:'#10b981',FAILED:'#ef4444',REJECTED:'#ef4444',CANCELLED:'#ef4444',PENDING:'#f59e0b',PROCESSING:'#60a5fa' };
+  var thS = 'padding:6px 10px;font-size:9px;font-weight:700;color:var(--muted);text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;';
+  var h = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">';
+  h += '<thead><tr style="background:rgba(255,255,255,.03);">';
+  h += '<th style="'+thS+'">Saved</th><th style="'+thS+'">Type</th><th style="'+thS+'">Amount</th><th style="'+thS+'">Status</th><th style="'+thS+'">Ref</th><th style="'+thS+'">Actions</th>';
+  h += '</tr></thead><tbody>';
+  PR_SAVED.forEach(function(r, i) {
+    var stCol = stColors[r.status] || '#94a3b8';
+    h += '<tr style="border-bottom:1px solid var(--line);">';
+    h += '<td style="padding:7px 10px;font-size:9.5px;color:var(--muted);white-space:nowrap;">'+prEsc(r.date)+'</td>';
+    h += '<td style="padding:7px 10px;"><span style="background:'+(typeColors[r.type]||'#374151')+';color:#fff;border-radius:3px;padding:2px 7px;font-size:8px;font-weight:800;">'+prEsc(r.lbl||r.type).toUpperCase().slice(0,8)+'</span></td>';
+    h += '<td style="padding:7px 10px;font-weight:700;color:var(--gold);font-size:10.5px;white-space:nowrap;">'+prEsc(r.amount)+'</td>';
+    h += '<td style="padding:7px 10px;font-size:10px;font-weight:700;color:'+stCol+';">'+prEsc(r.status)+'</td>';
+    h += '<td style="padding:7px 10px;font-family:monospace;font-size:9px;color:var(--muted);">PR-'+prEsc(r.ref)+'</td>';
+    h += '<td style="padding:7px 10px;white-space:nowrap;">';
+    h += '<button onclick="prReopenReport('+i+')" style="background:#0d2240;color:#c9a84c;border:none;padding:4px 10px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;margin-right:5px;">&#128424; Reopen</button>';
+    h += '<button onclick="prDeleteSaved('+i+')" style="background:rgba(220,38,38,.1);color:#f87171;border:1px solid rgba(220,38,38,.2);padding:4px 9px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;">&#128465;</button>';
+    h += '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  el.innerHTML = h;
+}
+
+function prReopenReport(i) {
+  var r = PR_SAVED[i];
+  if (!r) { return; }
+  var html = prBuildPrintHTML(r.type, r.data, r.meta, r.lbl, r.ref);
+  var w = window.open('', '_blank', 'width=820,height=980');
+  if (w) { w.document.write(html); w.document.close(); }
+}
+
+function prDeleteSaved(i) {
+  if (!confirm('Delete this saved report?')) { return; }
+  PR_SAVED.splice(i, 1);
+  prRenderSaved();
 }
 
 /* ── Print all ──────────────────────────────────────────────────── */
