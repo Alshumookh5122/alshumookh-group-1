@@ -1612,7 +1612,7 @@ function loadPayloads() {
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
       +'<td style="white-space:nowrap;">'
       +'<button class="btn btn-ghost" data-rid="'+rid+'" onclick="event.stopPropagation();viewPayload(this.dataset.rid)" style="font-size:11px;padding:4px 10px;">View</button> '
-      +'<button class="btn btn-danger" data-rid="'+rid+'" onclick="event.stopPropagation();deletePayload(this.dataset.rid)" style="font-size:11px;padding:4px 10px;">🗑 Delete</button>'
+      +'<button class="btn btn-danger" data-rid="'+rid+'" onclick="event.stopPropagation();deletePayload(this.dataset.rid)" style="font-size:11px;padding:4px 10px;background:#7f1d1d;border-color:#991b1b;">&#128465; Delete</button>'
       +'</td>'
       +'</tr>';}).join('');
     document.getElementById('plBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
@@ -1653,7 +1653,7 @@ function viewPayload(id) {
     }
     acts.push('<button class="btn btn-success" data-pid="'+id+'" data-act="approve" onclick="reviewPl(this.dataset.pid,this.dataset.act)">Approve</button>');
     acts.push('<button class="btn btn-danger"  data-pid="'+id+'" data-act="reject"  onclick="reviewPl(this.dataset.pid,this.dataset.act)">Reject</button>');
-    acts.push('<button class="btn btn-danger" data-pid="'+id+'" onclick="deletePayload(this.dataset.pid)" style="margin-left:12px;background:#7f1d1d;border-color:#991b1b;">🗑 Delete Permanently</button>');
+    acts.push('<button class="btn btn-danger" data-pid="'+id+'" onclick="deletePayload(this.dataset.pid)" style="margin-left:12px;background:#7f1d1d;border-color:#991b1b;">&#128465; Delete Permanently</button>');
     // Route to Provider section
     var eurAmt = p.amount ? parseFloat(p.amount).toFixed(2) : '0.00';
     var routeHtml = '<div style="margin-top:16px;padding:16px;background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:10px;">'
@@ -1702,14 +1702,14 @@ function reviewPl(id,decision){
   api('/api/v1/admin/payloads/'+id+'/review',{method:'POST',body:JSON.stringify({action:action,note:note})}).then(function(){showToast(action==='APPROVE'?'Approved':'Rejected','ok');loadPayloads();}).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function deletePayload(id){
-  if(!confirm('⚠️ Delete this payload permanently?\n\nID: '+id+'\n\nThis action cannot be undone and will remove the record from the entire system.')) return;
+  if(!confirm('Delete this payload permanently?\\n\\nID: '+id+'\\n\\nThis action cannot be undone.')) return;
   api('/api/v1/admin/payloads/'+id,{method:'DELETE'})
     .then(function(){
-      showToast('✅ Payload deleted permanently','ok');
+      showToast('Payload deleted permanently','ok');
       document.getElementById('plDetail').style.display='none';
       loadPayloads();
     })
-    .catch(function(e){showToast('❌ Delete failed: '+e.message,'error');});
+    .catch(function(e){showToast('Delete failed: '+e.message,'error');});
 }
 loadPayloads();
 </script>
