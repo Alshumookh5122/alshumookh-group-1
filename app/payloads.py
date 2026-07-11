@@ -725,7 +725,7 @@ async def ingest_payload(
 async def list_payloads(
     _admin: AdminKey,
     db: AsyncSession = Depends(get_db),
-    limit: int = 50,
+    limit: int = 2000,
     offset: int = 0,
     verification_status: str | None = None,
 ):
@@ -921,9 +921,8 @@ async def delete_payload(
 
     await log_event(
         db,
-        event_type="PAYLOAD_DELETED",
-        payload_id=ep.id,
-        data={
+        "PAYLOAD_DELETED",
+        {
             "payload_id": ep.id,
             "verification_status": ep.verification_status,
             "amount": str(ep.amount) if ep.amount else None,

@@ -1592,7 +1592,7 @@ _PAYLOADS_BODY = """
 <script>
 function loadPayloads() {
   var st = document.getElementById('plStatus').value;
-  var url = '/api/v1/admin/payloads' + (st ? '?verification_status='+st : '');
+  var url = '/api/v1/admin/payloads?limit=2000' + (st ? '&verification_status='+st : '');
   api(url).then(function(res) {
     var rows = res.payloads||[];
     document.getElementById('plCount').textContent = (res.count||rows.length)+' payload';
