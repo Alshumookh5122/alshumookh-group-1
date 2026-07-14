@@ -7383,14 +7383,14 @@ function _refreshTokenDisplays(addrText, symbol) {
   if (el5) el5.textContent = symbol || 'tokens';
 }
 
-function getPublicRpc(chainId) {
-  // Free public RPC endpoints — used for read-only calls (no MetaMask needed)
+function getPublicRpcs(chainId) {
+  // Multiple fallback RPC endpoints per chain (tried in order)
   const rpcMap = {
-    1:  'https://cloudflare-eth.com',
-    56: 'https://bsc-dataseed.binance.org',
-    97: 'https://data-seed-prebsc-1-s1.binance.org:8545'
+    1:  ['https://rpc.ankr.com/eth', 'https://eth.llamarpc.com', 'https://cloudflare-eth.com'],
+    56: ['https://bsc-dataseed.binance.org', 'https://bsc-dataseed1.binance.org'],
+    97: ['https://data-seed-prebsc-1-s1.binance.org:8545']
   };
-  return rpcMap[chainId] || 'https://cloudflare-eth.com';
+  return rpcMap[chainId] || rpcMap[1];
 }
 
 async function lookupToken() {
@@ -7404,33 +7404,46 @@ async function lookupToken() {
   const errEl = document.getElementById('tokenInfoError');
   const infoEl = document.getElementById('tokenInfoBox');
   errEl.style.display = 'none';
-  try {
-    // Use direct public JSON-RPC — no MetaMask needed for read-only token lookup
-    const chainId = parseInt(document.getElementById('networkSelect').value);
-    const rpcUrl = getPublicRpc(chainId);
-    const readProvider = new ethers.JsonRpcProvider(rpcUrl);
-    log('Looking up token on chain ' + chainId + ' via ' + rpcUrl + '...');
-    const ERC20_FULL = [
-      "function symbol() view returns (string)",
-      "function decimals() view returns (uint8)",
-      "function name() view returns (string)"
-    ];
-    const tok = new ethers.Contract(addr, ERC20_FULL, readProvider);
-    const [sym, dec, name] = await Promise.all([tok.symbol(), tok.decimals(), tok.name()]);
-    activeTokenAddr = addr;
-    activeTokenSymbol = sym;
-    activeTokenDecimals = Number(dec);
-    document.getElementById('tokenSymbolDisplay').textContent = sym;
-    document.getElementById('tokenDecimalsDisplay').textContent = dec.toString();
-    document.getElementById('tokenNameDisplay').textContent = name;
-    infoEl.style.display = 'block';
-    _refreshTokenDisplays(addr, sym);
-    log('Token loaded: ' + name + ' (' + sym + ') — decimals: ' + dec);
-  } catch(e) {
-    errEl.textContent = 'Could not read token info: ' + (e.reason || e.message) + '. Make sure the address is a valid ERC-20 contract on the selected network.';
-    errEl.style.display = 'block';
-    infoEl.style.display = 'none';
+  infoEl.style.display = 'none';
+
+  const chainId = parseInt(document.getElementById('networkSelect').value);
+  const rpcs = getPublicRpcs(chainId);
+  const ERC20_FULL = [
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)",
+    "function name() view returns (string)"
+  ];
+
+  let lastError = null;
+  for (const rpcUrl of rpcs) {
+    try {
+      log('Trying RPC: ' + rpcUrl + '...');
+      const readProvider = new ethers.JsonRpcProvider(rpcUrl);
+      const tok = new ethers.Contract(addr, ERC20_FULL, readProvider);
+      const [sym, dec, name] = await Promise.all([
+        tok.symbol(), tok.decimals(), tok.name()
+      ]);
+      // ✅ Success
+      activeTokenAddr = addr;
+      activeTokenSymbol = sym;
+      activeTokenDecimals = Number(dec);
+      document.getElementById('tokenSymbolDisplay').textContent = sym;
+      document.getElementById('tokenDecimalsDisplay').textContent = dec.toString();
+      document.getElementById('tokenNameDisplay').textContent = name;
+      infoEl.style.display = 'block';
+      _refreshTokenDisplays(addr, sym);
+      log('\\u2705 Token loaded via ' + rpcUrl + ': ' + name + ' (' + sym + ') decimals=' + dec);
+      return;
+    } catch(e) {
+      lastError = e;
+      log('\\u26a0\\ufe0f ' + rpcUrl + ' failed: ' + (e.message || String(e)).substring(0, 100));
+    }
   }
+  // All RPCs failed
+  errEl.textContent = 'Could not read token info from any RPC endpoint. ' +
+    'Last error: ' + ((lastError && (lastError.reason || lastError.message)) || String(lastError)) +
+    '. Make sure the address is a valid ERC-20 contract on the selected network.';
+  errEl.style.display = 'block';
 }
 
 async function setPresetToken(addr, sym) {
