@@ -7186,6 +7186,38 @@ _DISTRIBUTOR_BODY = """
   <p style="font-size:11px;color:var(--muted);margin:10px 0 0;">Freeze = lock payees permanently (required before deposits).<br>Close Deposits = end investor period (claims stay open).</p>
 </div>
 
+<!-- Active Token Setup -->
+<div class="dist-card" style="border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.04);">
+  <h3>🪙 Active Token (ERC-20)</h3>
+  <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Enter the contract address of any ERC-20 token the client will send — USDT, USDC, or any other token. This will be used for all deposit and claim operations.</p>
+  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+    <div style="flex:1;">
+      <label style="font-size:11px;color:var(--muted);">Token Contract Address</label>
+      <input class="dist-input" id="activeTokenAddr" placeholder="0x... paste token contract address here" style="margin:4px 0 0;border-color:rgba(251,191,36,.5);" oninput="clearTokenInfo()" />
+    </div>
+    <button class="dist-btn ghost" onclick="lookupToken()" style="margin-bottom:8px;border-color:rgba(251,191,36,.5);color:#fbbf24;">🔍 Lookup Token</button>
+  </div>
+  <div id="tokenInfoBox" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;">
+    <div style="display:flex;gap:20px;flex-wrap:wrap;">
+      <div><span style="font-size:10px;color:var(--muted);display:block;text-transform:uppercase;">Symbol</span><span id="tokenSymbolDisplay" style="font-size:15px;font-weight:800;color:#fbbf24;">—</span></div>
+      <div><span style="font-size:10px;color:var(--muted);display:block;text-transform:uppercase;">Decimals</span><span id="tokenDecimalsDisplay" style="font-size:15px;font-weight:800;color:#fbbf24;">—</span></div>
+      <div><span style="font-size:10px;color:var(--muted);display:block;text-transform:uppercase;">Name</span><span id="tokenNameDisplay" style="font-size:13px;font-weight:600;color:#f0f0f0;">—</span></div>
+    </div>
+  </div>
+  <div id="tokenInfoError" style="display:none;margin-top:8px;font-size:12px;color:#f87171;"></div>
+  <!-- Quick presets -->
+  <div style="margin-top:12px;">
+    <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Quick Select:</span>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+      <button class="dist-btn ghost" onclick="setPresetToken('0xdac17f958d2ee523a2206206994597c13d831ec7','USDT')" style="font-size:11px;padding:5px 12px;">USDT (ETH)</button>
+      <button class="dist-btn ghost" onclick="setPresetToken('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48','USDC')" style="font-size:11px;padding:5px 12px;">USDC (ETH)</button>
+      <button class="dist-btn ghost" onclick="setPresetToken('0x55d398326f99059ff775485246999027b3197955','USDT-BSC')" style="font-size:11px;padding:5px 12px;">USDT (BSC)</button>
+      <button class="dist-btn ghost" onclick="setPresetToken('0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d','USDC-BSC')" style="font-size:11px;padding:5px 12px;">USDC (BSC)</button>
+      <button class="dist-btn ghost" onclick="setPresetToken('0xc2ac880e474c3576cc3afb7c560e402ce24d5b37','SIG')" style="font-size:11px;padding:5px 12px;">SIG</button>
+    </div>
+  </div>
+</div>
+
 <!-- Deposit -->
 <div class="dist-card">
   <h3>💰 Deposit Funds</h3>
@@ -7196,10 +7228,12 @@ _DISTRIBUTOR_BODY = """
       <button class="dist-btn success" onclick="doDepositNative()">⬇️ Deposit ETH</button>
     </div>
     <div>
-      <label style="font-size:11px;color:var(--muted);">Deposit SIG Token (ERC20)</label>
-      <input class="dist-input" id="tokenAddr" placeholder="SIG Token address (0x...)" value="0xc2ac880e474c3576cc3afb7c560e402ce24d5b37" />
-      <input class="dist-input" id="tokenAmount" placeholder="Amount (in token units, e.g. 1000)" />
-      <button class="dist-btn success" onclick="doDepositToken()">⬇️ Approve & Deposit SIG</button>
+      <label style="font-size:11px;color:var(--muted);">Deposit ERC-20 Token — <span id="depositTokenLabel" style="color:#fbbf24;">select token above first</span></label>
+      <div style="padding:8px 10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;margin-bottom:8px;font-size:11px;color:var(--muted);">
+        Token: <code id="depositTokenAddrDisplay" style="color:#fbbf24;">not set</code>
+      </div>
+      <input class="dist-input" id="tokenAmount" placeholder="Amount (e.g. 1000)" />
+      <button class="dist-btn success" onclick="doDepositToken()">⬇️ Approve & Deposit Token</button>
     </div>
   </div>
 </div>
@@ -7214,10 +7248,12 @@ _DISTRIBUTOR_BODY = """
       <button class="dist-btn primary" onclick="doClaimNative()">💎 Claim ETH</button>
     </div>
     <div>
-      <label style="font-size:11px;color:var(--muted);">Claim SIG Token</label>
-      <input class="dist-input" id="claimTokenAddr" placeholder="Token address (0x...)" value="0xc2ac880e474c3576cc3afb7c560e402ce24d5b37" />
-      <div class="dist-stat" style="margin-bottom:10px;"><span id="claimableToken">—</span> <span style="font-size:11px;color:var(--muted);">tokens</span></div>
-      <button class="dist-btn primary" onclick="checkClaimableToken()">🔍 Check</button>
+      <label style="font-size:11px;color:var(--muted);">Claim Token — <span id="claimTokenLabel" style="color:#fbbf24;">select token above first</span></label>
+      <div style="padding:8px 10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;margin-bottom:8px;font-size:11px;color:var(--muted);">
+        Token: <code id="claimTokenAddrDisplay" style="color:#fbbf24;">not set</code>
+      </div>
+      <div class="dist-stat" style="margin-bottom:10px;"><span id="claimableToken">—</span> <span id="claimableTokenSymbol" style="font-size:11px;color:var(--muted);">tokens</span></div>
+      <button class="dist-btn primary" onclick="checkClaimableToken()">🔍 Check Balance</button>
       <button class="dist-btn success" onclick="doClaimToken()" style="margin-left:6px;">💎 Claim Token</button>
     </div>
   </div>
@@ -7310,6 +7346,87 @@ const ERC20_ABI = [
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 let provider, signer, walletAddress;
+
+// ── Active Token State ────────────────────────────────────────────────────────
+let activeTokenAddr = '';
+let activeTokenSymbol = '';
+let activeTokenDecimals = 18;
+
+function getActiveTokenAddr() {
+  const a = document.getElementById('activeTokenAddr').value.trim();
+  if (!a) { alert('Please set the Active Token address first (ERC-20 section above).'); return null; }
+  return a;
+}
+
+function clearTokenInfo() {
+  activeTokenAddr = '';
+  activeTokenSymbol = '';
+  activeTokenDecimals = 18;
+  document.getElementById('tokenInfoBox').style.display = 'none';
+  document.getElementById('tokenInfoError').style.display = 'none';
+  _refreshTokenDisplays('not set', '');
+}
+
+function _refreshTokenDisplays(addrText, symbol) {
+  const lbl = symbol ? symbol + ' (' + addrText.slice(0,10) + '...)' : addrText;
+  const el1 = document.getElementById('depositTokenAddrDisplay');
+  const el2 = document.getElementById('claimTokenAddrDisplay');
+  const el3 = document.getElementById('depositTokenLabel');
+  const el4 = document.getElementById('claimTokenLabel');
+  const el5 = document.getElementById('claimableTokenSymbol');
+  if (el1) el1.textContent = addrText;
+  if (el2) el2.textContent = addrText;
+  if (el3) el3.textContent = symbol ? symbol : 'select token above first';
+  if (el4) el4.textContent = symbol ? symbol : 'select token above first';
+  if (el5) el5.textContent = symbol || 'tokens';
+}
+
+async function lookupToken() {
+  const addr = document.getElementById('activeTokenAddr').value.trim();
+  if (!addr || !addr.startsWith('0x')) {
+    document.getElementById('tokenInfoError').textContent = 'Enter a valid 0x token contract address.';
+    document.getElementById('tokenInfoError').style.display = 'block';
+    document.getElementById('tokenInfoBox').style.display = 'none';
+    return;
+  }
+  const errEl = document.getElementById('tokenInfoError');
+  const infoEl = document.getElementById('tokenInfoBox');
+  errEl.style.display = 'none';
+  if (!provider) {
+    errEl.textContent = 'Connect MetaMask first to look up token info.';
+    errEl.style.display = 'block';
+    return;
+  }
+  try {
+    const ERC20_FULL = [
+      "function symbol() view returns (string)",
+      "function decimals() view returns (uint8)",
+      "function name() view returns (string)"
+    ];
+    const tok = new ethers.Contract(addr, ERC20_FULL, provider);
+    const [sym, dec, name] = await Promise.all([tok.symbol(), tok.decimals(), tok.name()]);
+    activeTokenAddr = addr;
+    activeTokenSymbol = sym;
+    activeTokenDecimals = Number(dec);
+    document.getElementById('tokenSymbolDisplay').textContent = sym;
+    document.getElementById('tokenDecimalsDisplay').textContent = dec.toString();
+    document.getElementById('tokenNameDisplay').textContent = name;
+    infoEl.style.display = 'block';
+    _refreshTokenDisplays(addr, sym);
+    log('Token loaded: ' + name + ' (' + sym + ') — decimals: ' + dec);
+  } catch(e) {
+    errEl.textContent = 'Could not read token info: ' + (e.reason || e.message) + '. Make sure the address is a valid ERC-20 contract on the selected network.';
+    errEl.style.display = 'block';
+    infoEl.style.display = 'none';
+  }
+}
+
+async function setPresetToken(addr, sym) {
+  document.getElementById('activeTokenAddr').value = addr;
+  clearTokenInfo();
+  document.getElementById('activeTokenAddr').value = addr;
+  await lookupToken();
+}
 
 function log(msg) {
   const el = document.getElementById('distLog');
@@ -7619,25 +7736,25 @@ async function doDepositNative() {
 async function doDepositToken() {
   if (!signer) { alert('Connect wallet first'); return; }
   const c = distContract(); if (!c) return;
-  const tokenAddr = document.getElementById('tokenAddr').value.trim();
+  const tokenAddr = getActiveTokenAddr(); if (!tokenAddr) return;
   const amtRaw = document.getElementById('tokenAmount').value.trim();
-  if (!tokenAddr || !amtRaw) { alert('Enter token address and amount'); return; }
+  if (!amtRaw) { alert('Enter the amount to deposit'); return; }
   try {
     const token = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
-    const decimals = await token.decimals();
-    const symbol = await token.symbol();
+    const decimals = activeTokenDecimals || Number(await token.decimals());
+    const symbol = activeTokenSymbol || await token.symbol();
     const amount = ethers.parseUnits(amtRaw, decimals);
     const distAddr = document.getElementById('contractAddr').value.trim();
 
-    log('Approving ' + amtRaw + ' ' + symbol + '...');
+    log('Approving ' + amtRaw + ' ' + symbol + ' (' + tokenAddr + ')...');
     const approveTx = await token.approve(distAddr, amount);
     await approveTx.wait();
-    log('Approved! Now depositing...');
+    log('Approved! Now depositing into contract...');
 
     const tx = await c.depositToken(tokenAddr, amount);
-    log('Tx: ' + tx.hash + ' — waiting...');
+    log('Tx: ' + tx.hash + ' — waiting for confirmation...');
     await tx.wait();
-    log('Token deposit confirmed! ' + amtRaw + ' ' + symbol + ' deposited.');
+    log('✅ Token deposit confirmed! ' + amtRaw + ' ' + symbol + ' deposited.');
     loadContractState();
   } catch(e) { log('depositToken error: ' + (e.reason || e.message)); }
 }
@@ -7658,27 +7775,29 @@ async function doClaimNative() {
 async function checkClaimableToken() {
   if (!signer || !walletAddress) { alert('Connect wallet first'); return; }
   const c = distContract(); if (!c) return;
-  const tokenAddr = document.getElementById('claimTokenAddr').value.trim();
-  if (!tokenAddr) { alert('Enter token address'); return; }
+  const tokenAddr = getActiveTokenAddr(); if (!tokenAddr) return;
   try {
     const token = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
-    const decimals = await token.decimals();
+    const decimals = activeTokenDecimals || Number(await token.decimals());
+    const sym = activeTokenSymbol || await token.symbol();
     const amt = await c.claimable(tokenAddr, walletAddress);
     document.getElementById('claimableToken').textContent = ethers.formatUnits(amt, decimals);
+    document.getElementById('claimableTokenSymbol').textContent = sym;
+    log('Claimable ' + sym + ': ' + ethers.formatUnits(amt, decimals));
   } catch(e) { log('checkClaimable error: ' + e.message); }
 }
 
 async function doClaimToken() {
   if (!signer) { alert('Connect wallet first'); return; }
   const c = distContract(); if (!c) return;
-  const tokenAddr = document.getElementById('claimTokenAddr').value.trim();
-  if (!tokenAddr) { alert('Enter token address'); return; }
+  const tokenAddr = getActiveTokenAddr(); if (!tokenAddr) return;
   try {
-    log('Claiming token ' + tokenAddr + '...');
+    const sym = activeTokenSymbol || tokenAddr.slice(0,10) + '...';
+    log('Claiming ' + sym + ' from contract...');
     const tx = await c.claimToken(tokenAddr);
     log('Tx: ' + tx.hash + ' — waiting...');
     await tx.wait();
-    log('Token claimed successfully!');
+    log('✅ ' + sym + ' claimed successfully!');
   } catch(e) { log('claimToken error: ' + (e.reason || e.message)); }
 }
 
