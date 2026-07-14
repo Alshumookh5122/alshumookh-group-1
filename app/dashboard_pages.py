@@ -7384,13 +7384,30 @@ function _refreshTokenDisplays(addrText, symbol) {
 }
 
 function getPublicRpcs(chainId) {
-  // Multiple fallback RPC endpoints per chain (tried in order)
   const rpcMap = {
     1:  ['https://rpc.ankr.com/eth', 'https://eth.llamarpc.com', 'https://cloudflare-eth.com'],
     56: ['https://bsc-dataseed.binance.org', 'https://bsc-dataseed1.binance.org'],
     97: ['https://data-seed-prebsc-1-s1.binance.org:8545']
   };
   return rpcMap[chainId] || rpcMap[1];
+}
+
+// Raw JSON-RPC call via fetch — bypasses ethers.js provider initialization
+async function _rpcCall(rpcUrl, to, calldata, reqId) {
+  const res = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0', id: reqId || 1,
+      method: 'eth_call',
+      params: [{ to: to, data: calldata }, 'latest']
+    })
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+  if (!json.result || json.result === '0x') throw new Error('Empty result from RPC (contract not on this network)');
+  return json.result;
 }
 
 async function lookupToken() {
@@ -7408,41 +7425,46 @@ async function lookupToken() {
 
   const chainId = parseInt(document.getElementById('networkSelect').value);
   const rpcs = getPublicRpcs(chainId);
-  const ERC20_FULL = [
-    "function symbol() view returns (string)",
-    "function decimals() view returns (uint8)",
-    "function name() view returns (string)"
-  ];
+
+  // ERC-20 function selectors (keccak256 first 4 bytes)
+  const SYM_SEL  = '0x95d89b41'; // symbol()
+  const DEC_SEL  = '0x313ce567'; // decimals()
+  const NAME_SEL = '0x06fdde03'; // name()
+
+  // ABI coder for decoding results
+  const coder = ethers.AbiCoder.defaultAbiCoder();
 
   let lastError = null;
   for (const rpcUrl of rpcs) {
     try {
-      log('Trying RPC: ' + rpcUrl + '...');
-      const readProvider = new ethers.JsonRpcProvider(rpcUrl);
-      const tok = new ethers.Contract(addr, ERC20_FULL, readProvider);
-      const [sym, dec, name] = await Promise.all([
-        tok.symbol(), tok.decimals(), tok.name()
+      log('Trying ' + rpcUrl + '...');
+      const [symHex, decHex, nameHex] = await Promise.all([
+        _rpcCall(rpcUrl, addr, SYM_SEL,  1),
+        _rpcCall(rpcUrl, addr, DEC_SEL,  2),
+        _rpcCall(rpcUrl, addr, NAME_SEL, 3)
       ]);
-      // ✅ Success
+      const sym  = coder.decode(['string'], symHex)[0];
+      const dec  = Number(coder.decode(['uint8'], decHex)[0]);
+      const name = coder.decode(['string'], nameHex)[0];
+
       activeTokenAddr = addr;
       activeTokenSymbol = sym;
-      activeTokenDecimals = Number(dec);
+      activeTokenDecimals = dec;
       document.getElementById('tokenSymbolDisplay').textContent = sym;
       document.getElementById('tokenDecimalsDisplay').textContent = dec.toString();
       document.getElementById('tokenNameDisplay').textContent = name;
       infoEl.style.display = 'block';
       _refreshTokenDisplays(addr, sym);
-      log('\\u2705 Token loaded via ' + rpcUrl + ': ' + name + ' (' + sym + ') decimals=' + dec);
+      log('\\u2705 Token: ' + name + ' (' + sym + ') decimals=' + dec + ' via ' + rpcUrl);
       return;
     } catch(e) {
       lastError = e;
-      log('\\u26a0\\ufe0f ' + rpcUrl + ' failed: ' + (e.message || String(e)).substring(0, 100));
+      log('\\u26a0\\ufe0f ' + rpcUrl + ' => ' + (e.message || String(e)).substring(0, 120));
     }
   }
-  // All RPCs failed
-  errEl.textContent = 'Could not read token info from any RPC endpoint. ' +
-    'Last error: ' + ((lastError && (lastError.reason || lastError.message)) || String(lastError)) +
-    '. Make sure the address is a valid ERC-20 contract on the selected network.';
+  errEl.textContent = 'All RPC endpoints failed. Last error: ' +
+    ((lastError && lastError.message) || String(lastError)) +
+    '. Check the log below for details.';
   errEl.style.display = 'block';
 }
 
