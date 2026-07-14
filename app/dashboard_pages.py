@@ -7099,14 +7099,16 @@ _DISTRIBUTOR_BODY = """
 <!-- Wallet Connect Bar -->
 <div class="wallet-bar">
   <span style="font-size:18px;">🦊</span>
-  <code id="walletAddr">Not connected</code>
+  <code id="walletAddr" style="flex:1;">Not connected</code>
   <button class="dist-btn primary" onclick="connectWallet()" id="connectBtn">Connect MetaMask</button>
+  <button class="dist-btn ghost" onclick="diagWallet()" style="font-size:11px;padding:6px 10px;" title="Diagnose connection">🔍 Diagnose</button>
   <select id="networkSelect" class="dist-input" style="width:160px;margin:0;" onchange="switchNetwork()">
     <option value="1" selected>Ethereum Mainnet</option>
     <option value="97">BSC Testnet</option>
     <option value="56">BSC Mainnet</option>
   </select>
 </div>
+<div id="diagBox" style="display:none;margin-bottom:12px;padding:12px 16px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.3);border-radius:10px;font-size:12px;line-height:1.8;"></div>
 
 <!-- Deploy New Contract -->
 <div class="dist-card" style="border-color:rgba(124,58,237,.5);background:rgba(124,58,237,.06);">
@@ -7435,6 +7437,36 @@ function log(msg) {
   el.scrollTop = el.scrollHeight;
 }
 
+function diagWallet() {
+  const box = document.getElementById('diagBox');
+  box.style.display = 'block';
+  const lines = [];
+  lines.push('<b>🔍 Wallet Connection Diagnostics</b>');
+  lines.push('─────────────────────────────────');
+  // ethers check
+  lines.push('ethers.js loaded: ' + (typeof ethers !== 'undefined' ? '✅ Yes (v' + (ethers.version||'?') + ')' : '❌ NO — page may not have internet access'));
+  // window.ethereum check
+  lines.push('window.ethereum: ' + (window.ethereum ? '✅ Detected' : '❌ NOT found — MetaMask is not installed or not active'));
+  if (window.ethereum) {
+    lines.push('isMetaMask: ' + (window.ethereum.isMetaMask ? '✅ Yes' : '⚠️ No — may be another wallet'));
+    lines.push('isTrustWallet: ' + (window.ethereum.isTrustWallet ? '⚠️ Trust Wallet detected (may conflict)' : 'No'));
+    if (window.ethereum.providers && window.ethereum.providers.length) {
+      lines.push('Multiple providers: ' + window.ethereum.providers.length + ' detected');
+      window.ethereum.providers.forEach(function(p,i){ lines.push('  Provider['+i+']: isMetaMask=' + !!p.isMetaMask + ' isTrust=' + !!(p.isTrustWallet||p.isTrust)); });
+    }
+    lines.push('Current accounts: checking...');
+    window.ethereum.request({method:'eth_accounts'}).then(function(accs){
+      lines.push(accs && accs.length ? '✅ Already connected: ' + accs[0] : '⚠️ No accounts — MetaMask may be locked');
+      box.innerHTML = lines.join('<br>');
+    }).catch(function(e){ lines.push('Error checking accounts: ' + e.message); box.innerHTML = lines.join('<br>'); });
+  }
+  lines.push('─────────────────────────────────');
+  lines.push('<b>If MetaMask not detected:</b> Install from <a href="https://metamask.io" target="_blank" style="color:#a78bfa;">metamask.io</a>, then refresh page.');
+  lines.push('<b>If "isTrustWallet: Yes":</b> Disable Trust Wallet extension, keep only MetaMask active.');
+  lines.push('<b>If locked:</b> Open MetaMask extension and unlock it first.');
+  box.innerHTML = lines.join('<br>');
+}
+
 function distContract() {
   const addr = document.getElementById('contractAddr').value.trim();
   if (!addr) { alert('Enter contract address first'); return null; }
@@ -7511,21 +7543,51 @@ function getMetaMaskProvider() {
 }
 
 async function connectWallet() {
-  const mm = getMetaMaskProvider();
-  if (!mm) {
-    alert('MetaMask not found. If you have Trust Wallet installed, please disable it temporarily or open MetaMask directly from the extensions bar.');
+  // 1. Check ethers loaded
+  if (typeof ethers === 'undefined') {
+    alert('⚠️ ethers.js library not loaded. Check your internet connection and refresh the page.');
     return;
   }
+  // 2. Detect provider
+  const mm = getMetaMaskProvider();
+  if (!mm) {
+    alert('🦊 MetaMask not detected.\n\nMake sure:\n1. MetaMask extension is installed in your browser\n2. MetaMask is unlocked\n3. You are not in Incognito mode (MetaMask is disabled in Incognito by default)\n4. Refresh the page after installing/unlocking MetaMask');
+    return;
+  }
+  const btn = document.getElementById('connectBtn');
+  const addrEl = document.getElementById('walletAddr');
+  btn.textContent = 'Connecting...';
+  btn.disabled = true;
   try {
     provider = new ethers.BrowserProvider(mm);
-    await provider.send('eth_requestAccounts', []);
+    // Request account access — this triggers the MetaMask popup
+    const accounts = await provider.send('eth_requestAccounts', []);
+    if (!accounts || accounts.length === 0) {
+      throw new Error('No accounts returned. Please unlock MetaMask and try again.');
+    }
     signer = await provider.getSigner();
     walletAddress = await signer.getAddress();
-    document.getElementById('walletAddr').textContent = walletAddress;
-    document.getElementById('connectBtn').textContent = 'Connected ✓';
-    document.getElementById('connectBtn').style.background = '#059669';
-    log('MetaMask connected: ' + walletAddress);
-  } catch(e) { log('Connect error: ' + e.message); }
+    addrEl.textContent = walletAddress;
+    btn.textContent = '✅ Connected';
+    btn.style.background = '#059669';
+    btn.disabled = false;
+    log('✅ MetaMask connected: ' + walletAddress);
+    // Auto-detect network
+    const net = await provider.getNetwork();
+    log('Network: chainId=' + net.chainId.toString());
+  } catch(e) {
+    btn.textContent = 'Connect MetaMask';
+    btn.disabled = false;
+    const msg = e.message || String(e);
+    log('❌ Connect error: ' + msg);
+    if (e.code === 4001 || msg.includes('rejected') || msg.includes('denied')) {
+      alert('❌ Connection rejected.\nYou cancelled the MetaMask request. Please try again and click "Connect" in MetaMask.');
+    } else if (msg.includes('already pending')) {
+      alert('⏳ MetaMask popup is already open.\nCheck your browser taskbar — MetaMask may be waiting for your approval.');
+    } else {
+      alert('❌ MetaMask connection failed:\n' + msg + '\n\nTry refreshing the page.');
+    }
+  }
 }
 
 async function switchNetwork() {
