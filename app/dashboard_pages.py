@@ -7551,7 +7551,7 @@ async function connectWallet() {
   // 2. Detect provider
   const mm = getMetaMaskProvider();
   if (!mm) {
-    alert('🦊 MetaMask not detected.\n\nMake sure:\n1. MetaMask extension is installed in your browser\n2. MetaMask is unlocked\n3. You are not in Incognito mode (MetaMask is disabled in Incognito by default)\n4. Refresh the page after installing/unlocking MetaMask');
+    alert('🦊 MetaMask not detected.\\n\\nMake sure:\\n1. MetaMask extension is installed in your browser\\n2. MetaMask is unlocked\\n3. You are not in Incognito mode (MetaMask is disabled in Incognito by default)\\n4. Refresh the page after installing/unlocking MetaMask');
     return;
   }
   const btn = document.getElementById('connectBtn');
@@ -7581,11 +7581,11 @@ async function connectWallet() {
     const msg = e.message || String(e);
     log('❌ Connect error: ' + msg);
     if (e.code === 4001 || msg.includes('rejected') || msg.includes('denied')) {
-      alert('❌ Connection rejected.\nYou cancelled the MetaMask request. Please try again and click "Connect" in MetaMask.');
+      alert('❌ Connection rejected.\\nYou cancelled the MetaMask request. Please try again and click "Connect" in MetaMask.');
     } else if (msg.includes('already pending')) {
-      alert('⏳ MetaMask popup is already open.\nCheck your browser taskbar — MetaMask may be waiting for your approval.');
+      alert('⏳ MetaMask popup is already open.\\nCheck your browser taskbar — MetaMask may be waiting for your approval.');
     } else {
-      alert('❌ MetaMask connection failed:\n' + msg + '\n\nTry refreshing the page.');
+      alert('❌ MetaMask connection failed:\\n' + msg + '\\n\\nTry refreshing the page.');
     }
   }
 }
