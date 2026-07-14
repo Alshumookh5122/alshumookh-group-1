@@ -7384,9 +7384,18 @@ function _refreshTokenDisplays(addrText, symbol) {
 }
 
 function getPublicRpcs(chainId) {
+  // Free public RPC endpoints confirmed to support browser CORS (no API key needed)
   const rpcMap = {
-    1:  ['https://rpc.ankr.com/eth', 'https://eth.llamarpc.com', 'https://cloudflare-eth.com'],
-    56: ['https://bsc-dataseed.binance.org', 'https://bsc-dataseed1.binance.org'],
+    1:  [
+      'https://ethereum.publicnode.com',   // PublicNode — free, CORS OK
+      'https://eth.drpc.org',              // dRPC — free, CORS OK
+      'https://1rpc.io/eth'               // 1RPC — free, CORS OK
+    ],
+    56: [
+      'https://bsc.publicnode.com',        // PublicNode BSC
+      'https://bsc-dataseed.binance.org',
+      'https://bsc-dataseed1.binance.org'
+    ],
     97: ['https://data-seed-prebsc-1-s1.binance.org:8545']
   };
   return rpcMap[chainId] || rpcMap[1];
