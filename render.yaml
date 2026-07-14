@@ -2,7 +2,7 @@ services:
   - type: web
     name: alshumookh-global-banking-api
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python3 -c "import urllib.request,os; os.makedirs('app/static',exist_ok=True); urllib.request.urlretrieve('https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js','app/static/ethers.umd.min.js'); print('ethers.js downloaded OK')"
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: APP_ENV
