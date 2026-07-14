@@ -7317,7 +7317,7 @@ _DISTRIBUTOR_BODY = """
 
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
+<script src="/static/ethers.umd.min.js" onerror="var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js';document.head.appendChild(s);"></script>
 <script>
 // ── ABI ──────────────────────────────────────────────────────────────────────
 const ABI = [
@@ -7383,6 +7383,16 @@ function _refreshTokenDisplays(addrText, symbol) {
   if (el5) el5.textContent = symbol || 'tokens';
 }
 
+function getPublicRpc(chainId) {
+  // Free public RPC endpoints — used for read-only calls (no MetaMask needed)
+  const rpcMap = {
+    1:  'https://cloudflare-eth.com',
+    56: 'https://bsc-dataseed.binance.org',
+    97: 'https://data-seed-prebsc-1-s1.binance.org:8545'
+  };
+  return rpcMap[chainId] || 'https://cloudflare-eth.com';
+}
+
 async function lookupToken() {
   const addr = document.getElementById('activeTokenAddr').value.trim();
   if (!addr || !addr.startsWith('0x')) {
@@ -7394,18 +7404,18 @@ async function lookupToken() {
   const errEl = document.getElementById('tokenInfoError');
   const infoEl = document.getElementById('tokenInfoBox');
   errEl.style.display = 'none';
-  if (!provider) {
-    errEl.textContent = 'Connect MetaMask first to look up token info.';
-    errEl.style.display = 'block';
-    return;
-  }
   try {
+    // Use direct public JSON-RPC — no MetaMask needed for read-only token lookup
+    const chainId = parseInt(document.getElementById('networkSelect').value);
+    const rpcUrl = getPublicRpc(chainId);
+    const readProvider = new ethers.JsonRpcProvider(rpcUrl);
+    log('Looking up token on chain ' + chainId + ' via ' + rpcUrl + '...');
     const ERC20_FULL = [
       "function symbol() view returns (string)",
       "function decimals() view returns (uint8)",
       "function name() view returns (string)"
     ];
-    const tok = new ethers.Contract(addr, ERC20_FULL, provider);
+    const tok = new ethers.Contract(addr, ERC20_FULL, readProvider);
     const [sym, dec, name] = await Promise.all([tok.symbol(), tok.decimals(), tok.name()]);
     activeTokenAddr = addr;
     activeTokenSymbol = sym;
@@ -8061,7 +8071,7 @@ body{{background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemF
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
+<script src="/static/ethers.umd.min.js" onerror="var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js';document.head.appendChild(s);"></script>
 <script>
 const CONTRACT  = "{contract}";
 const WALLET    = "{wallet}";
