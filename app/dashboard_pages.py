@@ -1999,7 +1999,7 @@ function pushFileToSender(id, fileId, filename){
   var targetUrl = urlEl  ? urlEl.value.trim()  : '';
   var authHdr   = authEl ? authEl.value.trim() : '';
 
-  if(!confirm('Send file "'+filename+'" to sender endpoint?\n\n'+(targetUrl||'(URL from saved endpoint)'))){return;}
+  if(!confirm('Send file "'+filename+'" to sender endpoint?\\n\\n'+(targetUrl||'(URL from saved endpoint)'))){return;}
 
   showToast('Sending file to sender...', 'ok');
   api('/api/v1/admin/payloads/'+id+'/push-file',{
@@ -2013,7 +2013,7 @@ function pushFileToSender(id, fileId, filename){
   }).then(function(r){
     var ok = r.delivery_status==='DELIVERED';
     showToast(ok ? '✅ File delivered: '+r.filename : '❌ Delivery failed: '+r.delivery_status, ok ? 'ok' : 'error');
-    if(!ok && r.error) alert('Delivery error:\n'+r.error);
+    if(!ok && r.error) alert('Delivery error:\\n'+r.error);
   }).catch(function(e){ showToast('Send error: '+e.message,'error'); });
 }
 
