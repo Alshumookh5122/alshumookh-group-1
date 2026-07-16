@@ -1697,10 +1697,38 @@ function viewPayload(id) {
     document.getElementById('plDetailBody').innerHTML += endpointBlock;
 
     // ── 📤 Send Response to Sender Block ──────────────────────────────────
+    // ── 📎 Attached Files Block ───────────────────────────────────────────
+    var filesBlock = '<div style="margin-top:14px;border:1px solid rgba(139,92,246,0.35);border-radius:10px;overflow:hidden;">'
+      +'<div style="padding:10px 16px;background:rgba(139,92,246,0.1);display:flex;align-items:center;justify-content:space-between;">'
+      +'<div style="display:flex;align-items:center;gap:8px;">'
+      +'<span style="font-size:16px;">📎</span>'
+      +'<span style="font-size:13px;font-weight:700;color:#a78bfa;">Attached Files</span>'
+      +'</div>'
+      +'<span id="plFilesCount_'+id+'" style="font-size:11px;color:var(--muted);"></span>'
+      +'</div>'
+      +'<div style="padding:14px 16px;">'
+      // Upload new file area
+      +'<div style="border:2px dashed rgba(139,92,246,0.4);border-radius:8px;padding:16px;text-align:center;margin-bottom:12px;cursor:pointer;transition:all 0.2s;" id="plDropZone_'+id+'" onclick="document.getElementById(\'plFileInput_'+id+'\').click()" ondragover="event.preventDefault();this.style.borderColor=\'#a78bfa\'" ondragleave="this.style.borderColor=\'rgba(139,92,246,0.4)\'" ondrop="plHandleDrop(event,\''+id+'\')">'
+      +'<div style="font-size:24px;margin-bottom:4px;">📂</div>'
+      +'<div style="font-size:12px;color:var(--muted);">Click or drag & drop to upload a file (PDF, Excel, Word, JSON, XML...)</div>'
+      +'<div style="font-size:10px;color:var(--muted);margin-top:4px;">Max 50 MB</div>'
+      +'<input type="file" id="plFileInput_'+id+'" style="display:none;" onchange="plUploadFile(\''+id+'\',this.files[0])">'
+      +'</div>'
+      +'<div style="margin-bottom:6px;"><input id="plFileDesc_'+id+'" type="text" placeholder="File description (optional)" style="width:100%;background:var(--surface);border:1px solid var(--glass-border);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;"></div>'
+      +'<div id="plUploadResult_'+id+'" style="font-size:12px;margin-bottom:10px;display:none;"></div>'
+      // Files list
+      +'<div id="plFilesList_'+id+'"><div style="text-align:center;color:var(--muted);font-size:12px;padding:10px;">Loading files...</div></div>'
+      +'</div>'
+      +'</div>';
+    document.getElementById('plDetailBody').innerHTML += filesBlock;
+    // Load files for this payload
+    loadPayloadFiles(id);
+
+    // ── 📤 Send Response (JSON/Text) to Sender ─────────────────────────────
     var sendBlock = '<div style="margin-top:14px;border:1px solid rgba(201,168,76,0.35);border-radius:10px;overflow:hidden;">'
       +'<div style="padding:10px 16px;background:rgba(201,168,76,0.1);display:flex;align-items:center;gap:8px;">'
       +'<span style="font-size:16px;">📤</span>'
-      +'<span style="font-size:13px;font-weight:700;color:var(--gold);">Send Response to Sender\'s Endpoint</span>'
+      +'<span style="font-size:13px;font-weight:700;color:var(--gold);">Send Message to Sender\'s Endpoint</span>'
       +'</div>'
       +'<div style="padding:14px 16px;">'
       +'<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Push a document, status update, or JSON message from ALSHUMOOKH directly to the sender\'s registered endpoint.</div>'
@@ -1862,6 +1890,134 @@ function fillRejectionTemplate(id){
     contact:'ceo@alshumookhgroup.ae'
   },null,2);
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FILE MANAGEMENT — Attached Files for Settlement Payloads
+// ══════════════════════════════════════════════════════════════════════════════
+
+function fmtFileSize(bytes){
+  if(!bytes) return '0 B';
+  if(bytes<1024) return bytes+' B';
+  if(bytes<1048576) return (bytes/1024).toFixed(1)+' KB';
+  return (bytes/1048576).toFixed(1)+' MB';
+}
+
+function loadPayloadFiles(id){
+  api('/api/v1/admin/payloads/'+id+'/files').then(function(r){
+    var countEl = document.getElementById('plFilesCount_'+id);
+    var listEl  = document.getElementById('plFilesList_'+id);
+    if(countEl) countEl.textContent = r.count+' file'+(r.count!==1?'s':'');
+    if(!listEl) return;
+    if(!r.files || !r.files.length){
+      listEl.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:8px;">No files attached yet. Upload one above.</div>';
+      return;
+    }
+    listEl.innerHTML = r.files.map(function(f){
+      var icon = f.content_type && f.content_type.includes('pdf') ? '📄'
+               : f.content_type && f.content_type.includes('sheet') ? '📊'
+               : f.content_type && f.content_type.includes('word') ? '📝'
+               : f.content_type && f.content_type.includes('json') ? '🔣'
+               : f.content_type && f.content_type.includes('xml')  ? '🗂'
+               : f.content_type && f.content_type.includes('image') ? '🖼'
+               : '📎';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface);border:1px solid var(--glass-border);border-radius:8px;margin-bottom:6px;">'
+        +'<span style="font-size:22px;">'+icon+'</span>'
+        +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+esc(f.filename)+'">'+esc(f.filename)+'</div>'
+        +'<div style="font-size:10px;color:var(--muted);">'+fmtFileSize(f.file_size)+' · '+esc(f.content_type||'')+(f.description?' · '+esc(f.description.slice(0,60)):'')+'</div>'
+        +'<div style="font-size:10px;color:var(--muted);">Uploaded by '+esc(f.uploaded_by||'—')+' · '+fmtDate(f.created_at)+'</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:6px;flex-shrink:0;">'
+        +'<a href="/api/v1/admin/payloads/'+id+'/files/'+f.file_id+'" target="_blank" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;text-decoration:none;" title="Download">⬇ Download</a>'
+        +'<button class="btn btn-primary" data-pid="'+id+'" data-fid="'+f.file_id+'" data-fname="'+esc(f.filename)+'" onclick="pushFileToSender(this.dataset.pid,this.dataset.fid,this.dataset.fname)" style="font-size:11px;padding:4px 10px;" title="Send to sender endpoint">📤 Send</button>'
+        +'<button class="btn btn-danger" data-pid="'+id+'" data-fid="'+f.file_id+'" onclick="deletePayloadFile(this.dataset.pid,this.dataset.fid)" style="font-size:11px;padding:4px 10px;background:#7f1d1d;border-color:#991b1b;" title="Delete file">🗑</button>'
+        +'</div>'
+        +'</div>';
+    }).join('');
+  }).catch(function(e){
+    var listEl = document.getElementById('plFilesList_'+id);
+    if(listEl) listEl.innerHTML='<div style="color:#f87171;font-size:12px;">Error loading files: '+esc(e.message)+'</div>';
+  });
+}
+
+function plHandleDrop(event, id){
+  event.preventDefault();
+  var dz = document.getElementById('plDropZone_'+id);
+  if(dz) dz.style.borderColor='rgba(139,92,246,0.4)';
+  var files = event.dataTransfer.files;
+  if(files && files[0]) plUploadFile(id, files[0]);
+}
+
+function plUploadFile(id, file){
+  if(!file) return;
+  var resEl = document.getElementById('plUploadResult_'+id);
+  var descEl= document.getElementById('plFileDesc_'+id);
+  var desc  = descEl ? descEl.value.trim() : '';
+
+  if(resEl){ resEl.style.display='block'; resEl.style.background='rgba(139,92,246,0.08)'; resEl.style.color='#a78bfa'; resEl.style.padding='8px'; resEl.style.borderRadius='6px'; resEl.textContent='Uploading '+file.name+' ('+fmtFileSize(file.size)+')...'; }
+
+  var fd = new FormData();
+  fd.append('file', file);
+  if(desc) fd.append('description', desc);
+
+  var adminKey = typeof _adminKey !== 'undefined' ? _adminKey : '';
+  fetch('/api/v1/admin/payloads/'+id+'/files', {
+    method: 'POST',
+    headers: { 'X-Admin-API-Key': adminKey },
+    body: fd
+  }).then(function(resp){
+    return resp.json().then(function(data){ return {ok:resp.ok, data:data}; });
+  }).then(function(r){
+    if(r.ok){
+      if(resEl){ resEl.style.background='rgba(16,185,129,0.08)'; resEl.style.color='#34d399'; resEl.textContent='✅ Uploaded: '+r.data.filename+' ('+fmtFileSize(r.data.file_size)+')'; }
+      if(descEl) descEl.value='';
+      showToast('File uploaded','ok');
+      loadPayloadFiles(id);
+    } else {
+      if(resEl){ resEl.style.background='rgba(239,68,68,0.08)'; resEl.style.color='#f87171'; resEl.textContent='❌ '+(r.data.detail||'Upload failed'); }
+      showToast('Upload failed','error');
+    }
+  }).catch(function(e){
+    if(resEl){ resEl.style.color='#f87171'; resEl.textContent='Error: '+e.message; }
+    showToast('Upload error: '+e.message,'error');
+  });
+}
+
+function deletePayloadFile(id, fileId){
+  if(!confirm('Delete this file permanently?')) return;
+  api('/api/v1/admin/payloads/'+id+'/files/'+fileId, {method:'DELETE'})
+    .then(function(r){ showToast('File deleted','ok'); loadPayloadFiles(id); })
+    .catch(function(e){ showToast('Delete error: '+e.message,'error'); });
+}
+
+function pushFileToSender(id, fileId, filename){
+  var urlEl  = document.getElementById('sr_url_'+id);
+  var authEl = document.getElementById('sr_auth_'+id);
+  var targetUrl = urlEl  ? urlEl.value.trim()  : '';
+  var authHdr   = authEl ? authEl.value.trim() : '';
+
+  if(!confirm('Send file "'+filename+'" to sender\'s endpoint?\n\n'+(targetUrl||'(URL from saved endpoint)'))){return;}
+
+  showToast('Sending file to sender...', 'ok');
+  api('/api/v1/admin/payloads/'+id+'/push-file',{
+    method:'POST',
+    body:JSON.stringify({
+      file_id:    fileId,
+      target_url: targetUrl || undefined,
+      auth_header:authHdr   || undefined,
+      note:       'File pushed via admin dashboard — '+filename
+    })
+  }).then(function(r){
+    var ok = r.delivery_status==='DELIVERED';
+    showToast(ok ? '✅ File delivered: '+r.filename : '❌ Delivery failed: '+r.delivery_status, ok ? 'ok' : 'error');
+    if(!ok && r.error) alert('Delivery error:\n'+r.error);
+  }).catch(function(e){ showToast('Send error: '+e.message,'error'); });
+}
+
+// Store admin key reference for file downloads
+var _adminKey = '';
+(function(){ try{ var m=document.cookie.match(/admin_token=([^;]+)/); if(m) _adminKey=decodeURIComponent(m[1]); } catch(e){} })();
+
 function routePayload(id){
   var sel=document.querySelector('input[name="plProvider_'+id+'"]:checked');
   if(!sel){showToast('Select a provider first','error');return;}

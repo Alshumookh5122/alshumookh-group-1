@@ -22,7 +22,8 @@ from decimal import Decimal
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, File, Form, Header, HTTPException, Request, UploadFile, status
+from fastapi.responses import Response as FastAPIResponse
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1226,6 +1227,300 @@ async def update_sender_endpoint(
         "endpoint_content_type": client_row.endpoint_content_type,
         "has_auth": bool(client_row.endpoint_auth_header),
         "message": "Sender endpoint updated successfully.",
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FILE MANAGEMENT for Settlement Payloads
+# POST   /api/v1/admin/payloads/{id}/files          — upload & attach file
+# GET    /api/v1/admin/payloads/{id}/files           — list attached files
+# GET    /api/v1/admin/payloads/{id}/files/{file_id} — download file
+# DELETE /api/v1/admin/payloads/{id}/files/{file_id} — delete file
+# POST   /api/v1/admin/payloads/{id}/push-file       — send file to sender endpoint
+# ─────────────────────────────────────────────────────────────────────────────
+
+_MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+
+
+@admin_payloads_router.post("/{payload_id}/files", status_code=status.HTTP_201_CREATED)
+async def upload_payload_file(
+    request: Request,
+    payload_id: str,
+    _admin: AdminKey,
+    file: UploadFile = File(...),
+    description: str | None = Form(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a file and attach it to a settlement payload."""
+    ep = await _load_payload(db, payload_id)
+    actor = _admin_actor(request)
+
+    data = await file.read()
+    if len(data) > _MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is 50 MB.")
+
+    file_id = str(uuid.uuid4())
+    tf = TransactionFile(
+        id=file_id,
+        payload_id=payload_id,
+        transaction_ref=ep.transaction_reference or payload_id,
+        filename=file.filename or f"attachment_{file_id[:8]}",
+        content_type=file.content_type or "application/octet-stream",
+        file_data=data,
+        file_size=len(data),
+        description=description or f"Uploaded via admin dashboard by {actor}",
+        uploaded_by=actor,
+    )
+    db.add(tf)
+
+    await log_event(
+        db,
+        "PAYLOAD_FILE_UPLOADED",
+        {
+            "payload_id": payload_id,
+            "file_id": file_id,
+            "filename": tf.filename,
+            "size": len(data),
+            "uploaded_by": actor,
+        },
+        client_id=ep.api_client_id,
+        endpoint=request.url.path,
+        method="POST",
+        ip=_client_ip(request),
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+    await db.commit()
+
+    return {
+        "file_id": file_id,
+        "payload_id": payload_id,
+        "filename": tf.filename,
+        "content_type": tf.content_type,
+        "file_size": tf.file_size,
+        "description": tf.description,
+        "uploaded_by": actor,
+        "message": "File uploaded and attached to payload.",
+    }
+
+
+@admin_payloads_router.get("/{payload_id}/files", status_code=status.HTTP_200_OK)
+async def list_payload_files(
+    payload_id: str,
+    _admin: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """List all files attached to a settlement payload."""
+    await _load_payload(db, payload_id)
+
+    result = await db.execute(
+        select(TransactionFile)
+        .where(TransactionFile.payload_id == payload_id)
+        .order_by(desc(TransactionFile.created_at))
+    )
+    files = result.scalars().all()
+
+    return {
+        "payload_id": payload_id,
+        "count": len(files),
+        "files": [
+            {
+                "file_id": f.id,
+                "filename": f.filename,
+                "content_type": f.content_type,
+                "file_size": f.file_size,
+                "description": f.description,
+                "uploaded_by": f.uploaded_by,
+                "created_at": f.created_at.isoformat() if f.created_at else None,
+            }
+            for f in files
+        ],
+    }
+
+
+@admin_payloads_router.get("/{payload_id}/files/{file_id}", status_code=status.HTTP_200_OK)
+async def download_payload_file(
+    payload_id: str,
+    file_id: str,
+    _admin: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Download a file attached to a settlement payload."""
+    await _load_payload(db, payload_id)
+
+    tf = await db.get(TransactionFile, file_id)
+    if not tf or tf.payload_id != payload_id:
+        raise HTTPException(status_code=404, detail="File not found on this payload.")
+
+    return FastAPIResponse(
+        content=tf.file_data,
+        media_type=tf.content_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{tf.filename}"',
+            "Content-Length": str(tf.file_size),
+        },
+    )
+
+
+@admin_payloads_router.delete("/{payload_id}/files/{file_id}", status_code=status.HTTP_200_OK)
+async def delete_payload_file(
+    request: Request,
+    payload_id: str,
+    file_id: str,
+    _admin: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a file attached to a settlement payload."""
+    await _load_payload(db, payload_id)
+
+    tf = await db.get(TransactionFile, file_id)
+    if not tf or tf.payload_id != payload_id:
+        raise HTTPException(status_code=404, detail="File not found on this payload.")
+
+    filename = tf.filename
+    await db.delete(tf)
+    await db.commit()
+
+    return {"file_id": file_id, "filename": filename, "deleted": True}
+
+
+@admin_payloads_router.post("/{payload_id}/push-file", status_code=status.HTTP_200_OK)
+async def push_file_to_sender(
+    request: Request,
+    payload_id: str,
+    _admin: AdminKey,
+    body: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Send an attached file (from our database) to the sender's endpoint as multipart/form-data.
+
+    Body fields:
+      - file_id        : ID of the TransactionFile to send (required)
+      - target_url     : sender's endpoint URL (optional — falls back to callback_url / ApiClient.endpoint_url)
+      - auth_header    : Authorization header (optional — falls back to ApiClient.endpoint_auth_header)
+      - field_name     : multipart field name for the file (default: "file")
+      - extra_fields   : dict of extra form fields to include alongside the file (optional)
+      - note           : internal note (optional)
+    """
+    ep = await _load_payload(db, payload_id)
+    actor = _admin_actor(request)
+
+    file_id: str = body.get("file_id", "").strip()
+    if not file_id:
+        raise HTTPException(status_code=400, detail="file_id is required.")
+
+    tf = await db.get(TransactionFile, file_id)
+    if not tf or tf.payload_id != payload_id:
+        raise HTTPException(status_code=404, detail="File not found on this payload.")
+
+    # ── Resolve target URL ─────────────────────────────────────────────────
+    target_url: str | None = (body.get("target_url") or "").strip() or None
+    if not target_url and ep.callback_url:
+        target_url = ep.callback_url.strip()
+    if not target_url and ep.api_client_id:
+        client_row = await db.get(ApiClient, ep.api_client_id)
+        if client_row and client_row.endpoint_url:
+            target_url = client_row.endpoint_url.strip()
+    if not target_url:
+        raise HTTPException(
+            status_code=400,
+            detail="No target URL available. Set callback_url on the payload or endpoint_url on the API client.",
+        )
+
+    # ── Resolve auth ───────────────────────────────────────────────────────
+    auth_header: str | None = (body.get("auth_header") or "").strip() or None
+    if not auth_header and ep.api_client_id:
+        client_row = await db.get(ApiClient, ep.api_client_id)
+        if client_row and client_row.endpoint_auth_header:
+            auth_header = client_row.endpoint_auth_header.strip()
+
+    field_name: str = body.get("field_name") or "file"
+    extra_fields: dict = body.get("extra_fields") or {}
+    note: str = body.get("note") or ""
+
+    # ── Build multipart request ────────────────────────────────────────────
+    headers: dict[str, str] = {}
+    if auth_header:
+        headers["Authorization"] = auth_header
+    headers["X-ALSHUMOOKH-Source"] = "settlement-file-push"
+    headers["X-Payload-Ref"] = ep.id
+    headers["X-File-Ref"] = tf.id
+
+    delivery_status: str
+    response_status: int | None = None
+    response_body: str = ""
+    error_detail: str = ""
+
+    try:
+        files_data = {
+            field_name: (tf.filename, tf.file_data, tf.content_type or "application/octet-stream")
+        }
+        # Extra text fields alongside file
+        data_fields = {
+            "payload_reference": ep.transaction_reference or ep.id,
+            "sender_wallet": ep.sender_wallet or "",
+            "amount": str(ep.amount or ""),
+            "asset": ep.asset or "",
+            "platform": "ALSHUMOOKH Global Banking Finance & Credit",
+        }
+        data_fields.update({str(k): str(v) for k, v in extra_fields.items()})
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                target_url,
+                files=files_data,
+                data=data_fields,
+                headers=headers,
+            )
+
+        response_status = resp.status_code
+        response_body = resp.text[:2000]
+        delivery_status = "DELIVERED" if resp.status_code < 400 else "FAILED"
+
+    except httpx.ConnectError as exc:
+        delivery_status = "CONNECTION_ERROR"
+        error_detail = str(exc)[:500]
+    except httpx.TimeoutException:
+        delivery_status = "TIMEOUT"
+        error_detail = "Request timed out after 30 seconds"
+    except Exception as exc:
+        delivery_status = "ERROR"
+        error_detail = str(exc)[:500]
+
+    await log_event(
+        db,
+        "PAYLOAD_FILE_PUSHED",
+        {
+            "payload_id": ep.id,
+            "file_id": tf.id,
+            "filename": tf.filename,
+            "target_url": target_url,
+            "delivery_status": delivery_status,
+            "http_status": response_status,
+            "note": note,
+            "pushed_by": actor,
+            "error": error_detail or None,
+        },
+        client_id=ep.api_client_id,
+        endpoint=request.url.path,
+        method="POST",
+        ip=_client_ip(request),
+        status_code=response_status,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+    return {
+        "payload_id": ep.id,
+        "file_id": tf.id,
+        "filename": tf.filename,
+        "file_size": tf.file_size,
+        "target_url": target_url,
+        "delivery_status": delivery_status,
+        "http_status": response_status,
+        "response_preview": response_body[:500] if response_body else None,
+        "error": error_detail or None,
+        "pushed_by": actor,
     }
 
 
