@@ -1673,7 +1673,7 @@ function viewPayload(id) {
       +'</div>'
       +(cbUrl
         ? '<div style="padding:10px;background:var(--surface);border-radius:8px;border:1px solid var(--glass-border);margin-bottom:12px;">'
-          +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Callback URL (Sender\'s Endpoint)</div>'
+          +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Callback URL (Sender Endpoint)</div>'
           +'<div style="font-size:12px;color:#60a5fa;word-break:break-all;font-family:monospace;">'+cbUrl+'</div>'
           +'</div>'
         : '<div style="padding:10px;background:rgba(239,68,68,0.08);border-radius:8px;border:1px solid rgba(239,68,68,0.2);margin-bottom:12px;font-size:12px;color:#f87171;">⚠ No callback_url provided by sender in this payload.</div>'
@@ -1685,7 +1685,7 @@ function viewPayload(id) {
       )
       // Register / update sender endpoint sub-form
       +'<div style="margin-top:10px;padding:12px;background:rgba(16,185,129,0.06);border:1px dashed rgba(16,185,129,0.3);border-radius:8px;">'
-      +'<div style="font-size:11px;font-weight:700;color:#34d399;margin-bottom:8px;">🔧 Register Sender\'s Outbound Endpoint</div>'
+      +'<div style="font-size:11px;font-weight:700;color:#34d399;margin-bottom:8px;">🔧 Register Sender Outbound Endpoint</div>'
       +'<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Set the URL where ALSHUMOOKH should push response documents to this sender:</div>'
       +'<input id="sep_url_'+id+'" type="url" placeholder="https://sender-api.example.com/receive" value="'+cbUrl+'" style="width:100%;background:var(--surface);border:1px solid var(--glass-border);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;margin-bottom:6px;box-sizing:border-box;">'
       +'<input id="sep_auth_'+id+'" type="text" placeholder="Authorization header value (e.g. Bearer eyJ...)" style="width:100%;background:var(--surface);border:1px solid var(--glass-border);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;margin-bottom:8px;box-sizing:border-box;">'
@@ -1707,31 +1707,28 @@ function viewPayload(id) {
       +'<span id="plFilesCount_'+id+'" style="font-size:11px;color:var(--muted);"></span>'
       +'</div>'
       +'<div style="padding:14px 16px;">'
-      // Upload new file area
-      +'<div style="border:2px dashed rgba(139,92,246,0.4);border-radius:8px;padding:16px;text-align:center;margin-bottom:12px;cursor:pointer;transition:all 0.2s;" id="plDropZone_'+id+'" onclick="document.getElementById(\'plFileInput_'+id+'\').click()" ondragover="event.preventDefault();this.style.borderColor=\'#a78bfa\'" ondragleave="this.style.borderColor=\'rgba(139,92,246,0.4)\'" ondrop="plHandleDrop(event,\''+id+'\')">'
+      +'<div style="border:2px dashed rgba(139,92,246,0.4);border-radius:8px;padding:16px;text-align:center;margin-bottom:12px;cursor:pointer;transition:all 0.2s;" id="plDropZone_'+id+'" data-pid="'+id+'" onclick="plClickUpload(this.dataset.pid)" ondragover="plDragOver(event,this)" ondragleave="plDragLeave(this)" ondrop="plDropFile(event,this.dataset.pid)">'
       +'<div style="font-size:24px;margin-bottom:4px;">📂</div>'
-      +'<div style="font-size:12px;color:var(--muted);">Click or drag & drop to upload a file (PDF, Excel, Word, JSON, XML...)</div>'
+      +'<div style="font-size:12px;color:var(--muted);">Click or drag &amp; drop to upload a file (PDF, Excel, Word, JSON, XML...)</div>'
       +'<div style="font-size:10px;color:var(--muted);margin-top:4px;">Max 50 MB</div>'
-      +'<input type="file" id="plFileInput_'+id+'" style="display:none;" onchange="plUploadFile(\''+id+'\',this.files[0])">'
+      +'<input type="file" id="plFileInput_'+id+'" data-pid="'+id+'" style="display:none;" onchange="plUploadFile(this.dataset.pid,this.files[0])">'
       +'</div>'
       +'<div style="margin-bottom:6px;"><input id="plFileDesc_'+id+'" type="text" placeholder="File description (optional)" style="width:100%;background:var(--surface);border:1px solid var(--glass-border);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;"></div>'
       +'<div id="plUploadResult_'+id+'" style="font-size:12px;margin-bottom:10px;display:none;"></div>'
-      // Files list
       +'<div id="plFilesList_'+id+'"><div style="text-align:center;color:var(--muted);font-size:12px;padding:10px;">Loading files...</div></div>'
       +'</div>'
       +'</div>';
     document.getElementById('plDetailBody').innerHTML += filesBlock;
-    // Load files for this payload
     loadPayloadFiles(id);
 
     // ── 📤 Send Response (JSON/Text) to Sender ─────────────────────────────
     var sendBlock = '<div style="margin-top:14px;border:1px solid rgba(201,168,76,0.35);border-radius:10px;overflow:hidden;">'
       +'<div style="padding:10px 16px;background:rgba(201,168,76,0.1);display:flex;align-items:center;gap:8px;">'
       +'<span style="font-size:16px;">📤</span>'
-      +'<span style="font-size:13px;font-weight:700;color:var(--gold);">Send Message to Sender\'s Endpoint</span>'
+      +'<span style="font-size:13px;font-weight:700;color:var(--gold);">Send Message to Sender Endpoint</span>'
       +'</div>'
       +'<div style="padding:14px 16px;">'
-      +'<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Push a document, status update, or JSON message from ALSHUMOOKH directly to the sender\'s registered endpoint.</div>'
+      +'<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Push a document, status update, or JSON message from ALSHUMOOKH directly to the sender endpoint.</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
       +'<div>'
       +'<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Target URL</label>'
@@ -1901,6 +1898,12 @@ function fmtFileSize(bytes){
   if(bytes<1048576) return (bytes/1024).toFixed(1)+' KB';
   return (bytes/1048576).toFixed(1)+' MB';
 }
+
+// ── Drag-drop helpers (no inline string args needed) ─────────────────────────
+function plClickUpload(pid){ var el=document.getElementById('plFileInput_'+pid); if(el) el.click(); }
+function plDragOver(e,el){ e.preventDefault(); if(el) el.style.borderColor='#a78bfa'; }
+function plDragLeave(el){ if(el) el.style.borderColor='rgba(139,92,246,0.4)'; }
+function plDropFile(e,pid){ e.preventDefault(); var dz=document.getElementById('plDropZone_'+pid); if(dz) dz.style.borderColor='rgba(139,92,246,0.4)'; var f=e.dataTransfer&&e.dataTransfer.files; if(f&&f[0]) plUploadFile(pid,f[0]); }
 
 function loadPayloadFiles(id){
   api('/api/v1/admin/payloads/'+id+'/files').then(function(r){
