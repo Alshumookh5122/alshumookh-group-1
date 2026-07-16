@@ -1628,8 +1628,8 @@ function viewPayload(id) {
       ['ID',p.payload_id||p.id||'—'],['Verification Status',badge(p.verification_status)],
       ['Amount',fmtNum(p.amount)+' '+(p.asset||'USDT')],
       ['Network',(p.network_name||p.network||'—').toUpperCase()],
-      ['TX Hash',p.tx_hash||'—'],['Sender',p.sender_wallet||'—'],
-      ['Receiver',p.receiver_wallet||'—'],['Callback URL',p.callback_url||'—'],
+      ['TX Hash',p.tx_hash||'—'],['Sender Wallet',p.sender_wallet||'—'],
+      ['Receiver Wallet',p.receiver_wallet||'—'],['Callback URL',p.callback_url||'—'],
       ['Security Level',p.security_level||'—'],['Auth Method',p.auth_method||'—'],
       ['JWS Verified',p.jws_verified?'Yes':'No'],
       ['mTLS Verified',p.mtls_verified?'Yes':'No'],
@@ -1643,6 +1643,98 @@ function viewPayload(id) {
         +'<span style="color:var(--muted);min-width:140px;flex-shrink:0;">'+f[0]+'</span>'
         +'<span style="word-break:break-all;">'+f[1]+'</span></div>';
     }).join('');
+
+    // ── 📡 Sender Endpoint Details Block ─────────────────────────────────
+    var clientIp = esc(p.client_ip||'—');
+    var cbUrl    = esc(p.callback_url||'');
+    var secLevel = esc(p.security_level||'—');
+    var authMeth = esc(p.auth_method||'—');
+    var clientName = esc(p.api_client_name||p.sender||'—');
+    var hdrs = '';
+    if(p.headers_json){
+      var hkeys=Object.keys(p.headers_json).filter(function(k){return !['host','content-length'].includes(k.toLowerCase());});
+      hdrs = hkeys.slice(0,8).map(function(k){return '<div style="display:flex;gap:8px;padding:2px 0;font-size:11px;"><span style="color:var(--muted);min-width:160px;flex-shrink:0;">'+esc(k)+'</span><span style="word-break:break-all;color:var(--ink);">'+esc(String(p.headers_json[k]).slice(0,120))+'</span></div>';}).join('');
+    }
+    var endpointBlock = '<div style="margin-top:18px;border:1px solid rgba(59,130,246,0.35);border-radius:10px;overflow:hidden;">'
+      +'<div style="padding:10px 16px;background:rgba(59,130,246,0.12);display:flex;align-items:center;gap:8px;">'
+      +'<span style="font-size:16px;">📡</span>'
+      +'<span style="font-size:13px;font-weight:700;color:#60a5fa;">Sender Endpoint Details</span>'
+      +'</div>'
+      +'<div style="padding:14px 16px;">'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">'
+      +'<div style="padding:10px;background:var(--surface);border-radius:8px;border:1px solid var(--glass-border);">'
+      +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Client IP</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--ink);font-family:monospace;">'+clientIp+'</div>'
+      +'</div>'
+      +'<div style="padding:10px;background:var(--surface);border-radius:8px;border:1px solid var(--glass-border);">'
+      +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Auth Method</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--ink);">'+secLevel+' / '+authMeth+'</div>'
+      +'</div>'
+      +'</div>'
+      +(cbUrl
+        ? '<div style="padding:10px;background:var(--surface);border-radius:8px;border:1px solid var(--glass-border);margin-bottom:12px;">'
+          +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Callback URL (Sender\'s Endpoint)</div>'
+          +'<div style="font-size:12px;color:#60a5fa;word-break:break-all;font-family:monospace;">'+cbUrl+'</div>'
+          +'</div>'
+        : '<div style="padding:10px;background:rgba(239,68,68,0.08);border-radius:8px;border:1px solid rgba(239,68,68,0.2);margin-bottom:12px;font-size:12px;color:#f87171;">⚠ No callback_url provided by sender in this payload.</div>'
+      )
+      +(hdrs
+        ? '<details style="margin-bottom:8px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted);padding:6px 0;">▸ View Request Headers ('+Object.keys(p.headers_json||{}).length+')</summary>'
+          +'<div style="margin-top:8px;padding:10px;background:var(--surface);border-radius:8px;border:1px solid var(--glass-border);">'+hdrs+'</div></details>'
+        : ''
+      )
+      // Register / update sender endpoint sub-form
+      +'<div style="margin-top:10px;padding:12px;background:rgba(16,185,129,0.06);border:1px dashed rgba(16,185,129,0.3);border-radius:8px;">'
+      +'<div style="font-size:11px;font-weight:700;color:#34d399;margin-bottom:8px;">🔧 Register Sender\'s Outbound Endpoint</div>'
+      +'<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Set the URL where ALSHUMOOKH should push response documents to this sender:</div>'
+      +'<input id="sep_url_'+id+'" type="url" placeholder="https://sender-api.example.com/receive" value="'+cbUrl+'" style="width:100%;background:var(--surface);border:1px solid var(--glass-border);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;margin-bottom:6px;box-sizing:border-box;">'
+      +'<input id="sep_auth_'+id+'" type="text" placeholder="Authorization header value (e.g. Bearer eyJ...)" style="width:100%;background:var(--surface);border:1px solid var(--glass-border);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;margin-bottom:8px;box-sizing:border-box;">'
+      +'<button class="btn btn-ghost" data-pid="'+id+'" onclick="saveSenderEndpoint(this.dataset.pid)" style="font-size:11px;padding:5px 14px;background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.4);color:#34d399;">Save Endpoint</button>'
+      +'<span id="sep_result_'+id+'" style="font-size:11px;margin-left:10px;"></span>'
+      +'</div>'
+      +'</div>'
+      +'</div>';
+    document.getElementById('plDetailBody').innerHTML += endpointBlock;
+
+    // ── 📤 Send Response to Sender Block ──────────────────────────────────
+    var sendBlock = '<div style="margin-top:14px;border:1px solid rgba(201,168,76,0.35);border-radius:10px;overflow:hidden;">'
+      +'<div style="padding:10px 16px;background:rgba(201,168,76,0.1);display:flex;align-items:center;gap:8px;">'
+      +'<span style="font-size:16px;">📤</span>'
+      +'<span style="font-size:13px;font-weight:700;color:var(--gold);">Send Response to Sender\'s Endpoint</span>'
+      +'</div>'
+      +'<div style="padding:14px 16px;">'
+      +'<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Push a document, status update, or JSON message from ALSHUMOOKH directly to the sender\'s registered endpoint.</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
+      +'<div>'
+      +'<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Target URL</label>'
+      +'<input id="sr_url_'+id+'" type="url" placeholder="Sender endpoint URL (auto-filled if set)" value="'+cbUrl+'" style="width:100%;background:var(--surface);border:1px solid var(--glass-border);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;">'
+      +'</div>'
+      +'<div>'
+      +'<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Content Type</label>'
+      +'<select id="sr_ct_'+id+'" style="width:100%;background:var(--surface);border:1px solid var(--glass-border);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;">'
+      +'<option value="application/json">application/json</option>'
+      +'<option value="text/plain">text/plain</option>'
+      +'<option value="application/xml">application/xml</option>'
+      +'</select>'
+      +'</div>'
+      +'</div>'
+      +'<div style="margin-bottom:8px;">'
+      +'<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Authorization Header (optional)</label>'
+      +'<input id="sr_auth_'+id+'" type="text" placeholder="Bearer eyJ... (leave blank to use saved auth)" style="width:100%;background:var(--surface);border:1px solid var(--glass-border);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;">'
+      +'</div>'
+      +'<div style="margin-bottom:10px;">'
+      +'<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Message Body (JSON or Text)</label>'
+      +'<textarea id="sr_body_'+id+'" rows="5" style="width:100%;background:var(--surface);border:1px solid var(--glass-border);border-radius:6px;padding:8px 10px;color:var(--ink);font-size:12px;font-family:monospace;resize:vertical;box-sizing:border-box;" placeholder=\'{"status":"SETTLEMENT_COMPLETE","reference":"'+esc(p.transaction_reference||p.id||'')+'","amount":"'+(p.amount||'')+'","asset":"'+(p.asset||'')+'","message":"Your payment has been processed by ALSHUMOOKH Global Banking."}\'>{"status":"SETTLEMENT_COMPLETE","reference":"'+esc(p.transaction_reference||p.id||'')+'","amount":"'+(p.amount||'')+'","asset":"'+(p.asset||'')+'","message":"Your payment has been processed by ALSHUMOOKH Global Banking Finance & Credit."}</textarea>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+      +'<button class="btn btn-primary" data-pid="'+id+'" onclick="sendResponseToSender(this.dataset.pid)" style="font-size:12px;">📤 Send to Sender Endpoint</button>'
+      +'<button class="btn btn-ghost" data-pid="'+id+'" onclick="fillSettlementTemplate(this.dataset.pid)" style="font-size:11px;">📋 Settlement Template</button>'
+      +'<button class="btn btn-ghost" data-pid="'+id+'" onclick="fillRejectionTemplate(this.dataset.pid)" style="font-size:11px;">❌ Rejection Template</button>'
+      +'</div>'
+      +'<div id="sr_result_'+id+'" style="margin-top:10px;font-size:12px;padding:10px;border-radius:8px;display:none;"></div>'
+      +'</div>'
+      +'</div>';
+    document.getElementById('plDetailBody').innerHTML += sendBlock;
 
     var acts=[];
     var vstatus=p.verification_status||'';
@@ -1673,6 +1765,102 @@ function viewPayload(id) {
     document.getElementById('plDetail').style.display='block';
     document.getElementById('plDetail').scrollIntoView({behavior:'smooth'});
   }).catch(function(e){ showToast('Error: '+e.message,'error'); });
+}
+
+// ── Send response to sender's endpoint ───────────────────────────────────────
+function sendResponseToSender(id){
+  var urlEl   = document.getElementById('sr_url_'+id);
+  var ctEl    = document.getElementById('sr_ct_'+id);
+  var authEl  = document.getElementById('sr_auth_'+id);
+  var bodyEl  = document.getElementById('sr_body_'+id);
+  var resEl   = document.getElementById('sr_result_'+id);
+
+  var targetUrl = (urlEl ? urlEl.value.trim() : '');
+  var ct        = (ctEl  ? ctEl.value : 'application/json');
+  var authHdr   = (authEl? authEl.value.trim() : '');
+  var rawBody   = (bodyEl? bodyEl.value.trim() : '');
+
+  if(!rawBody){showToast('Enter a message body first','error');return;}
+
+  var payloadBody;
+  if(ct==='application/json'){
+    try{ payloadBody=JSON.parse(rawBody); }
+    catch(e){ showToast('Invalid JSON: '+e.message,'error'); return; }
+  } else {
+    payloadBody = rawBody;
+  }
+
+  if(resEl){ resEl.style.display='block'; resEl.style.background='rgba(255,193,7,0.08)'; resEl.style.color='var(--muted)'; resEl.textContent='Sending to sender endpoint...'; }
+
+  api('/api/v1/admin/payloads/'+id+'/push-response',{
+    method:'POST',
+    body:JSON.stringify({
+      target_url:   targetUrl || undefined,
+      content_type: ct,
+      auth_header:  authHdr || undefined,
+      payload_body: payloadBody,
+      note:         'Manual push from Settlement Payloads dashboard'
+    })
+  }).then(function(r){
+    var ok = r.delivery_status==='DELIVERED';
+    if(resEl){
+      resEl.style.background = ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)';
+      resEl.innerHTML = (ok
+        ? '✅ <strong>Delivered</strong> — HTTP '+r.http_status
+        : '❌ <strong>'+r.delivery_status+'</strong> — '+(r.error||'HTTP '+r.http_status))
+        +(r.response_preview ? '<br><small style="color:var(--muted);">Response: '+esc(r.response_preview.slice(0,200))+'</small>' : '');
+    }
+    showToast(ok ? 'Response delivered to sender' : 'Delivery failed: '+r.delivery_status, ok ? 'ok' : 'error');
+  }).catch(function(e){
+    if(resEl){ resEl.style.background='rgba(239,68,68,0.08)'; resEl.style.color='#f87171'; resEl.textContent='Error: '+e.message; }
+    showToast('Send error: '+e.message,'error');
+  });
+}
+
+// ── Save sender endpoint on their ApiClient record ───────────────────────────
+function saveSenderEndpoint(id){
+  var urlEl  = document.getElementById('sep_url_'+id);
+  var authEl = document.getElementById('sep_auth_'+id);
+  var resEl  = document.getElementById('sep_result_'+id);
+  var epUrl  = urlEl  ? urlEl.value.trim()  : '';
+  var epAuth = authEl ? authEl.value.trim() : '';
+  if(!epUrl){ showToast('Enter endpoint URL first','error'); return; }
+  if(resEl) resEl.textContent='Saving...';
+  api('/api/v1/admin/payloads/'+id+'/sender-endpoint',{
+    method:'POST',
+    body:JSON.stringify({endpoint_url:epUrl, endpoint_auth_header:epAuth||undefined})
+  }).then(function(r){
+    if(resEl){ resEl.style.color='#34d399'; resEl.textContent='✅ Saved for: '+r.client_name; }
+    showToast('Sender endpoint saved','ok');
+  }).catch(function(e){
+    if(resEl){ resEl.style.color='#f87171'; resEl.textContent='Error: '+e.message; }
+    showToast('Error: '+e.message,'error');
+  });
+}
+
+// ── Message templates ─────────────────────────────────────────────────────────
+function fillSettlementTemplate(id){
+  var el=document.getElementById('sr_body_'+id);
+  if(!el) return;
+  el.value=JSON.stringify({
+    status:'SETTLEMENT_COMPLETE',
+    reference:id,
+    message:'Your transaction has been fully settled by ALSHUMOOKH Global Banking Finance & Credit.',
+    settled_at:new Date().toISOString(),
+    platform:'api.alshumookh-pay.com'
+  },null,2);
+}
+function fillRejectionTemplate(id){
+  var el=document.getElementById('sr_body_'+id);
+  if(!el) return;
+  el.value=JSON.stringify({
+    status:'REJECTED',
+    reference:id,
+    reason:'Payload failed compliance verification.',
+    message:'This transaction could not be processed. Please contact ALSHUMOOKH compliance.',
+    rejected_at:new Date().toISOString(),
+    contact:'ceo@alshumookhgroup.ae'
+  },null,2);
 }
 function routePayload(id){
   var sel=document.querySelector('input[name="plProvider_'+id+'"]:checked');

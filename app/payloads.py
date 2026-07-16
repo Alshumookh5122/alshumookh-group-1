@@ -1041,6 +1041,195 @@ async def review_payload(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# POST /api/v1/admin/payloads/{payload_id}/push-response
+# Send a document / message FROM our system TO the sender's endpoint
+# ─────────────────────────────────────────────────────────────────────────────
+
+@admin_payloads_router.post("/{payload_id}/push-response", status_code=status.HTTP_200_OK)
+async def push_response_to_sender(
+    request: Request,
+    payload_id: str,
+    _admin: AdminKey,
+    body: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Push a response document or JSON message from ALSHUMOOKH to the sender's endpoint.
+
+    Body fields:
+      - target_url     : override URL (optional — falls back to payload.callback_url or ApiClient.endpoint_url)
+      - auth_header    : Authorization header value (optional — falls back to ApiClient.endpoint_auth_header)
+      - content_type   : e.g. 'application/json' or 'text/plain' (optional)
+      - payload_body   : the content to send (dict for JSON, str for text)
+      - note           : internal note to log (optional)
+    """
+    ep = await _load_payload(db, payload_id)
+    actor = _admin_actor(request)
+
+    # ── Resolve target URL (priority: body → payload.callback_url → client.endpoint_url) ──
+    target_url: str | None = (body.get("target_url") or "").strip() or None
+
+    if not target_url and ep.callback_url:
+        target_url = ep.callback_url.strip()
+
+    if not target_url and ep.api_client_id:
+        client_row = await db.get(ApiClient, ep.api_client_id)
+        if client_row and client_row.endpoint_url:
+            target_url = client_row.endpoint_url.strip()
+
+    if not target_url:
+        raise HTTPException(
+            status_code=400,
+            detail="No target URL found. Set callback_url on the payload, endpoint_url on the API client, or provide target_url in request body.",
+        )
+
+    # ── Resolve auth header ────────────────────────────────────────────────
+    auth_header: str | None = (body.get("auth_header") or "").strip() or None
+    if not auth_header and ep.api_client_id:
+        client_row = await db.get(ApiClient, ep.api_client_id)
+        if client_row and client_row.endpoint_auth_header:
+            auth_header = client_row.endpoint_auth_header.strip()
+
+    content_type: str = (body.get("content_type") or "application/json").strip()
+    payload_body = body.get("payload_body") or {}
+    note: str = body.get("note") or ""
+
+    # ── Build outbound headers ─────────────────────────────────────────────
+    headers: dict[str, str] = {"Content-Type": content_type}
+    if auth_header:
+        headers["Authorization"] = auth_header
+    headers["X-ALSHUMOOKH-Source"] = "settlement-response"
+    headers["X-Payload-Ref"] = ep.id
+    headers["X-Transaction-Ref"] = ep.transaction_reference or ep.id
+
+    # ── Send HTTP POST to sender's endpoint ────────────────────────────────
+    delivery_status: str
+    response_status: int | None = None
+    response_body: str = ""
+    error_detail: str = ""
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            if isinstance(payload_body, dict):
+                resp = await client.post(target_url, json=payload_body, headers=headers)
+            else:
+                resp = await client.post(target_url, content=str(payload_body), headers=headers)
+
+        response_status = resp.status_code
+        response_body = resp.text[:2000]
+        delivery_status = "DELIVERED" if resp.status_code < 400 else "FAILED"
+
+    except httpx.ConnectError as exc:
+        delivery_status = "CONNECTION_ERROR"
+        error_detail = str(exc)[:500]
+    except httpx.TimeoutException:
+        delivery_status = "TIMEOUT"
+        error_detail = "Request timed out after 15 seconds"
+    except Exception as exc:
+        delivery_status = "ERROR"
+        error_detail = str(exc)[:500]
+
+    # ── Audit log ──────────────────────────────────────────────────────────
+    await log_event(
+        db,
+        "PAYLOAD_RESPONSE_PUSHED",
+        {
+            "payload_id": ep.id,
+            "target_url": target_url,
+            "delivery_status": delivery_status,
+            "http_status": response_status,
+            "note": note,
+            "pushed_by": actor,
+            "error": error_detail or None,
+        },
+        client_id=ep.api_client_id,
+        endpoint=request.url.path,
+        method="POST",
+        ip=_client_ip(request),
+        status_code=response_status,
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+    return {
+        "payload_id": ep.id,
+        "target_url": target_url,
+        "delivery_status": delivery_status,
+        "http_status": response_status,
+        "response_preview": response_body[:500] if response_body else None,
+        "error": error_detail or None,
+        "pushed_by": actor,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /api/v1/admin/payloads/{payload_id}/sender-endpoint
+# Register / update the sender's outbound endpoint on their ApiClient record
+# ─────────────────────────────────────────────────────────────────────────────
+
+@admin_payloads_router.post("/{payload_id}/sender-endpoint", status_code=status.HTTP_200_OK)
+async def update_sender_endpoint(
+    request: Request,
+    payload_id: str,
+    _admin: AdminKey,
+    body: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Register or update the outbound endpoint for the sender who submitted this payload.
+
+    Body fields:
+      - endpoint_url         : the sender's API endpoint URL
+      - endpoint_auth_header : Authorization header value to use when calling them
+      - endpoint_content_type: Content-Type override (default: application/json)
+    """
+    ep = await _load_payload(db, payload_id)
+
+    if not ep.api_client_id:
+        raise HTTPException(status_code=400, detail="This payload has no linked API client.")
+
+    client_row = await db.get(ApiClient, ep.api_client_id)
+    if not client_row:
+        raise HTTPException(status_code=404, detail="API client record not found.")
+
+    if "endpoint_url" in body:
+        client_row.endpoint_url = (body["endpoint_url"] or "").strip() or None
+    if "endpoint_auth_header" in body:
+        client_row.endpoint_auth_header = (body["endpoint_auth_header"] or "").strip() or None
+    if "endpoint_content_type" in body:
+        client_row.endpoint_content_type = (body["endpoint_content_type"] or "application/json").strip()
+
+    await db.commit()
+    await db.refresh(client_row)
+
+    actor = _admin_actor(request)
+    await log_event(
+        db,
+        "SENDER_ENDPOINT_UPDATED",
+        {
+            "payload_id": ep.id,
+            "client_id": client_row.id,
+            "client_name": client_row.name,
+            "endpoint_url": client_row.endpoint_url,
+            "updated_by": actor,
+        },
+        client_id=ep.api_client_id,
+        endpoint=request.url.path,
+        method="POST",
+        ip=_client_ip(request),
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+    return {
+        "client_id": client_row.id,
+        "client_name": client_row.name,
+        "endpoint_url": client_row.endpoint_url,
+        "endpoint_content_type": client_row.endpoint_content_type,
+        "has_auth": bool(client_row.endpoint_auth_header),
+        "message": "Sender endpoint updated successfully.",
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # M1 FUND INBOUND — Receive M1-grouped financial data from external senders
 # Endpoint: POST /api/v1/payloads/m1-fund
 # ─────────────────────────────────────────────────────────────────────────────
