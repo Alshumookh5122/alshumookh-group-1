@@ -1438,6 +1438,254 @@ async def update_client(
     )
 
 
+@router.post("/clients/{client_id}/whitelist-ip")
+async def whitelist_client_ip(
+    client_id: str,
+    body: dict,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Add an IP address to a client's allowed_ips whitelist."""
+    ip_address = (body.get("ip") or "").strip()
+    if not ip_address:
+        raise HTTPException(status_code=400, detail="ip is required")
+
+    result = await db.execute(select(ApiClient).where(cast(ApiClient.id, String) == str(client_id)))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    current_ips = list(client.allowed_ips or [])
+    if ip_address in current_ips:
+        return {"status": "already_whitelisted", "allowed_ips": current_ips, "client_name": client.name}
+
+    current_ips.append(ip_address)
+    client.allowed_ips = current_ips
+    await db.commit()
+    await db.refresh(client)
+
+    await log_event(
+        db,
+        "IP_WHITELISTED",
+        {"client_id": str(client.id), "client_name": client.name, "ip_added": ip_address, "all_ips": current_ips},
+        None,
+        client_id=client.id,
+    )
+
+    return {"status": "whitelisted", "allowed_ips": current_ips, "client_name": client.name}
+
+
+@router.get("/clients/{client_id}/whitelist-certificate")
+async def whitelist_certificate(
+    client_id: str,
+    ip: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a professional PDF IP Whitelist Authorization Certificate."""
+    import io, os
+    from reportlab.pdfgen import canvas as rl_canvas
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm
+
+    result = await db.execute(select(ApiClient).where(cast(ApiClient.id, String) == str(client_id)))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # ── Colors ─────────────────────────────────────────────────────────────────
+    NAVY   = colors.HexColor("#0D1B3E")
+    GOLD   = colors.HexColor("#C9A84C")
+    LGOLD  = colors.HexColor("#F0D98A")
+    WHITE  = colors.white
+    LGRAY  = colors.HexColor("#F5F6F8")
+    MGRAY  = colors.HexColor("#8E9BB5")
+    DKGRAY = colors.HexColor("#333D52")
+    GREEN  = colors.HexColor("#1A5C2E")
+    GREENBG= colors.HexColor("#F0FFF4")
+
+    W, H = A4
+    ML = 2.2 * cm
+    MR = 2.2 * cm
+    CW = W - ML - MR
+
+    buf = io.BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+
+    LOGO = os.path.join(os.path.dirname(__file__), "static", "company-logo.png")
+
+    # ── Header ─────────────────────────────────────────────────────────────────
+    c.setFillColor(NAVY)
+    c.rect(0, H - 3.2*cm, W, 3.2*cm, fill=1, stroke=0)
+    if os.path.exists(LOGO):
+        c.drawImage(LOGO, ML, H - 2.9*cm, width=2.2*cm, height=2.2*cm,
+                    preserveAspectRatio=True, mask="auto")
+    c.setFillColor(WHITE)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(ML + 2.6*cm, H - 1.35*cm, "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT")
+    c.setFont("Helvetica", 8)
+    c.setFillColor(LGOLD)
+    c.drawString(ML + 2.6*cm, H - 1.85*cm,
+                 "Technology & Compliance Division  |  api.alshumookh-pay.com  |  Dubai, UAE")
+    c.setFillColor(GOLD)
+    c.rect(0, H - 3.35*cm, W, 0.18*cm, fill=1, stroke=0)
+
+    # ── Gold title banner ───────────────────────────────────────────────────────
+    y = H - 4.0*cm
+    c.setFillColor(GOLD)
+    c.rect(ML, y, CW, 0.75*cm, fill=1, stroke=0)
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawCentredString(W / 2, y + 0.2*cm, "IP WHITELIST AUTHORIZATION CERTIFICATE")
+    y -= 0.6*cm
+
+    # ── Cert number & date ──────────────────────────────────────────────────────
+    cert_num = "ALSH-WL-" + str(client.id).upper()[:8] + "-" + ip.replace(".", "")
+    issued = datetime.now(timezone.utc).strftime("%d %B %Y")
+    c.setFont("Helvetica", 8)
+    c.setFillColor(MGRAY)
+    c.drawCentredString(W / 2, y, f"Certificate No: {cert_num}   |   Issued: {issued}")
+    y -= 0.9*cm
+
+    # ── Intro text ──────────────────────────────────────────────────────────────
+    intro = (
+        "This certificate confirms that the IP address specified herein has been formally reviewed, "
+        "approved, and added to the authorized access whitelist of ALSHUMOOKH Global Banking Finance & Credit. "
+        "The bearer of this certificate is authorized to establish connections to the Alshumookh Pay API "
+        "gateway from the whitelisted IP address stated below."
+    )
+    c.setFont("Helvetica", 9)
+    c.setFillColor(DKGRAY)
+    words = intro.split()
+    line = ""
+    for w in words:
+        test = (line + " " + w).strip()
+        if c.stringWidth(test, "Helvetica", 9) <= CW:
+            line = test
+        else:
+            c.drawCentredString(W / 2, y, line)
+            y -= 0.44*cm
+            line = w
+    if line:
+        c.drawCentredString(W / 2, y, line)
+    y -= 0.7*cm
+
+    # ── Main IP box ─────────────────────────────────────────────────────────────
+    box_h = 2.8*cm
+    c.setFillColor(GREENBG)
+    c.roundRect(ML, y - box_h, CW, box_h, 6, fill=1, stroke=0)
+    c.setStrokeColor(GREEN)
+    c.setLineWidth(1.5)
+    c.roundRect(ML, y - box_h, CW, box_h, 6, fill=0, stroke=1)
+
+    c.setFont("Helvetica", 9)
+    c.setFillColor(GREEN)
+    c.drawCentredString(W / 2, y - 0.55*cm, "AUTHORIZED IP ADDRESS")
+    c.setFont("Helvetica-Bold", 22)
+    c.setFillColor(NAVY)
+    c.drawCentredString(W / 2, y - 1.35*cm, ip)
+    c.setFont("Helvetica", 8.5)
+    c.setFillColor(GREEN)
+    c.drawCentredString(W / 2, y - 1.95*cm, "STATUS: ACTIVE — AUTHORIZED FOR API ACCESS")
+    y -= box_h + 0.7*cm
+
+    # ── Details table ───────────────────────────────────────────────────────────
+    rows = [
+        ("Client Name",    client.name),
+        ("Client ID",      str(client.id)),
+        ("IP Address",     ip),
+        ("Access Level",   "Full API Gateway Access — ISO 20022 / Settlement Channel"),
+        ("Issued By",      "ALSHUMOOKH Global Banking Finance & Credit — Technology Division"),
+        ("Date Issued",    issued),
+        ("Valid Until",    datetime.now(timezone.utc).replace(year=datetime.now(timezone.utc).year + 1).strftime("%d %B %Y")),
+        ("License No.",    "887065"),
+    ]
+    row_h = 0.52*cm
+    col1_w = 5.5*cm
+
+    for i, (label, value) in enumerate(rows):
+        bg = LGRAY if i % 2 == 0 else WHITE
+        c.setFillColor(bg)
+        c.rect(ML, y - row_h, CW, row_h, fill=1, stroke=0)
+        c.setStrokeColor(colors.HexColor("#DEE2EA"))
+        c.setLineWidth(0.4)
+        c.line(ML, y - row_h, ML + CW, y - row_h)
+        c.setFont("Helvetica-Bold", 8.3)
+        c.setFillColor(NAVY)
+        c.drawString(ML + 0.3*cm, y - 0.35*cm, label)
+        c.setFont("Helvetica", 8.3)
+        c.setFillColor(DKGRAY)
+        c.drawString(ML + col1_w, y - 0.35*cm, value[:80])
+        y -= row_h
+
+    y -= 0.5*cm
+
+    # ── Legal statement ─────────────────────────────────────────────────────────
+    c.setFillColor(colors.HexColor("#FFF8E8"))
+    c.roundRect(ML, y - 1.6*cm, CW, 1.6*cm, 4, fill=1, stroke=0)
+    c.setStrokeColor(GOLD)
+    c.setLineWidth(1)
+    c.roundRect(ML, y - 1.6*cm, CW, 1.6*cm, 4, fill=0, stroke=1)
+    legal = (
+        "This certificate is electronically issued under License No. 887065 and is valid for one (1) year from the date of issue. "
+        "The authorized IP address is registered in the Alshumookh Pay security infrastructure and is monitored in accordance with ISO 27001:2022 "
+        "and UAE CBUAE regulatory requirements. Unauthorized use or transfer of this certificate is strictly prohibited."
+    )
+    c.setFont("Helvetica", 7.8)
+    c.setFillColor(colors.HexColor("#7A6000"))
+    lwords = legal.split()
+    ll = ""
+    ly = y - 0.4*cm
+    for w in lwords:
+        test = (ll + " " + w).strip()
+        if c.stringWidth(test, "Helvetica", 7.8) <= CW - 0.6*cm:
+            ll = test
+        else:
+            c.drawString(ML + 0.3*cm, ly, ll)
+            ly -= 0.38*cm
+            ll = w
+    if ll:
+        c.drawString(ML + 0.3*cm, ly, ll)
+    y -= 1.9*cm
+
+    # ── Signature ───────────────────────────────────────────────────────────────
+    c.setFont("Helvetica", 9)
+    c.setFillColor(DKGRAY)
+    c.drawString(ML, y, "Authorized by:")
+    y -= 0.7*cm
+    c.setFont("Helvetica-Bold", 10)
+    c.setFillColor(NAVY)
+    c.drawString(ML, y, "ALSHUMOOKH Global Banking Finance & Credit")
+    y -= 0.44*cm
+    c.setFont("Helvetica", 8.5)
+    c.setFillColor(MGRAY)
+    c.drawString(ML, y, "Technology & Compliance Division  |  api.alshumookh-pay.com")
+
+    # ── Footer ──────────────────────────────────────────────────────────────────
+    c.setFillColor(GOLD)
+    c.rect(0, 1.4*cm, W, 0.13*cm, fill=1, stroke=0)
+    c.setFillColor(NAVY)
+    c.rect(0, 0, W, 1.4*cm, fill=1, stroke=0)
+    c.setFillColor(LGOLD)
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(W / 2, 0.75*cm,
+        "ALSHUMOOKH GROUP  |  API World Tower, Office No. 2103/2104, Shaikh Zayed Road, Dubai, UAE  |  Lic. 887065  |  api.alshumookh-pay.com")
+    c.setFont("Helvetica", 6.5)
+    c.setFillColor(MGRAY)
+    c.drawCentredString(W / 2, 0.38*cm, f"Certificate No: {cert_num}  —  This document is digitally authorized and legally binding.")
+
+    c.save()
+    buf.seek(0)
+
+    safe_name = f"IP_Whitelist_Certificate_{ip.replace('.', '_')}.pdf"
+    return Response(
+        content=buf.read(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )
+
+
 @router.post("/clients/{client_id}/rotate-secrets")
 async def rotate_client_secrets(
     client_id: str,

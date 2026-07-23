@@ -3819,13 +3819,100 @@ function loadClients(){
       +'<td>'+(r.jws_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
       +'<td>'+((r.allowed_ips||[]).length?r.allowed_ips.join(', '):'Any IP')+'</td>'
       +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-ghost" data-cid="'+r.id+'" onclick="openClientDetails(this.dataset.cid)" style="font-size:11px;padding:3px 8px;">View</button><button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active)" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'Disable':'Enable')+'</button></div></td>'
+      +'<td><div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      +'<button class="btn btn-ghost" data-cid="'+r.id+'" onclick="openClientDetails(this.dataset.cid)" style="font-size:11px;padding:3px 8px;">View</button>'
+      +'<button class="btn" data-cid="'+r.id+'" data-cname="'+r.name+'" onclick="openWhitelistModal(this.dataset.cid,this.dataset.cname)" style="font-size:11px;padding:3px 8px;background:#1e3a5f;color:#e2c97e;border:1px solid #c9a84c;">&#128737; Whitelist IP</button>'
+      +'<button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active)" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'Disable':'Enable')+'</button>'
+      +'</div></td>'
       +'</tr>';}).join('');
     document.getElementById('clBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
   }).catch(function(e){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
 }
+
+/* ══ WHITELIST IP MODAL ══════════════════════════════════════════════════════ */
+var _wlClientId='', _wlClientName='', _wlApprovedIp='';
+
+function openWhitelistModal(cid, cname){
+  _wlClientId=cid; _wlClientName=cname; _wlApprovedIp='';
+  document.getElementById('wlClientLabel').textContent=cname||cid;
+  document.getElementById('wlIpInput').value='';
+  document.getElementById('wlStep1').style.display='block';
+  document.getElementById('wlStep2').style.display='none';
+  document.getElementById('wlOverlay').style.display='flex';
+}
+function closeWhitelistModal(){
+  document.getElementById('wlOverlay').style.display='none';
+}
+function approveWhitelistIp(){
+  var ip=document.getElementById('wlIpInput').value.trim();
+  if(!ip){showToast('Please enter an IP address','error');return;}
+  var btn=document.getElementById('wlApproveBtn');
+  btn.disabled=true; btn.textContent='Processing...';
+  api('/api/v1/admin/clients/'+_wlClientId+'/whitelist-ip',{method:'POST',body:JSON.stringify({ip:ip})})
+    .then(function(r){
+      _wlApprovedIp=ip;
+      document.getElementById('wlApprovedIpDisplay').textContent=ip;
+      document.getElementById('wlClientDisplay').textContent=r.client_name||_wlClientName;
+      document.getElementById('wlStep1').style.display='none';
+      document.getElementById('wlStep2').style.display='block';
+      showToast('IP '+ip+' whitelisted successfully','ok');
+      loadClients();
+    })
+    .catch(function(e){showToast('Error: '+e.message,'error');})
+    .finally(function(){btn.disabled=false;btn.textContent='Approve & Whitelist';});
+}
+function downloadWhitelistCert(){
+  if(!_wlApprovedIp||!_wlClientId){showToast('No approved IP','error');return;}
+  var url='/api/v1/admin/clients/'+_wlClientId+'/whitelist-certificate?ip='+encodeURIComponent(_wlApprovedIp);
+  var a=document.createElement('a');
+  a.href=url+'&admin_key='+encodeURIComponent(document.cookie.match(/admin_key=([^;]+)/)?document.cookie.match(/admin_key=([^;]+)/)[1]:'');
+  a.target='_blank';
+  a.click();
+}
+
 loadClients();
 </script>
+
+<!-- ══ WHITELIST IP MODAL OVERLAY ══════════════════════════════════════════ -->
+<div id="wlOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;align-items:center;justify-content:center;">
+  <div style="background:#0f1e38;border:1px solid #c9a84c;border-radius:12px;width:460px;max-width:95vw;padding:0;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <!-- Modal Header -->
+    <div style="background:#0d1b3e;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #c9a84c;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">&#128737;</span>
+        <div>
+          <div style="color:#e2c97e;font-weight:700;font-size:14px;">IP Whitelist Authorization</div>
+          <div id="wlClientLabel" style="color:#8e9bb5;font-size:11px;"></div>
+        </div>
+      </div>
+      <button onclick="closeWhitelistModal()" style="background:rgba(255,255,255,.08);border:none;color:#8e9bb5;font-size:18px;width:30px;height:30px;border-radius:50%;cursor:pointer;">&#x2715;</button>
+    </div>
+
+    <!-- Step 1: Enter IP -->
+    <div id="wlStep1" style="padding:24px 20px;">
+      <p style="color:#8e9bb5;font-size:12px;margin:0 0 16px;line-height:1.6;">Enter the IP address to authorize. After approval, a signed PDF certificate will be generated and the IP will be added to this client\'s access list immediately.</p>
+      <label style="color:#c9a84c;font-size:11px;font-weight:700;letter-spacing:.5px;display:block;margin-bottom:6px;">IP ADDRESS</label>
+      <input id="wlIpInput" placeholder="e.g. 85.106.102.180" style="width:100%;box-sizing:border-box;padding:10px 14px;background:#1a2d4a;border:1px solid #2d4a6e;border-radius:8px;color:#e2e8f0;font-size:15px;font-family:monospace;outline:none;">
+      <div style="display:flex;gap:10px;margin-top:18px;">
+        <button id="wlApproveBtn" onclick="approveWhitelistIp()" style="flex:1;padding:11px;background:linear-gradient(135deg,#1a5c2e,#0f3d1e);color:#86efac;border:1px solid #22c55e;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">Approve &amp; Whitelist</button>
+        <button onclick="closeWhitelistModal()" style="padding:11px 18px;background:transparent;color:#8e9bb5;border:1px solid #2d4a6e;border-radius:8px;cursor:pointer;font-size:13px;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Success + Download Certificate -->
+    <div id="wlStep2" style="display:none;padding:24px 20px;text-align:center;">
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(34,197,94,.15);border:2px solid #22c55e;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;">&#10003;</div>
+      <div style="color:#22c55e;font-weight:700;font-size:15px;margin-bottom:6px;">IP Successfully Whitelisted</div>
+      <div style="color:#8e9bb5;font-size:12px;margin-bottom:4px;">Client: <strong style="color:#e2c97e;" id="wlClientDisplay"></strong></div>
+      <div style="background:#1a2d4a;border:1px solid #2d4a6e;border-radius:8px;padding:12px;margin:14px 0;font-family:monospace;font-size:18px;color:#e2c97e;font-weight:700;" id="wlApprovedIpDisplay"></div>
+      <p style="color:#8e9bb5;font-size:11px;margin:0 0 16px;">The IP is now active in the system. Download the official authorization certificate below.</p>
+      <div style="display:flex;gap:10px;">
+        <a id="wlCertLink" onclick="downloadWhitelistCert();return false;" href="#" style="flex:1;display:block;padding:12px;background:#0d1b3e;color:#e2c97e;border:1px solid #c9a84c;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none;text-align:center;">&#128196; Download Certificate</a>
+        <button onclick="closeWhitelistModal()" style="padding:12px 16px;background:transparent;color:#8e9bb5;border:1px solid #2d4a6e;border-radius:8px;cursor:pointer;font-size:13px;">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 """
 
 # ─── SECURITY ─────────────────────────────────────────────────────────────────
