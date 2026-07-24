@@ -71,6 +71,7 @@ _SIDEBAR_LINKS = [
     ("/dashboard/logs",          "📝", "Audit Logs"),
     ("/dashboard/distributor",   "⛓", "Profit Distributor"),
     ("/dashboard/topup",         "💳", "Top-Up Engine"),
+    ("/dashboard/nowpayments",   "₿",  "NOWPayments"),
     ("/swift",                   "⬡", "SWIFT Terminal"),
 ]
 
@@ -8649,3 +8650,544 @@ async def dashboard_ping(request: Request):
         },
         "hint": "if any_auth=false, enter your Admin API Key in the dashboard top bar",
     })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  NOWPayments Dashboard  —  /dashboard/nowpayments
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/dashboard/nowpayments")
+async def dashboard_nowpayments(request: Request):
+    if not is_admin_request_authenticated(request):
+        return RedirectResponse("/login", status_code=302)
+
+    sidebar = _build_sidebar("/dashboard/nowpayments")
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>NOWPayments — ALSHUMOOKH Admin</title>
+{_COMMON_HEAD}
+<style>
+:root{{--navy:#0D1B3E;--gold:#C9A84C;--bg:#f4f6fb;}}
+body{{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);display:flex;min-height:100vh;}}
+.sidebar{{width:230px;min-height:100vh;background:var(--navy);color:#fff;display:flex;flex-direction:column;flex-shrink:0;}}
+.sidebar .logo{{padding:22px 18px 10px;border-bottom:1px solid rgba(201,168,76,.25);}}
+.sidebar .logo img{{width:38px;vertical-align:middle;margin-right:8px;}}
+.sidebar .logo span{{font-size:13px;font-weight:700;color:var(--gold);letter-spacing:.5px;}}
+.sidebar nav a{{display:flex;align-items:center;gap:9px;padding:9px 18px;color:#c5cfe0;text-decoration:none;font-size:12.5px;transition:background .15s;}}
+.sidebar nav a:hover,.sidebar nav a.active{{background:rgba(201,168,76,.15);color:var(--gold);}}
+.main{{flex:1;display:flex;flex-direction:column;overflow:auto;}}
+.topbar{{background:#fff;border-bottom:1px solid #e2e8f0;padding:0 28px;height:54px;display:flex;align-items:center;justify-content:space-between;}}
+.topbar h1{{font-size:16px;font-weight:700;color:var(--navy);margin:0;}}
+.content{{padding:24px 28px;flex:1;}}
+
+/* Tabs */
+.tabs{{display:flex;gap:4px;margin-bottom:22px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:6px;width:fit-content;}}
+.tab-btn{{padding:8px 20px;border:none;background:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;transition:.15s;}}
+.tab-btn.active{{background:var(--navy);color:#fff;}}
+.tab-pane{{display:none;}}.tab-pane.active{{display:block;}}
+
+/* Card */
+.card{{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:22px 26px;margin-bottom:20px;}}
+.card h2{{margin:0 0 16px;font-size:14px;font-weight:700;color:var(--navy);border-bottom:2px solid var(--gold);padding-bottom:8px;}}
+
+/* Form */
+.form-grid{{display:grid;grid-template-columns:1fr 1fr;gap:12px;}}
+.form-group{{display:flex;flex-direction:column;gap:5px;}}
+.form-group label{{font-size:12px;font-weight:600;color:#475569;}}
+.form-group input,.form-group select{{padding:9px 12px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;outline:none;transition:border .15s;}}
+.form-group input:focus,.form-group select:focus{{border-color:var(--gold);}}
+.form-group.full{{grid-column:1/-1;}}
+.btn{{padding:10px 22px;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;}}
+.btn-primary{{background:var(--navy);color:#fff;}}.btn-primary:hover{{background:#1a2d5a;}}
+.btn-gold{{background:var(--gold);color:#fff;}}.btn-gold:hover{{opacity:.9;}}
+.btn-sm{{padding:6px 14px;font-size:12px;}}
+
+/* Result box */
+.result-box{{margin-top:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;display:none;}}
+.result-box pre{{margin:0;font-size:12px;color:#1e293b;white-space:pre-wrap;word-break:break-all;}}
+.result-box .copy-btn{{float:right;margin-top:-4px;}}
+
+/* Table */
+.tbl{{width:100%;border-collapse:collapse;font-size:12.5px;}}
+.tbl th{{background:var(--navy);color:#fff;padding:9px 12px;text-align:left;font-weight:600;}}
+.tbl td{{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;}}
+.tbl tr:hover td{{background:#f8fafc;}}
+.badge{{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;}}
+.badge-green{{background:#dcfce7;color:#166534;}}
+.badge-yellow{{background:#fef9c3;color:#854d0e;}}
+.badge-red{{background:#fee2e2;color:#991b1b;}}
+.badge-blue{{background:#dbeafe;color:#1e40af;}}
+.badge-gray{{background:#f1f5f9;color:#475569;}}
+
+.status-bar{{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px 16px;font-size:12.5px;color:#856404;margin-bottom:18px;display:none;}}
+.status-bar.show{{display:block;}}
+
+/* QR / address display */
+.addr-box{{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px 16px;margin-top:12px;display:none;}}
+.addr-box .addr{{font-family:monospace;font-size:13px;color:#0c4a6e;word-break:break-all;font-weight:700;}}
+.addr-box .lbl{{font-size:11px;color:#64748b;margin-bottom:4px;}}
+</style>
+</head>
+<body>
+{sidebar}
+<div class="main">
+  <div class="topbar">
+    <h1>₿ NOWPayments — Crypto Payment Gateway</h1>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span id="npStatus" style="font-size:12px;color:#64748b;">Checking API…</span>
+      <button class="btn btn-sm" style="background:#e2e8f0;color:#475569;" onclick="checkStatus()">🔄 Refresh</button>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- Status bar for API not configured -->
+    <div id="configWarning" class="status-bar">
+      ⚠️ NOWPayments API key is not configured. Add <code>NOWPAYMENTS_API_KEY</code> to Render environment variables.
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('payments')">💳 Receive Payment</button>
+      <button class="tab-btn" onclick="switchTab('invoice')">🔗 Invoice Link</button>
+      <button class="tab-btn" onclick="switchTab('payout')">📤 Mass Payout</button>
+      <button class="tab-btn" onclick="switchTab('estimate')">📊 Estimate</button>
+      <button class="tab-btn" onclick="switchTab('history')">📋 Payment History</button>
+    </div>
+
+    <!-- ── RECEIVE PAYMENT ── -->
+    <div id="tab-payments" class="tab-pane active">
+      <div class="card">
+        <h2>Create Crypto Payment</h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Amount</label>
+            <input id="pp_amount" type="number" step="0.01" placeholder="100.00"/>
+          </div>
+          <div class="form-group">
+            <label>Price Currency (fiat)</label>
+            <input id="pp_price_currency" value="usd" placeholder="usd / eur"/>
+          </div>
+          <div class="form-group">
+            <label>Pay Currency (crypto)</label>
+            <select id="pp_pay_currency">
+              <option value="usdterc20">USDT (ERC-20)</option>
+              <option value="usdtbsc">USDT (BSC)</option>
+              <option value="usdtpoly">USDT (Polygon)</option>
+              <option value="usdcerc20">USDC (ERC-20)</option>
+              <option value="usdcpoly">USDC (Polygon)</option>
+              <option value="btc">Bitcoin (BTC)</option>
+              <option value="eth">Ethereum (ETH)</option>
+              <option value="ltc">Litecoin (LTC)</option>
+              <option value="trx">TRON (TRX)</option>
+              <option value="usdttrc20">USDT (TRC-20)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Order ID (optional)</label>
+            <input id="pp_order_id" placeholder="ORD-001"/>
+          </div>
+          <div class="form-group full">
+            <label>Description (optional)</label>
+            <input id="pp_description" placeholder="Payment for services"/>
+          </div>
+          <div class="form-group">
+            <label>IPN Callback URL (optional)</label>
+            <input id="pp_ipn" placeholder="https://api.alshumookh-pay.com/admin/nowpayments/ipn-webhook"/>
+          </div>
+          <div class="form-group">
+            <label>Success URL (optional)</label>
+            <input id="pp_success" placeholder="https://…/success"/>
+          </div>
+          <div class="form-group">
+            <label style="visibility:hidden;">x</label>
+            <label style="display:flex;align-items:center;gap:8px;padding-top:6px;">
+              <input type="checkbox" id="pp_fixed_rate"/> Fixed Rate
+              &nbsp;&nbsp;
+              <input type="checkbox" id="pp_fee_by_user"/> Fee paid by user
+            </label>
+          </div>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="btn btn-primary" onclick="createPayment()">Create Payment Invoice</button>
+        </div>
+        <div id="pp_result" class="result-box">
+          <div id="pp_addr_box" class="addr-box" style="display:none;">
+            <div class="lbl">Send exactly this amount to:</div>
+            <div class="addr" id="pp_pay_addr"></div>
+            <div style="margin-top:8px;font-size:12px;color:#475569;">
+              <b>Amount:</b> <span id="pp_pay_amount"></span> &nbsp;|&nbsp;
+              <b>Status:</b> <span id="pp_pay_status"></span> &nbsp;|&nbsp;
+              <b>Payment ID:</b> <span id="pp_pay_id"></span>
+            </div>
+          </div>
+          <pre id="pp_raw"></pre>
+        </div>
+      </div>
+
+      <!-- Quick Status Check -->
+      <div class="card">
+        <h2>Check Payment Status</h2>
+        <div style="display:flex;gap:10px;">
+          <input id="ps_id" placeholder="Payment ID…" style="flex:1;padding:9px 12px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;"/>
+          <button class="btn btn-primary" onclick="checkPaymentStatus()">Check</button>
+        </div>
+        <div id="ps_result" class="result-box" style="margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <!-- ── INVOICE LINK ── -->
+    <div id="tab-invoice" class="tab-pane">
+      <div class="card">
+        <h2>Create Hosted Invoice Link</h2>
+        <p style="font-size:12.5px;color:#64748b;margin:0 0 16px;">The client receives a URL, opens it, and pays with their preferred crypto — no address handling on your side.</p>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Amount</label>
+            <input id="iv_amount" type="number" step="0.01" placeholder="250.00"/>
+          </div>
+          <div class="form-group">
+            <label>Price Currency</label>
+            <input id="iv_currency" value="usd" placeholder="usd / eur"/>
+          </div>
+          <div class="form-group">
+            <label>Order ID (optional)</label>
+            <input id="iv_order_id" placeholder="INV-2025-001"/>
+          </div>
+          <div class="form-group">
+            <label>Description (optional)</label>
+            <input id="iv_description" placeholder="Invoice for…"/>
+          </div>
+          <div class="form-group">
+            <label>IPN Callback URL (optional)</label>
+            <input id="iv_ipn" placeholder="https://api.alshumookh-pay.com/admin/nowpayments/ipn-webhook"/>
+          </div>
+          <div class="form-group">
+            <label>Success URL (optional)</label>
+            <input id="iv_success" placeholder="https://…/success"/>
+          </div>
+          <div class="form-group">
+            <label>Cancel URL (optional)</label>
+            <input id="iv_cancel" placeholder="https://…/cancel"/>
+          </div>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="btn btn-gold" onclick="createInvoice()">Generate Invoice Link</button>
+        </div>
+        <div id="iv_result" class="result-box">
+          <div id="iv_link_box" style="display:none;margin-bottom:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px 16px;">
+            <div style="font-size:12px;color:#15803d;margin-bottom:6px;font-weight:700;">✅ Invoice Created — Share this link with your client:</div>
+            <a id="iv_link" href="#" target="_blank" style="font-size:13px;color:#0284c7;word-break:break-all;font-family:monospace;"></a>
+            <button class="btn btn-sm btn-gold" style="margin-left:12px;" onclick="copyInvoiceLink()">📋 Copy</button>
+          </div>
+          <pre id="iv_raw"></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MASS PAYOUT ── -->
+    <div id="tab-payout" class="tab-pane">
+      <div class="card">
+        <h2>Mass Payout (Multiple Recipients)</h2>
+        <p style="font-size:12.5px;color:#64748b;margin:0 0 16px;">Send crypto to multiple addresses in one API call. Requires Payouts API enabled in your NOWPayments account.</p>
+        <div id="payout_rows">
+          <div class="payout-row" style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;margin-bottom:10px;align-items:end;">
+            <div class="form-group" style="margin:0;">
+              <label>Wallet Address</label>
+              <input class="po_addr" placeholder="0x… or T…"/>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>Currency</label>
+              <select class="po_curr">
+                <option value="usdterc20">USDT ERC-20</option>
+                <option value="usdttrc20">USDT TRC-20</option>
+                <option value="usdtbsc">USDT BSC</option>
+                <option value="usdcerc20">USDC ERC-20</option>
+                <option value="btc">BTC</option>
+                <option value="eth">ETH</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>Amount</label>
+              <input class="po_amt" type="number" step="0.01" placeholder="100.00"/>
+            </div>
+            <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="this.closest('.payout-row').remove()">✕</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <button class="btn btn-sm" style="background:#e2e8f0;color:#475569;" onclick="addPayoutRow()">+ Add Recipient</button>
+          <button class="btn btn-gold" onclick="createPayout()">Send Mass Payout</button>
+        </div>
+        <div id="po_result" class="result-box"></div>
+      </div>
+
+      <!-- Payout Status -->
+      <div class="card">
+        <h2>Check Payout Status</h2>
+        <div style="display:flex;gap:10px;">
+          <input id="pos_id" placeholder="Payout batch ID…" style="flex:1;padding:9px 12px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;"/>
+          <button class="btn btn-primary" onclick="checkPayoutStatus()">Check</button>
+        </div>
+        <div id="pos_result" class="result-box" style="margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <!-- ── ESTIMATE ── -->
+    <div id="tab-estimate" class="tab-pane">
+      <div class="card">
+        <h2>Currency Estimate / Auto-Conversion</h2>
+        <p style="font-size:12.5px;color:#64748b;margin:0 0 16px;">Calculate how much of one currency you receive for an amount of another.</p>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Amount</label>
+            <input id="est_amount" type="number" step="0.01" placeholder="100"/>
+          </div>
+          <div class="form-group">
+            <label>From Currency</label>
+            <input id="est_from" placeholder="usd / btc / eth"/>
+          </div>
+          <div class="form-group">
+            <label>To Currency</label>
+            <input id="est_to" placeholder="usdterc20 / eth / btc"/>
+          </div>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="btn btn-primary" onclick="runEstimate()">Calculate</button>
+        </div>
+        <div id="est_result" class="result-box">
+          <div id="est_summary" style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:10px;"></div>
+          <pre id="est_raw"></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── HISTORY ── -->
+    <div id="tab-history" class="tab-pane">
+      <div class="card">
+        <h2>Payment History</h2>
+        <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;">
+          <select id="hist_limit" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;">
+            <option value="10">10 rows</option>
+            <option value="20" selected>20 rows</option>
+            <option value="50">50 rows</option>
+          </select>
+          <button class="btn btn-primary" onclick="loadHistory()">Load Payments</button>
+        </div>
+        <div id="hist_content" style="overflow-x:auto;">
+          <p style="color:#94a3b8;font-size:13px;">Click "Load Payments" to fetch from NOWPayments.</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+const AK = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('als_ak='))?.split('=')[1]||'';
+
+function switchTab(name) {{
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active', ['payments','invoice','payout','estimate','history'][i]===name));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.id==='tab-'+name));
+}}
+
+async function apiFetch(path, options={{}}) {{
+  const headers = {{'x-admin-api-key': AK, 'Content-Type': 'application/json', ...options.headers}};
+  const r = await fetch('/admin'+path, {{...options, headers}});
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.detail || JSON.stringify(data));
+  return data;
+}}
+
+function showResult(id, data, extra='') {{
+  const box = document.getElementById(id);
+  box.style.display='block';
+  const pre = box.querySelector('pre');
+  if (pre) pre.textContent = JSON.stringify(data, null, 2);
+}}
+
+function showError(id, msg) {{
+  const box = document.getElementById(id);
+  box.style.display='block';
+  box.innerHTML = `<pre style="color:#dc2626;">❌ ${{msg}}</pre>`;
+}}
+
+async function checkStatus() {{
+  document.getElementById('npStatus').textContent = 'Checking…';
+  try {{
+    const d = await apiFetch('/nowpayments/status');
+    const ok = d.api_status?.message === 'OK';
+    document.getElementById('npStatus').innerHTML =
+      ok ? '<span style="color:#16a34a;">✅ API Online</span>' : '<span style="color:#dc2626;">❌ API Offline</span>';
+    document.getElementById('npStatus').title = JSON.stringify(d, null, 2);
+    if (!d.configured) {{
+      document.getElementById('configWarning').classList.add('show');
+    }}
+  }} catch(e) {{
+    document.getElementById('npStatus').innerHTML = '<span style="color:#dc2626;">❌ Error</span>';
+  }}
+}}
+
+async function createPayment() {{
+  try {{
+    const body = {{
+      price_amount: parseFloat(document.getElementById('pp_amount').value),
+      price_currency: document.getElementById('pp_price_currency').value.trim()||'usd',
+      pay_currency: document.getElementById('pp_pay_currency').value,
+      order_id: document.getElementById('pp_order_id').value||undefined,
+      order_description: document.getElementById('pp_description').value||undefined,
+      ipn_callback_url: document.getElementById('pp_ipn').value||undefined,
+      success_url: document.getElementById('pp_success').value||undefined,
+      is_fixed_rate: document.getElementById('pp_fixed_rate').checked,
+      is_fee_paid_by_user: document.getElementById('pp_fee_by_user').checked,
+    }};
+    const d = await apiFetch('/nowpayments/create-payment', {{method:'POST', body:JSON.stringify(body)}});
+    showResult('pp_result', d);
+    // Show address box
+    if (d.pay_address) {{
+      document.getElementById('pp_addr_box').style.display='block';
+      document.getElementById('pp_pay_addr').textContent = d.pay_address;
+      document.getElementById('pp_pay_amount').textContent = (d.pay_amount||'') + ' ' + (d.pay_currency||'').toUpperCase();
+      document.getElementById('pp_pay_status').textContent = d.payment_status||'';
+      document.getElementById('pp_pay_id').textContent = d.payment_id||'';
+    }}
+    document.getElementById('pp_raw').textContent = JSON.stringify(d, null, 2);
+  }} catch(e) {{ showError('pp_result', e.message); }}
+}}
+
+async function checkPaymentStatus() {{
+  const id = document.getElementById('ps_id').value.trim();
+  if (!id) return;
+  try {{
+    const d = await apiFetch('/nowpayments/payment/'+id);
+    showResult('ps_result', d);
+    document.getElementById('ps_result').innerHTML = `<pre>${{JSON.stringify(d,null,2)}}</pre>`;
+  }} catch(e) {{ showError('ps_result', e.message); }}
+}}
+
+async function createInvoice() {{
+  try {{
+    const body = {{
+      price_amount: parseFloat(document.getElementById('iv_amount').value),
+      price_currency: document.getElementById('iv_currency').value.trim()||'usd',
+      order_id: document.getElementById('iv_order_id').value||undefined,
+      order_description: document.getElementById('iv_description').value||undefined,
+      ipn_callback_url: document.getElementById('iv_ipn').value||undefined,
+      success_url: document.getElementById('iv_success').value||undefined,
+      cancel_url: document.getElementById('iv_cancel').value||undefined,
+    }};
+    const d = await apiFetch('/nowpayments/create-invoice', {{method:'POST', body:JSON.stringify(body)}});
+    document.getElementById('iv_result').style.display='block';
+    if (d.invoice_url) {{
+      const lb = document.getElementById('iv_link_box');
+      lb.style.display='block';
+      const a = document.getElementById('iv_link');
+      a.href = d.invoice_url;
+      a.textContent = d.invoice_url;
+    }}
+    document.getElementById('iv_raw').textContent = JSON.stringify(d, null, 2);
+  }} catch(e) {{ showError('iv_result', e.message); }}
+}}
+
+function copyInvoiceLink() {{
+  navigator.clipboard.writeText(document.getElementById('iv_link').href).then(()=>alert('Copied!'));
+}}
+
+function addPayoutRow() {{
+  const c = document.getElementById('payout_rows');
+  const tpl = c.querySelector('.payout-row').cloneNode(true);
+  tpl.querySelectorAll('input').forEach(i=>i.value='');
+  c.appendChild(tpl);
+}}
+
+async function createPayout() {{
+  const rows = document.querySelectorAll('.payout-row');
+  const withdrawals = [];
+  for (const row of rows) {{
+    const addr = row.querySelector('.po_addr').value.trim();
+    const curr = row.querySelector('.po_curr').value;
+    const amt = parseFloat(row.querySelector('.po_amt').value);
+    if (addr && curr && amt > 0) withdrawals.push({{address:addr, currency:curr, amount:amt}});
+  }}
+  if (!withdrawals.length) {{ alert('Add at least one valid recipient'); return; }}
+  try {{
+    const d = await apiFetch('/nowpayments/create-payout', {{method:'POST', body:JSON.stringify({{withdrawals}})}});
+    showResult('po_result', d);
+    document.getElementById('po_result').innerHTML = `<pre>${{JSON.stringify(d,null,2)}}</pre>`;
+  }} catch(e) {{ showError('po_result', e.message); }}
+}}
+
+async function checkPayoutStatus() {{
+  const id = document.getElementById('pos_id').value.trim();
+  if (!id) return;
+  try {{
+    const d = await apiFetch('/nowpayments/payout/'+id);
+    document.getElementById('pos_result').style.display='block';
+    document.getElementById('pos_result').innerHTML = `<pre>${{JSON.stringify(d,null,2)}}</pre>`;
+  }} catch(e) {{ showError('pos_result', e.message); }}
+}}
+
+async function runEstimate() {{
+  try {{
+    const body = {{
+      amount: parseFloat(document.getElementById('est_amount').value),
+      currency_from: document.getElementById('est_from').value.trim(),
+      currency_to: document.getElementById('est_to').value.trim(),
+    }};
+    const d = await apiFetch('/nowpayments/estimate', {{method:'POST', body:JSON.stringify(body)}});
+    document.getElementById('est_result').style.display='block';
+    const est = d.estimated_amount ?? d.amount_to ?? '—';
+    const rate = d.rate_from ?? '';
+    document.getElementById('est_summary').textContent =
+      `${{body.amount}} ${{body.currency_from.toUpperCase()}} ≈ ${{est}} ${{body.currency_to.toUpperCase()}}`;
+    document.getElementById('est_raw').textContent = JSON.stringify(d, null, 2);
+  }} catch(e) {{ showError('est_result', e.message); }}
+}}
+
+function statusBadge(s) {{
+  const m = {{finished:'green',confirmed:'green',sending:'blue',confirming:'yellow',waiting:'yellow',partially_paid:'yellow',failed:'red',expired:'red',refunded:'red'}};
+  const cls = m[s?.toLowerCase()]||'gray';
+  return `<span class="badge badge-${{cls}}">${{s||'—'}}</span>`;
+}}
+
+async function loadHistory() {{
+  const limit = document.getElementById('hist_limit').value;
+  document.getElementById('hist_content').innerHTML = '<p style="color:#94a3b8;">Loading…</p>';
+  try {{
+    const d = await apiFetch(`/nowpayments/payments?limit=${{limit}}&page=0`);
+    const payments = d.data || d.result || [];
+    if (!payments.length) {{
+      document.getElementById('hist_content').innerHTML = '<p style="color:#94a3b8;">No payments found.</p>';
+      return;
+    }}
+    let rows = payments.map(p => `
+      <tr>
+        <td><code style="font-size:11px;">${{p.payment_id||'—'}}</code></td>
+        <td>${{p.order_id||'—'}}</td>
+        <td>${{statusBadge(p.payment_status)}}</td>
+        <td>${{p.price_amount||''}} ${{(p.price_currency||'').toUpperCase()}}</td>
+        <td>${{p.pay_amount||''}} ${{(p.pay_currency||'').toUpperCase()}}</td>
+        <td>${{p.actually_paid||'0'}} ${{(p.pay_currency||'').toUpperCase()}}</td>
+        <td style="font-size:11px;">${{p.created_at ? new Date(p.created_at).toLocaleString() : '—'}}</td>
+        <td><button class="btn btn-sm" style="background:#e2e8f0;color:#475569;" onclick='navigator.clipboard.writeText("${{p.payment_id}}")'>📋</button></td>
+      </tr>`).join('');
+    document.getElementById('hist_content').innerHTML = `
+      <table class="tbl">
+        <thead><tr>
+          <th>Payment ID</th><th>Order ID</th><th>Status</th>
+          <th>Price</th><th>Pay Amount</th><th>Received</th><th>Created</th><th></th>
+        </tr></thead>
+        <tbody>${{rows}}</tbody>
+      </table>`;
+  }} catch(e) {{
+    document.getElementById('hist_content').innerHTML = `<p style="color:#dc2626;">❌ ${{e.message}}</p>`;
+  }}
+}}
+
+// Init
+checkStatus();
+</script>
+</body>
+</html>"""
+    return HTMLResponse(html)

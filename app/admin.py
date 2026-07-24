@@ -4531,3 +4531,212 @@ async def live_monitoring(_: AdminKey, db: AsyncSession = Depends(get_db)):
             "pending_actions": pending_approvals + m1_pending,
         },
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOWPayments Integration Endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+from app import nowpayments_service as nps
+
+
+class CreatePaymentBody(BaseModel):
+    price_amount: float
+    price_currency: str = "usd"
+    pay_currency: str = "usdterc20"
+    order_id: str | None = None
+    order_description: str | None = None
+    ipn_callback_url: str | None = None
+    success_url: str | None = None
+    cancel_url: str | None = None
+    is_fixed_rate: bool = False
+    is_fee_paid_by_user: bool = False
+
+
+class CreateInvoiceBody(BaseModel):
+    price_amount: float
+    price_currency: str = "usd"
+    order_id: str | None = None
+    order_description: str | None = None
+    ipn_callback_url: str | None = None
+    success_url: str | None = None
+    cancel_url: str | None = None
+
+
+class EstimateBody(BaseModel):
+    amount: float
+    currency_from: str
+    currency_to: str
+
+
+class PayoutWithdrawal(BaseModel):
+    address: str
+    currency: str
+    amount: float
+    ipn_callback_url: str | None = None
+
+
+class CreatePayoutBody(BaseModel):
+    withdrawals: list[PayoutWithdrawal]
+
+
+@router.get("/nowpayments/status")
+async def nowpayments_api_status(_: str = Depends(AdminKey)):
+    """Check NOWPayments API availability and configuration."""
+    try:
+        status_data = await nps.get_status()
+        currencies = await nps.get_currencies()
+        return {
+            "configured": bool(settings.nowpayments_api_key),
+            "api_status": status_data,
+            "supported_currencies_count": len(currencies),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"NOWPayments API error: {exc}")
+
+
+@router.get("/nowpayments/currencies")
+async def nowpayments_currencies(_: str = Depends(AdminKey)):
+    """Return list of supported currencies from NOWPayments."""
+    try:
+        return {"currencies": await nps.get_currencies()}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/nowpayments/estimate")
+async def nowpayments_estimate(body: EstimateBody, _: str = Depends(AdminKey)):
+    """Estimate how much currency_to the user receives for amount of currency_from."""
+    try:
+        result = await nps.get_estimate(body.amount, body.currency_from, body.currency_to)
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/nowpayments/create-payment")
+async def nowpayments_create_payment(body: CreatePaymentBody, _: str = Depends(AdminKey)):
+    """
+    Create a crypto payment invoice.
+    Returns: pay_address, payment_id, payment_status, pay_amount, pay_currency, etc.
+    """
+    try:
+        result = await nps.create_payment(
+            price_amount=body.price_amount,
+            price_currency=body.price_currency,
+            pay_currency=body.pay_currency,
+            order_id=body.order_id,
+            order_description=body.order_description,
+            ipn_callback_url=body.ipn_callback_url,
+            success_url=body.success_url,
+            cancel_url=body.cancel_url,
+            is_fixed_rate=body.is_fixed_rate,
+            is_fee_paid_by_user=body.is_fee_paid_by_user,
+        )
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/nowpayments/create-invoice")
+async def nowpayments_create_invoice(body: CreateInvoiceBody, _: str = Depends(AdminKey)):
+    """
+    Create a hosted invoice page that the client opens to pay.
+    Returns: invoice_url, id, token_id, order_id, order_description, etc.
+    """
+    try:
+        result = await nps.create_invoice(
+            price_amount=body.price_amount,
+            price_currency=body.price_currency,
+            order_id=body.order_id,
+            order_description=body.order_description,
+            ipn_callback_url=body.ipn_callback_url,
+            success_url=body.success_url,
+            cancel_url=body.cancel_url,
+        )
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/nowpayments/payment/{payment_id}")
+async def nowpayments_payment_status(payment_id: str, _: str = Depends(AdminKey)):
+    """Get current status and details of a payment by its ID."""
+    try:
+        return await nps.get_payment_status(payment_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/nowpayments/payments")
+async def nowpayments_list_payments(
+    limit: int = 20,
+    page: int = 0,
+    sort_by: str = "created_at",
+    order_by: str = "desc",
+    _: str = Depends(AdminKey),
+):
+    """List all NOWPayments payments with pagination."""
+    try:
+        return await nps.list_payments(limit=limit, page=page, sort_by=sort_by, order_by=order_by)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/nowpayments/create-payout")
+async def nowpayments_create_payout(body: CreatePayoutBody, _: str = Depends(AdminKey)):
+    """
+    Create a mass payout to multiple crypto addresses in a single call.
+    Requires Payouts API enabled on your NOWPayments account.
+    """
+    try:
+        withdrawals = [w.model_dump(exclude_none=True) for w in body.withdrawals]
+        result = await nps.create_payout(withdrawals)
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/nowpayments/payout/{payout_id}")
+async def nowpayments_payout_status(payout_id: str, _: str = Depends(AdminKey)):
+    """Get status of a mass payout batch by ID."""
+    try:
+        return await nps.get_payout_status(payout_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/nowpayments/ipn-webhook", include_in_schema=False)
+async def nowpayments_ipn_webhook(request: Request):
+    """
+    NOWPayments IPN (Instant Payment Notification) webhook.
+    Verifies HMAC-SHA512 signature then processes payment status update.
+    """
+    import logging
+    _logger = logging.getLogger("nowpayments.ipn")
+
+    raw_body = await request.body()
+    signature = request.headers.get("x-nowpayments-sig", "")
+
+    if not nps.verify_ipn_signature(raw_body, signature):
+        _logger.warning("NOWPayments IPN: invalid signature")
+        raise HTTPException(status_code=400, detail="Invalid IPN signature")
+
+    try:
+        body = __import__("json").loads(raw_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    internal_status = nps.parse_ipn_status(body)
+    payment_id = body.get("payment_id", "unknown")
+    order_id = body.get("order_id", "")
+    pay_amount = body.get("actually_paid", body.get("pay_amount", 0))
+    pay_currency = body.get("pay_currency", "")
+
+    _logger.info(
+        "NOWPayments IPN: payment_id=%s order_id=%s status=%s amount=%s %s",
+        payment_id, order_id, internal_status, pay_amount, pay_currency,
+    )
+
+    # TODO: persist IPN events to database / trigger settlement logic here
+    return {"received": True, "payment_id": payment_id, "status": internal_status}
