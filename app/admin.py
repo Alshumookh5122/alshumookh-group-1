@@ -4581,7 +4581,7 @@ class CreatePayoutBody(BaseModel):
 
 
 @router.get("/nowpayments/status")
-async def nowpayments_api_status(_: str = Depends(AdminKey)):
+async def nowpayments_api_status(_: AdminKey):
     """Check NOWPayments API availability and configuration."""
     try:
         status_data = await nps.get_status()
@@ -4596,7 +4596,7 @@ async def nowpayments_api_status(_: str = Depends(AdminKey)):
 
 
 @router.get("/nowpayments/currencies")
-async def nowpayments_currencies(_: str = Depends(AdminKey)):
+async def nowpayments_currencies(_: AdminKey):
     """Return list of supported currencies from NOWPayments."""
     try:
         return {"currencies": await nps.get_currencies()}
@@ -4605,7 +4605,7 @@ async def nowpayments_currencies(_: str = Depends(AdminKey)):
 
 
 @router.post("/nowpayments/estimate")
-async def nowpayments_estimate(body: EstimateBody, _: str = Depends(AdminKey)):
+async def nowpayments_estimate(body: EstimateBody, _: AdminKey):
     """Estimate how much currency_to the user receives for amount of currency_from."""
     try:
         result = await nps.get_estimate(body.amount, body.currency_from, body.currency_to)
@@ -4615,7 +4615,7 @@ async def nowpayments_estimate(body: EstimateBody, _: str = Depends(AdminKey)):
 
 
 @router.post("/nowpayments/create-payment")
-async def nowpayments_create_payment(body: CreatePaymentBody, _: str = Depends(AdminKey)):
+async def nowpayments_create_payment(body: CreatePaymentBody, _: AdminKey):
     """
     Create a crypto payment invoice.
     Returns: pay_address, payment_id, payment_status, pay_amount, pay_currency, etc.
@@ -4639,7 +4639,7 @@ async def nowpayments_create_payment(body: CreatePaymentBody, _: str = Depends(A
 
 
 @router.post("/nowpayments/create-invoice")
-async def nowpayments_create_invoice(body: CreateInvoiceBody, _: str = Depends(AdminKey)):
+async def nowpayments_create_invoice(body: CreateInvoiceBody, _: AdminKey):
     """
     Create a hosted invoice page that the client opens to pay.
     Returns: invoice_url, id, token_id, order_id, order_description, etc.
@@ -4660,7 +4660,7 @@ async def nowpayments_create_invoice(body: CreateInvoiceBody, _: str = Depends(A
 
 
 @router.get("/nowpayments/payment/{payment_id}")
-async def nowpayments_payment_status(payment_id: str, _: str = Depends(AdminKey)):
+async def nowpayments_payment_status(payment_id: str, _: AdminKey):
     """Get current status and details of a payment by its ID."""
     try:
         return await nps.get_payment_status(payment_id)
@@ -4670,11 +4670,11 @@ async def nowpayments_payment_status(payment_id: str, _: str = Depends(AdminKey)
 
 @router.get("/nowpayments/payments")
 async def nowpayments_list_payments(
+    _: AdminKey,
     limit: int = 20,
     page: int = 0,
     sort_by: str = "created_at",
     order_by: str = "desc",
-    _: str = Depends(AdminKey),
 ):
     """List all NOWPayments payments with pagination."""
     try:
@@ -4684,7 +4684,7 @@ async def nowpayments_list_payments(
 
 
 @router.post("/nowpayments/create-payout")
-async def nowpayments_create_payout(body: CreatePayoutBody, _: str = Depends(AdminKey)):
+async def nowpayments_create_payout(body: CreatePayoutBody, _: AdminKey):
     """
     Create a mass payout to multiple crypto addresses in a single call.
     Requires Payouts API enabled on your NOWPayments account.
@@ -4698,7 +4698,7 @@ async def nowpayments_create_payout(body: CreatePayoutBody, _: str = Depends(Adm
 
 
 @router.get("/nowpayments/payout/{payout_id}")
-async def nowpayments_payout_status(payout_id: str, _: str = Depends(AdminKey)):
+async def nowpayments_payout_status(payout_id: str, _: AdminKey):
     """Get status of a mass payout batch by ID."""
     try:
         return await nps.get_payout_status(payout_id)
