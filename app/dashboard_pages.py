@@ -8856,7 +8856,7 @@ function switchTab(name) {
   document.querySelectorAll('.np-tab-btn').forEach(function(b,i){ b.classList.toggle('active',tabs[i]===name); });
   document.querySelectorAll('.np-pane').forEach(function(p){ p.classList.toggle('active',p.id==='tab-'+name); });
 }
-function npApi(path,opts){ return api('/admin'+path, opts||{}); }
+function npApi(path,opts){ return api('/api/v1/admin'+path, opts||{}); }
 function showNpResult(id,data){ var b=document.getElementById(id); if(!b)return; b.style.display='block'; var p=b.querySelector('pre'); if(p)p.textContent=JSON.stringify(data,null,2); }
 function showNpError(id,msg){ var b=document.getElementById(id); if(!b)return; b.style.display='block'; b.innerHTML='<pre style="color:#ef4444;">❌ '+msg+'</pre>'; }
 async function checkStatus(){
