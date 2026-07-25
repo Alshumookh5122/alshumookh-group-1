@@ -4580,14 +4580,27 @@ class CreatePayoutBody(BaseModel):
     withdrawals: list[PayoutWithdrawal]
 
 
+def _np_require_key() -> None:
+    """Raise 503 with a human-readable message when the API key is not configured."""
+    if not settings.nowpayments_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="NOWPAYMENTS_API_KEY is not configured. Add it to your Render environment variables and redeploy.",
+        )
+
+
 @router.get("/nowpayments/status")
 async def nowpayments_api_status(_: AdminKey):
     """Check NOWPayments API availability and configuration."""
+    configured = bool(settings.nowpayments_api_key)
+    if not configured:
+        # Return early without calling external API — JS will show the config warning
+        return {"configured": False, "api_status": None, "supported_currencies_count": 0}
     try:
         status_data = await nps.get_status()
         currencies = await nps.get_currencies()
         return {
-            "configured": bool(settings.nowpayments_api_key),
+            "configured": True,
             "api_status": status_data,
             "supported_currencies_count": len(currencies),
         }
@@ -4598,6 +4611,7 @@ async def nowpayments_api_status(_: AdminKey):
 @router.get("/nowpayments/currencies")
 async def nowpayments_currencies(_: AdminKey):
     """Return list of supported currencies from NOWPayments."""
+    _np_require_key()
     try:
         return {"currencies": await nps.get_currencies()}
     except Exception as exc:
@@ -4607,6 +4621,7 @@ async def nowpayments_currencies(_: AdminKey):
 @router.post("/nowpayments/estimate")
 async def nowpayments_estimate(body: EstimateBody, _: AdminKey):
     """Estimate how much currency_to the user receives for amount of currency_from."""
+    _np_require_key()
     try:
         result = await nps.get_estimate(body.amount, body.currency_from, body.currency_to)
         return result
@@ -4620,6 +4635,7 @@ async def nowpayments_create_payment(body: CreatePaymentBody, _: AdminKey):
     Create a crypto payment invoice.
     Returns: pay_address, payment_id, payment_status, pay_amount, pay_currency, etc.
     """
+    _np_require_key()
     try:
         result = await nps.create_payment(
             price_amount=body.price_amount,
@@ -4644,6 +4660,7 @@ async def nowpayments_create_invoice(body: CreateInvoiceBody, _: AdminKey):
     Create a hosted invoice page that the client opens to pay.
     Returns: invoice_url, id, token_id, order_id, order_description, etc.
     """
+    _np_require_key()
     try:
         result = await nps.create_invoice(
             price_amount=body.price_amount,
@@ -4662,6 +4679,7 @@ async def nowpayments_create_invoice(body: CreateInvoiceBody, _: AdminKey):
 @router.get("/nowpayments/payment/{payment_id}")
 async def nowpayments_payment_status(payment_id: str, _: AdminKey):
     """Get current status and details of a payment by its ID."""
+    _np_require_key()
     try:
         return await nps.get_payment_status(payment_id)
     except Exception as exc:
@@ -4677,6 +4695,7 @@ async def nowpayments_list_payments(
     order_by: str = "desc",
 ):
     """List all NOWPayments payments with pagination."""
+    _np_require_key()
     try:
         return await nps.list_payments(limit=limit, page=page, sort_by=sort_by, order_by=order_by)
     except Exception as exc:
@@ -4689,6 +4708,7 @@ async def nowpayments_create_payout(body: CreatePayoutBody, _: AdminKey):
     Create a mass payout to multiple crypto addresses in a single call.
     Requires Payouts API enabled on your NOWPayments account.
     """
+    _np_require_key()
     try:
         withdrawals = [w.model_dump(exclude_none=True) for w in body.withdrawals]
         result = await nps.create_payout(withdrawals)
@@ -4700,6 +4720,7 @@ async def nowpayments_create_payout(body: CreatePayoutBody, _: AdminKey):
 @router.get("/nowpayments/payout/{payout_id}")
 async def nowpayments_payout_status(payout_id: str, _: AdminKey):
     """Get status of a mass payout batch by ID."""
+    _np_require_key()
     try:
         return await nps.get_payout_status(payout_id)
     except Exception as exc:

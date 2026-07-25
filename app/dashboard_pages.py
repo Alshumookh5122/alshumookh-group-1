@@ -8863,9 +8863,13 @@ async function checkStatus(){
   document.getElementById('npStatus').textContent='Checking…';
   try{
     var d=await npApi('/nowpayments/status');
+    if(!d.configured){
+      document.getElementById('npStatus').innerHTML='<span style="color:#f59e0b;">⚠️ API Key Not Set</span>';
+      document.getElementById('configWarning').style.display='block';
+      return;
+    }
     var ok=d.api_status&&d.api_status.message==='OK';
     document.getElementById('npStatus').innerHTML=ok?'<span style="color:#10b981;">✅ API Online</span>':'<span style="color:#ef4444;">❌ API Offline</span>';
-    if(!d.configured) document.getElementById('configWarning').style.display='block';
   }catch(e){ document.getElementById('npStatus').innerHTML='<span style="color:#ef4444;">❌ '+e.message+'</span>'; }
 }
 async function createPayment(){
