@@ -10,6 +10,7 @@ Settlement receiver pipeline:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -44,6 +45,11 @@ from app.payload_service import (
 )
 from app.request_utils import get_client_ip
 from app.schemas import PayloadReviewAction
+from app.notification_service import (
+    notify_payload_received,
+    notify_payload_approved,
+    notify_payload_verified,
+)
 
 log = logging.getLogger(__name__)
 
@@ -698,7 +704,22 @@ async def ingest_payload(
         client_id=client.id,
     )
 
-    # ── 12. Return response ──────────────────────────────────────────────────
+    # ── 12. WhatsApp notification (fire-and-forget) ──────────────────────────
+    asyncio.create_task(
+        notify_payload_received(
+            payload_id=ep.id,
+            transaction_reference=transaction_reference,
+            client_name=client.name or "Unknown",
+            amount=str(ep.amount) if ep.amount else None,
+            asset=ep.asset,
+            network=ep.network_name,
+            tx_hash=tx_hash,
+            verification_status=verification_status,
+            client_ip=ep.client_ip,
+        )
+    )
+
+    # ── 13. Return response ──────────────────────────────────────────────────
     if not parsed_ok:
         return {
             "status": "payload_received_unparsed",
