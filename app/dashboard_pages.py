@@ -8661,14 +8661,13 @@ async def dashboard_nowpayments(request: Request):
     if not is_admin_request_authenticated(request):
         return RedirectResponse("/login", status_code=302)
 
-    sidebar = _build_sidebar("/dashboard/nowpayments")
+    sidebar = _sidebar("/dashboard/nowpayments")
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>NOWPayments — ALSHUMOOKH Admin</title>
-{_COMMON_HEAD}
 <style>
 :root{{--navy:#0D1B3E;--gold:#C9A84C;--bg:#f4f6fb;}}
 body{{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);display:flex;min-height:100vh;}}
