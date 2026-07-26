@@ -8047,7 +8047,7 @@ async function loadPayments() {
       html += '<tr id="link-form-' + p.id + '" style="display:none;"><td colspan="6"><div style="display:flex;gap:8px;padding:6px 0;align-items:center;">';
       html += '<input class="dist-input" id="txhash-' + p.id + '" placeholder="0x... tx hash" style="margin:0;flex:1;" />';
       html += '<button class="dist-btn success sm" data-pid="' + p.id + '" onclick="saveTxLink(this.dataset.pid)">Save Link</button>';
-      html += '<button class="dist-btn ghost sm" data-pid="' + p.id + '" onclick="document.getElementById(' + "'link-form-'+this.dataset.pid" + ').style.display=\'none\'">Cancel</button>';
+      html += '<button class="dist-btn ghost sm" data-pid="' + p.id + '" onclick="closeLink(this.dataset.pid)">Cancel</button>';
       html += '</div></td></tr>';
     }
     html += '</tbody></table>';
@@ -8059,6 +8059,10 @@ async function loadPayments() {
 function linkPayment(id, btn) {
   const row = document.getElementById("link-form-" + id);
   if (row) row.style.display = row.style.display === "none" ? "table-row" : "none";
+}
+function closeLink(id) {
+  var r = document.getElementById("link-form-" + id);
+  if (r) r.style.display = "none";
 }
 
 function saveTxLink(id) {
@@ -8170,8 +8174,6 @@ document.addEventListener("DOMContentLoaded", function() {
   renderRegistry();
   buildPayeeRows();
 });
-</script>
-
 </script>
 """
 
