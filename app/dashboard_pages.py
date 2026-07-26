@@ -7665,7 +7665,7 @@ _DISTRIBUTOR_BODY = """
 
 </div>
 
-<script src="/static/ethers.umd.min.js" onerror="var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js';document.head.appendChild(s);"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
 <script>
 // ── ABI ──────────────────────────────────────────────────────────────────────
 const ABI = [
@@ -8309,7 +8309,7 @@ body{{background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemF
   </div>
 </div>
 
-<script src="/static/ethers.umd.min.js" onerror="var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js';document.head.appendChild(s);"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
 <script>
 const CONTRACT  = "{contract}";
 const WALLET    = "{wallet}";
