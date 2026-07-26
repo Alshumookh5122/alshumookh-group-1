@@ -92,17 +92,6 @@ class Settings(BaseSettings):
     onramper_default_crypto: str = Field(default="USDC", alias="ONRAMPER_DEFAULT_CRYPTO")
     onramper_default_fiat: str = Field(default="USD", alias="ONRAMPER_DEFAULT_FIAT")
 
-    # NOWPayments
-    nowpayments_api_key: str | None = Field(default=None, alias="NOWPAYMENTS_API_KEY")
-    nowpayments_ipn_secret: str | None = Field(default=None, alias="NOWPAYMENTS_IPN_SECRET")
-    nowpayments_api_url: str = Field(default="https://api.nowpayments.io/v1", alias="NOWPAYMENTS_API_URL")
-
-    # ── Twilio WhatsApp Notifications ─────────────────────────────────────────
-    twilio_account_sid: str | None = Field(default=None, alias="TWILIO_ACCOUNT_SID")
-    twilio_auth_token: str | None = Field(default=None, alias="TWILIO_AUTH_TOKEN")
-    twilio_whatsapp_from: str = Field(default="whatsapp:+14155238886", alias="TWILIO_WHATSAPP_FROM")
-    twilio_whatsapp_to: str | None = Field(default=None, alias="TWILIO_WHATSAPP_TO")
-
     circle_api_key: str | None = Field(default=None, alias="CIRCLE_API_KEY")
     circle_entity_secret: str | None = Field(default=None, alias="CIRCLE_ENTITY_SECRET")
     circle_wallet_set_id: str | None = Field(default=None, alias="CIRCLE_WALLET_SET_ID")

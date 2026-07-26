@@ -247,16 +247,6 @@ async def init_db():
             await conn.exec_driver_sql(
                 "ALTER TABLE api_clients ADD COLUMN IF NOT EXISTS egress_ip VARCHAR(64)"
             )
-            # ── Sender outbound endpoint fields ──────────────────────────────
-            await conn.exec_driver_sql(
-                "ALTER TABLE api_clients ADD COLUMN IF NOT EXISTS endpoint_url TEXT"
-            )
-            await conn.exec_driver_sql(
-                "ALTER TABLE api_clients ADD COLUMN IF NOT EXISTS endpoint_auth_header TEXT"
-            )
-            await conn.exec_driver_sql(
-                "ALTER TABLE api_clients ADD COLUMN IF NOT EXISTS endpoint_content_type VARCHAR(64) DEFAULT 'application/json'"
-            )
 
             # ── v2 settlement upgrade: external_payloads table ───────────────
             await conn.exec_driver_sql(

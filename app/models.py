@@ -187,26 +187,6 @@ class ApiClient(Base):
         nullable=True,
     )
 
-    # ── Outbound endpoint (where WE send responses/files TO this client) ────
-    endpoint_url: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-        comment="Sender's API endpoint URL — where ALSHUMOOKH pushes response documents",
-    )
-
-    endpoint_auth_header: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-        comment="Authorization header value for outbound calls to sender endpoint (e.g. Bearer <token>)",
-    )
-
-    endpoint_content_type: Mapped[str | None] = mapped_column(
-        String(64),
-        nullable=True,
-        default="application/json",
-        comment="Content-Type to use when posting to sender endpoint",
-    )
-
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
