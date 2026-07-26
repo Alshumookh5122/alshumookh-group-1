@@ -7875,15 +7875,43 @@ async function lookupToken() {
   errEl.style.display = 'none';
   infoEl.style.display = 'none';
 
+  const ERC20_META = [
+    'function symbol() view returns (string)',
+    'function decimals() view returns (uint8)',
+    'function name() view returns (string)'
+  ];
+
+  function _applyTokenInfo(sym, dec, name, via) {
+    activeTokenAddr = addr;
+    activeTokenSymbol = sym;
+    activeTokenDecimals = dec;
+    document.getElementById('tokenSymbolDisplay').textContent = sym;
+    document.getElementById('tokenDecimalsDisplay').textContent = String(dec);
+    document.getElementById('tokenNameDisplay').textContent = name;
+    infoEl.style.display = 'block';
+    _refreshTokenDisplays(addr, sym);
+    log('\\u2705 Token: ' + name + ' (' + sym + ') decimals=' + dec + ' via ' + via);
+  }
+
+  // Priority 1: use MetaMask provider (no CORS issues)
+  if (provider) {
+    try {
+      log('Looking up token via MetaMask provider...');
+      const token = new ethers.Contract(addr, ERC20_META, provider);
+      const [sym, dec, name] = await Promise.all([token.symbol(), token.decimals(), token.name()]);
+      _applyTokenInfo(sym, Number(dec), name, 'MetaMask');
+      return;
+    } catch(e) {
+      log('\\u26a0\\ufe0f MetaMask lookup failed: ' + (e.message||String(e)).substring(0,100) + ' — trying public RPC...');
+    }
+  }
+
+  // Priority 2: public RPC with raw eth_call (CORS may still fail in some browsers)
   const chainId = parseInt(document.getElementById('networkSelect').value);
   const rpcs = getPublicRpcs(chainId);
-
-  // ERC-20 function selectors (keccak256 first 4 bytes)
-  const SYM_SEL  = '0x95d89b41'; // symbol()
-  const DEC_SEL  = '0x313ce567'; // decimals()
-  const NAME_SEL = '0x06fdde03'; // name()
-
-  // ABI coder for decoding results
+  const SYM_SEL  = '0x95d89b41';
+  const DEC_SEL  = '0x313ce567';
+  const NAME_SEL = '0x06fdde03';
   const coder = ethers.AbiCoder.defaultAbiCoder();
 
   let lastError = null;
@@ -7898,25 +7926,15 @@ async function lookupToken() {
       const sym  = coder.decode(['string'], symHex)[0];
       const dec  = Number(coder.decode(['uint8'], decHex)[0]);
       const name = coder.decode(['string'], nameHex)[0];
-
-      activeTokenAddr = addr;
-      activeTokenSymbol = sym;
-      activeTokenDecimals = dec;
-      document.getElementById('tokenSymbolDisplay').textContent = sym;
-      document.getElementById('tokenDecimalsDisplay').textContent = dec.toString();
-      document.getElementById('tokenNameDisplay').textContent = name;
-      infoEl.style.display = 'block';
-      _refreshTokenDisplays(addr, sym);
-      log('\\u2705 Token: ' + name + ' (' + sym + ') decimals=' + dec + ' via ' + rpcUrl);
+      _applyTokenInfo(sym, dec, name, rpcUrl);
       return;
     } catch(e) {
       lastError = e;
       log('\\u26a0\\ufe0f ' + rpcUrl + ' => ' + (e.message || String(e)).substring(0, 120));
     }
   }
-  errEl.textContent = 'All RPC endpoints failed. Last error: ' +
-    ((lastError && lastError.message) || String(lastError)) +
-    '. Check the log below for details.';
+  errEl.textContent = 'Connect MetaMask first for best results — or all RPC endpoints failed: ' +
+    ((lastError && lastError.message) || String(lastError));
   errEl.style.display = 'block';
 }
 
