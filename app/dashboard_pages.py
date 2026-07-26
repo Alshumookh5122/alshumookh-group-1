@@ -8165,7 +8165,7 @@ function log(msg) {
   const el = document.getElementById("distLog");
   if (!el) return;
   const ts = new Date().toLocaleTimeString();
-  el.textContent = "[" + ts + "] " + msg + "\n" + el.textContent;
+  el.textContent = "[" + ts + "] " + msg + "\\n" + el.textContent;
   if (el.textContent.length > 4000) el.textContent = el.textContent.slice(0, 4000);
 }
 
