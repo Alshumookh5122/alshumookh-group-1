@@ -7537,10 +7537,11 @@ _DISTRIBUTOR_BODY = """
   <code id="walletAddr" style="flex:1;">Not connected</code>
   <button class="dist-btn primary" onclick="connectWallet()" id="connectBtn">Connect MetaMask</button>
   <button class="dist-btn ghost" onclick="diagWallet()" style="font-size:11px;padding:6px 10px;" title="Diagnose connection">🔍 Diagnose</button>
+  <span id="walletBalance" style="font-size:11px;color:#34d399;display:none;white-space:nowrap;"></span>
   <select id="networkSelect" class="dist-input" style="width:160px;margin:0;" onchange="switchNetwork()">
-    <option value="1" selected>Ethereum Mainnet</option>
+    <option value="1">Ethereum Mainnet</option>
     <option value="97">BSC Testnet</option>
-    <option value="56">BSC Mainnet</option>
+    <option value="56" selected>BSC Mainnet</option>
   </select>
 </div>
 <div id="diagBox" style="display:none;margin-bottom:12px;padding:12px 16px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.3);border-radius:10px;font-size:12px;line-height:1.8;"></div>
@@ -7971,6 +7972,7 @@ async function deployContract() {
   if (!mm) { alert('Connect MetaMask first'); return; }
   const ownerAddr = document.getElementById('deployOwner').value.trim();
   if (!ownerAddr) { alert('Enter INITIAL_OWNER address'); return; }
+  if (!ethers.isAddress(ownerAddr)) { alert('Invalid owner address format'); return; }
   const btn = document.getElementById('deployBtn');
   const status = document.getElementById('deployStatus');
   btn.disabled = true;
@@ -7982,6 +7984,17 @@ async function deployContract() {
     const explorerMap = { 1: 'https://etherscan.io', 56: 'https://bscscan.com', 97: 'https://testnet.bscscan.com' };
     const explorer = explorerMap[chainId] || 'https://etherscan.io';
 
+    // Check balance (warn, don't block)
+    const signerAddr = await _signer.getAddress();
+    const bal = await _provider.getBalance(signerAddr);
+    const sym = chainId===56||chainId===97 ? 'BNB' : 'ETH';
+    const balFormatted = parseFloat(ethers.formatEther(bal)).toFixed(6);
+    log('Deployer: ' + signerAddr + ' | Network chainId=' + chainId + ' | Balance: ' + balFormatted + ' ' + sym);
+    if (bal === 0n) {
+      log('⚠️ Balance is 0 ' + sym + '. If you have funds on BSC, switch to BSC Mainnet in the network dropdown and reconnect.');
+      status.textContent = '⚠️ Balance is 0 ' + sym + ' — make sure you are on the right network (use BSC Mainnet for SIG).';
+    }
+
     status.textContent = 'Sending deployment transaction...';
     log('Deploying SIGProfitDistributor with owner: ' + ownerAddr);
 
@@ -7990,8 +8003,21 @@ async function deployContract() {
       DEPLOY_BYTECODE,
       _signer
     );
-    const contract = await factory.deploy(ownerAddr);
-    status.textContent = 'Waiting for confirmation...';
+
+    // Estimate gas first; if that fails, fall back to a safe manual limit
+    var gasLimit;
+    try {
+      const deployTx = await factory.getDeployTransaction(ownerAddr);
+      gasLimit = await _provider.estimateGas(deployTx);
+      gasLimit = gasLimit * 130n / 100n; // +30% buffer
+      log('Estimated gas: ' + gasLimit.toString());
+    } catch(estErr) {
+      gasLimit = 4000000n; // safe fallback for ~7500 byte contract
+      log('estimateGas failed (' + (estErr.shortMessage||estErr.message) + ') — using manual gasLimit: ' + gasLimit);
+    }
+
+    const contract = await factory.deploy(ownerAddr, { gasLimit: gasLimit });
+    status.textContent = 'Waiting for confirmation (this may take 15-60s)...';
     log('Deploy tx sent: ' + contract.deploymentTransaction().hash);
     await contract.waitForDeployment();
     const addr = await contract.getAddress();
@@ -7999,13 +8025,14 @@ async function deployContract() {
     log('Contract deployed at: ' + addr);
     document.getElementById('deployedAddr').value = addr;
     document.getElementById('deployExplorerLink').innerHTML =
-      '<a href="' + explorer + '/address/' + addr + '" target="_blank" style="color:#34d399;">View on Explorer</a>';
+      '<a href="' + explorer + '/address/' + addr + '" target="_blank" style="color:#34d399;">View on Explorer ↗</a>';
     document.getElementById('deployResult').style.display = 'block';
     status.textContent = '';
     showToast('Contract deployed successfully!', 'ok');
   } catch(e) {
-    log('Deploy error: ' + (e.reason || e.message));
-    status.textContent = 'Error: ' + (e.reason || e.message);
+    var msg = e.reason || e.shortMessage || e.message || String(e);
+    log('Deploy error: ' + msg);
+    status.textContent = 'Error: ' + msg;
     showToast('Deployment failed', 'error');
   }
   btn.disabled = false;
@@ -8056,14 +8083,27 @@ async function connectWallet() {
     }
     signer = await provider.getSigner();
     walletAddress = await signer.getAddress();
-    addrEl.textContent = walletAddress;
+    addrEl.textContent = walletAddress.slice(0,8)+'…'+walletAddress.slice(-6);
     btn.textContent = '✅ Connected';
     btn.style.background = '#059669';
     btn.disabled = false;
     log('✅ MetaMask connected: ' + walletAddress);
-    // Auto-detect network
+    // Show balance
+    const bal = await provider.getBalance(walletAddress);
     const net = await provider.getNetwork();
-    log('Network: chainId=' + net.chainId.toString());
+    const chainId = Number(net.chainId);
+    const sym = chainId===56||chainId===97 ? 'BNB' : 'ETH';
+    const balEth = ethers.formatEther(bal);
+    const balEl = document.getElementById('walletBalance');
+    balEl.textContent = parseFloat(balEth).toFixed(4) + ' ' + sym;
+    balEl.style.display = 'inline';
+    // Sync network dropdown
+    const sel = document.getElementById('networkSelect');
+    if (sel) { for(var o of sel.options){ if(parseInt(o.value)===chainId){sel.value=o.value;break;} } }
+    log('Network: chainId=' + chainId + ' | Balance: ' + balEth + ' ' + sym);
+    if (chainId === 1 && parseFloat(balEth) < 0.005) {
+      log('⚠️ You are on Ethereum Mainnet with low ETH. SIG token is on BSC — consider switching to BSC Mainnet in the dropdown above.');
+    }
   } catch(e) {
     btn.textContent = 'Connect MetaMask';
     btn.disabled = false;
