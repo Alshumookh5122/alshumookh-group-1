@@ -7772,7 +7772,7 @@ _DISTRIBUTOR_BODY = """
   </div>
 </div>
 
-<script src="/static/ethers.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.9.2/dist/ethers.umd.min.js"></script>
 <script>
 // ─── Ethers / ABI setup ───────────────────────────────────────────────────────
 var _ethers = window.ethers;
