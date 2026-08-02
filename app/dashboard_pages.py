@@ -8121,6 +8121,14 @@ async function doCloseDeposits() {
   catch(e){log('Error: '+e.message);alert(e.message);}
 }
 
+var _distCurrentLink = '';
+function _distCopyLink() {
+  navigator.clipboard.writeText(_distCurrentLink).then(function() {
+    var btn = document.getElementById('_distCopyBtn');
+    if (btn) { btn.textContent = '✅ Copied'; setTimeout(function(){btn.textContent='📋 Copy';}, 2000); }
+  }).catch(function(e) { alert('Copy failed: '+e.message); });
+}
+
 // ─── Investor Link ────────────────────────────────────────────────────────────
 function genInvestorLink() {
   var contract = document.getElementById('contractAddr').value.trim();
@@ -8132,7 +8140,8 @@ function genInvestorLink() {
   var link = base + '/verify/distributor?contract=' + contract + '&wallet=' + investor + '&network=' + network;
   var box = document.getElementById('invLinkBox');
   box.innerHTML = '<strong style="color:#34d399;">Investor Link:</strong><br><a href="'+link+'" target="_blank" style="color:#c4b5fd;word-break:break-all;">'+link+'</a>'
-    +'<br><button onclick="navigator.clipboard.writeText(''+link+'').then(function(){this.textContent='✅ Copied';}.bind(this))" class="dist-btn ghost" style="font-size:11px;padding:4px 12px;margin-top:8px;">📋 Copy</button>';
+    +'<br><button id="_distCopyBtn" class="dist-btn ghost" style="font-size:11px;padding:4px 12px;margin-top:8px;" onclick="_distCopyLink()">📋 Copy</button>';
+  _distCurrentLink = link;
   box.style.display = 'block';
 }
 
@@ -9128,7 +9137,7 @@ function loadLog() {
         + '<td style="padding:8px 10px;text-align:center;"><span class="otp-badge '+badge+'">'+label+'</span></td>'
         + '<td style="padding:8px 10px;color:var(--muted);">'+(rec.notes||'—')+'</td>'
         + '<td style="padding:8px 10px;color:var(--muted);">'+dt+'</td>'
-        + '<td style="padding:8px 10px;text-align:center;"><button class="otp-btn danger" style="font-size:10px;padding:4px 10px;" onclick="delOtp(\''+rec.id+'\')">🗑</button></td>'
+        + '<td style="padding:8px 10px;text-align:center;"><button class="otp-btn danger" style="font-size:10px;padding:4px 10px;" data-delid="'+rec.id+'" onclick="delOtp(this.dataset.delid)">🗑</button></td>'
         + '</tr>';
     });
     html += '</tbody></table>';
