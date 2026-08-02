@@ -1,0 +1,1471 @@
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import re
+import uuid
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
+from typing import Any
+
+from eth_account import Account
+from eth_account.messages import encode_defunct
+from fastapi import APIRouter, Header, HTTPException, Request, Response
+from pydantic import BaseModel
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.audit_service import log_event
+from app.blockchain import async_sync_token_contracts, verify_m1_burn_event, verify_m1_mint_event
+from app.config import settings
+from app.database import get_db
+from app.deps import AdminKey, DbSession
+from app.models import (
+    ApiSignature,
+    M1AuditLog,
+    M1BlockchainConfirmation,
+    M1FundReserve,
+    M1MintRequest,
+    M1OracleRead,
+    M1RedeemRequest,
+    M1ReserveSnapshot,
+    M1TokenizationBatch,
+    WalletVerification,
+    WebhookEvent,
+)
+from app.request_utils import get_client_ip
+
+router = APIRouter(tags=["m1-funds"])
+
+DEFAULT_FUND_ID = "M1-ALSHUMOOKH-001"
+WALLET_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+TX_RE = re.compile(r"^0x[a-fA-F0-9]{64}$")
+
+
+class ReserveUpdateIn(BaseModel):
+    fund_id: str = DEFAULT_FUND_ID
+    total_reserve_value: str
+    tokenized_value: str
+    currency: str = "USD"
+    valuation_date: str
+    proof_document_hash: str
+    approved_by: str | None = "admin"
+
+
+class MintRequestIn(BaseModel):
+    fund_id: str = DEFAULT_FUND_ID
+    wallet: str
+    amount: str
+    reason: str | None = None
+    network: str = "ERC20"
+
+
+class MintConfirmationIn(BaseModel):
+    mint_id: str
+    tx_hash: str
+    contract_address: str
+    wallet: str
+    amount: str
+    network: str = "ERC20"
+    block_number: str | None = None
+
+
+class RedeemRequestIn(BaseModel):
+    fund_id: str = DEFAULT_FUND_ID
+    wallet: str
+    amount: str
+    reason: str | None = None
+    network: str = "ERC20"
+
+
+class BurnConfirmationIn(BaseModel):
+    redeem_id: str
+    tx_hash: str
+    contract_address: str
+    wallet: str
+    amount: str
+    network: str = "ERC20"
+    block_number: str | None = None
+    admin_override: bool = False  # Skip blockchain verification for manual admin entries
+
+
+class WalletVerifyIn(BaseModel):
+    wallet: str
+    message: str
+    signature: str
+
+
+class StatusUpdateIn(BaseModel):
+    status: str
+    reason: str | None = None
+    actor: str | None = "admin"
+
+
+class RequestDecisionIn(BaseModel):
+    reason: str | None = None
+    actor: str | None = "admin"
+
+
+class BatchCreateIn(BaseModel):
+    batch_id: str | None = None
+    fund_id: str = DEFAULT_FUND_ID
+    sender_reference: str
+    sender_name: str | None = None
+    sender_wallet: str | None = None
+    source_asset_type: str | None = "M1 Funds"
+    source_network: str | None = "Internal"
+    source_transaction_hash: str | None = None
+    total_reserve_value: str
+    tokenized_value: str
+    currency: str = "USD"
+    fx_rate_to_usd: str | None = None
+    fx_rate_source: str | None = "manual"
+    fx_rate_timestamp: str | None = None
+    valuation_date: str
+    proof_document_hash: str
+    created_by: str | None = "admin"
+    metadata_json: dict[str, Any] | None = None
+
+
+class BatchStatusIn(BaseModel):
+    actor: str | None = "admin"
+    reason: str | None = None
+
+
+class BatchReserveUpdateIn(BaseModel):
+    total_reserve_value: str | None = None
+    tokenized_value: str | None = None
+    currency: str | None = None
+    fx_rate_to_usd: str | None = None
+    fx_rate_source: str | None = None
+    fx_rate_timestamp: str | None = None
+    valuation_date: str | None = None
+    proof_document_hash: str | None = None
+    approved_by: str | None = "admin"
+    metadata_json: dict[str, Any] | None = None
+
+
+class BatchReconcileIn(BaseModel):
+    mint_tx_hash: str | None = None
+    issued_tokens: str
+    source: str | None = "manual_admin_reconciliation"
+    approved_by: str | None = "admin"
+    metadata_json: dict[str, Any] | None = None
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _dec(value: str | int | float | Decimal, code: str = "invalid_amount") -> Decimal:
+    try:
+        d = Decimal(str(value))
+    except (InvalidOperation, ValueError) as exc:
+        raise HTTPException(400, {"code": code, "message": "Invalid decimal value."}) from exc
+    if d < 0:
+        raise HTTPException(400, {"code": "invalid_amount", "message": "Amount cannot be negative."})
+    return d
+
+
+def _money(value: Decimal | None) -> str:
+    return f"{(value or Decimal('0')).quantize(Decimal('0.01'))}"
+
+
+def _parse_dt(value: str) -> datetime:
+    if not value:
+        raise HTTPException(400, {"code": "valuation_date_required", "message": "valuation_date is required."})
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(400, {"code": "valuation_date_required", "message": "valuation_date must be ISO-8601."}) from exc
+
+
+def _calculate(total: Decimal, tokenized: Decimal, issued: Decimal) -> tuple[Decimal, str]:
+    available = tokenized - issued
+    backing = "N/A" if issued == 0 else str((total / issued).quantize(Decimal("0.0001")))
+    return available, backing
+
+
+def _sign(body: dict[str, Any]) -> str:
+    raw = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
+    secret = (settings.admin_api_key or "m1-reserve-local-secret").encode()
+    return "0x" + hmac.new(secret, raw.encode(), hashlib.sha256).hexdigest()
+
+
+def _hash(body: dict[str, Any]) -> str:
+    raw = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+async def _record_signature(
+    db: AsyncSession,
+    scope: str,
+    body: dict[str, Any],
+    *,
+    client_id: str | None = None,
+) -> None:
+    signature = str(body.get("api_signature") or body.get("signature") or _sign(body))
+    db.add(ApiSignature(
+        scope=scope,
+        client_id=client_id,
+        signature=signature,
+        response_hash=_hash(body),
+        metadata_json={"keys": sorted(body.keys())},
+    ))
+    await db.commit()
+
+
+async def _record_webhook_event(
+    db: AsyncSession,
+    event: str,
+    fund_id: str | None,
+    body: dict[str, Any],
+    *,
+    status: str = "recorded",
+) -> None:
+    db.add(WebhookEvent(
+        event=event,
+        fund_id=fund_id,
+        signature=_sign(body),
+        status=status,
+        request_body=body,
+    ))
+    await db.commit()
+
+
+def _event_id() -> str:
+    return "AUD-" + uuid.uuid4().hex[:12].upper()
+
+
+def _public(fund: M1FundReserve) -> dict[str, Any]:
+    return {
+        "asset": fund.asset_name,
+        "symbol": fund.symbol,
+        "currency": fund.currency,
+        "tokenized_value": _money(fund.tokenized_value),
+        "issued_tokens": _money(fund.issued_tokens),
+        "available_to_mint": _money(fund.available_to_mint),
+        "backing_ratio": fund.backing_ratio,
+        "last_updated": fund.last_updated.isoformat() if fund.last_updated else None,
+        "status": fund.status,
+        "proof_document_hash": fund.proof_document_hash,
+    }
+
+
+def _private(fund: M1FundReserve) -> dict[str, Any]:
+    body = {
+        "fund_id": fund.fund_id,
+        "asset": fund.asset_name,
+        "symbol": fund.symbol,
+        "currency": fund.currency,
+        "total_reserve_value": _money(fund.total_reserve_value),
+        "tokenized_value": _money(fund.tokenized_value),
+        "issued_tokens": _money(fund.issued_tokens),
+        "available_to_mint": _money(fund.available_to_mint),
+        "backing_ratio": fund.backing_ratio,
+        "valuation_date": fund.valuation_date.isoformat() if fund.valuation_date else None,
+        "last_updated": fund.last_updated.isoformat() if fund.last_updated else None,
+        "status": fund.status,
+        "proof_document_hash": fund.proof_document_hash,
+    }
+    body["api_signature"] = _sign(body)
+    return body
+
+
+def _token_config() -> dict[str, Any]:
+    return {
+        "network": settings.token_network,
+        "chain_id": settings.chain_id,
+        "m1_contract": settings.m1_token_contract_address,
+        "m1_token_name": settings.m1_token_name,
+        "m1_token_symbol": settings.m1_token_symbol,
+        "m1_token_decimals": settings.m1_token_decimals,
+        "sig_contract": settings.sig_token_contract_address,
+        "sig_token_name": settings.sig_token_name,
+        "sig_token_symbol": settings.sig_token_symbol,
+        "sig_token_arabic_name": settings.sig_token_arabic_name,
+        "treasury_wallet": settings.treasury_wallet,
+    }
+
+
+def _currency(value: str) -> str:
+    currency = (value or "").upper()
+    if currency not in {"USD", "EUR"}:
+        raise HTTPException(400, {"code": "invalid_currency", "message": "Batch currency must be USD or EUR."})
+    return currency
+
+
+def _fx_rate(currency: str, value: str | None) -> Decimal:
+    if currency == "USD" and not value:
+        return Decimal("1")
+    rate = _dec(value or "0")
+    if rate <= 0:
+        raise HTTPException(400, {"code": "invalid_fx_rate", "message": "fx_rate_to_usd must be greater than zero."})
+    if currency == "USD" and rate != Decimal("1"):
+        return rate
+    return rate
+
+
+def _usd_value(value: Decimal, fx_rate: Decimal) -> Decimal:
+    return (value * fx_rate).quantize(Decimal("0.00000001"))
+
+
+def _batch_id() -> str:
+    return "M1-ALSHUMOOKH-" + _now().strftime("%Y") + "-" + uuid.uuid4().hex[:8].upper()
+
+
+def _token_contract_warnings(fund: M1FundReserve, contracts: dict[str, Any], issued_sum: Decimal | None = None) -> list[str]:
+    warnings: list[str] = []
+    try:
+        max_supply = contracts.get("m1", {}).get("max_supply")
+        if max_supply is not None and Decimal(str(fund.tokenized_value or 0)) > Decimal(str(max_supply)):
+            warnings.append("Tokenized value exceeds on-chain M1 maxSupply. Increase maxSupply on-chain before minting more M1.")
+    except Exception:
+        pass
+    try:
+        total_supply = contracts.get("m1", {}).get("total_supply")
+        if total_supply is not None and issued_sum is not None:
+            chain = Decimal(str(total_supply)).quantize(Decimal("0.01"))
+            batches = Decimal(str(issued_sum or 0)).quantize(Decimal("0.01"))
+            if batches != chain:
+                if settings.token_network.lower() == "sepolia" and settings.testnet_allow_supply_mismatch:
+                    warnings.append("Testnet supply mismatch: on-chain supply exceeds configured batches. This is allowed on Sepolia for testing.")
+                else:
+                    warnings.append("Batch issued token sum does not match on-chain M1 totalSupply.")
+    except Exception:
+        pass
+    return warnings
+
+
+async def _fund(db: AsyncSession, fund_id: str = DEFAULT_FUND_ID) -> M1FundReserve:
+    result = await db.execute(select(M1FundReserve).where(M1FundReserve.fund_id == fund_id))
+    fund = result.scalar_one_or_none()
+    if fund:
+        return fund
+    fund = M1FundReserve(fund_id=fund_id)
+    db.add(fund)
+    await db.commit()
+    await db.refresh(fund)
+    return fund
+
+
+async def _audit(
+    db: AsyncSession,
+    request: Request | None,
+    event_type: str,
+    fund_id: str | None = None,
+    *,
+    batch_id: str | None = None,
+    old_value: str | None = None,
+    new_value: str | None = None,
+    actor: str | None = None,
+    tx_hash: str | None = None,
+    proof_document_hash: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    row = M1AuditLog(
+        event_id=_event_id(),
+        fund_id=fund_id,
+        batch_id=batch_id,
+        event_type=event_type,
+        old_value=old_value,
+        new_value=new_value,
+        actor=actor,
+        ip_address=get_client_ip(request) if request else None,
+        user_agent=request.headers.get("user-agent") if request else None,
+        tx_hash=tx_hash,
+        proof_document_hash=proof_document_hash,
+        metadata_json=metadata or {},
+    )
+    db.add(row)
+    await db.commit()
+    await log_event(
+        db,
+        "m1." + event_type,
+        {"fund_id": fund_id, "batch_id": batch_id, **(metadata or {})},
+        endpoint=str(request.url.path) if request else None,
+        method=request.method if request else None,
+        ip=get_client_ip(request) if request else None,
+        user_agent=request.headers.get("user-agent") if request else None,
+    )
+
+
+def _batch_row(row: M1TokenizationBatch) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "batch_id": row.batch_id,
+        "fund_id": row.fund_id,
+        "sender_reference": row.sender_reference,
+        "sender_name": row.sender_name,
+        "sender_wallet": row.sender_wallet,
+        "source_asset_type": row.source_asset_type,
+        "source_network": row.source_network,
+        "source_transaction_hash": row.source_transaction_hash,
+        "total_reserve_value": _money(row.total_reserve_value),
+        "tokenized_value": _money(row.tokenized_value),
+        "issued_tokens": _money(row.issued_tokens),
+        "available_to_mint": _money(row.available_to_mint),
+        "currency": row.currency,
+        "fx_rate_to_usd": str(row.fx_rate_to_usd),
+        "total_reserve_value_usd": _money(row.total_reserve_value_usd),
+        "tokenized_value_usd": _money(row.tokenized_value_usd),
+        "issued_tokens_value_usd": _money(row.issued_tokens_value_usd),
+        "fx_rate_source": row.fx_rate_source,
+        "fx_rate_timestamp": row.fx_rate_timestamp.isoformat() if row.fx_rate_timestamp else None,
+        "m1_contract_address": row.m1_contract_address,
+        "treasury_wallet": row.treasury_wallet,
+        "proof_document_hash": row.proof_document_hash,
+        "valuation_date": row.valuation_date.isoformat() if row.valuation_date else None,
+        "mint_tx_hash": row.mint_tx_hash,
+        "burn_tx_hash": row.burn_tx_hash,
+        "status": row.status,
+        "approved_by": row.approved_by,
+        "approved_at": row.approved_at.isoformat() if row.approved_at else None,
+        "created_by": row.created_by,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        "metadata": row.metadata_json or {},
+    }
+
+
+def _empty_currency_summary(currency: str) -> dict[str, Any]:
+    return {
+        "batches_count": "0",
+        "total_reserve_value": "0.00",
+        "tokenized_value": "0.00",
+        "issued_tokens": "0.00",
+        "available_to_mint": "0.00",
+        "total_reserve_value_usd": "0.00",
+        "tokenized_value_usd": "0.00",
+        "issued_tokens_value_usd": "0.00",
+        "fx_rate_to_usd": "1.00" if currency == "USD" else None,
+    }
+
+
+async def _batch_summary(db: AsyncSession) -> dict[str, Any]:
+    rows = (await db.execute(select(M1TokenizationBatch))).scalars().all()
+    included = [r for r in rows if r.status not in {"rejected"}]
+    active = [r for r in rows if r.status == "active"]
+    currency_rows: dict[str, list[M1TokenizationBatch]] = {"USD": [], "EUR": []}
+    for row in included:
+        if row.currency in currency_rows:
+            currency_rows[row.currency].append(row)
+
+    currency_summary: dict[str, Any] = {}
+    for currency, items in currency_rows.items():
+        total = sum((Decimal(x.total_reserve_value or 0) for x in items), Decimal("0"))
+        tokenized = sum((Decimal(x.tokenized_value or 0) for x in items), Decimal("0"))
+        issued = sum((Decimal(x.issued_tokens or 0) for x in items), Decimal("0"))
+        available = sum((Decimal(x.available_to_mint or 0) for x in items), Decimal("0"))
+        total_usd = sum((Decimal(x.total_reserve_value_usd or 0) for x in items), Decimal("0"))
+        tokenized_usd = sum((Decimal(x.tokenized_value_usd or 0) for x in items), Decimal("0"))
+        issued_usd = sum((Decimal(x.issued_tokens_value_usd or 0) for x in items), Decimal("0"))
+        fx_values = [str(x.fx_rate_to_usd) for x in items if x.fx_rate_to_usd]
+        currency_summary[currency] = {
+            "batches_count": str(len(items)),
+            "total_reserve_value": _money(total),
+            "tokenized_value": _money(tokenized),
+            "issued_tokens": _money(issued),
+            "available_to_mint": _money(available),
+            "total_reserve_value_usd": _money(total_usd),
+            "tokenized_value_usd": _money(tokenized_usd),
+            "issued_tokens_value_usd": _money(issued_usd),
+            "fx_rate_to_usd": fx_values[-1] if fx_values else ("1.00" if currency == "USD" else None),
+        }
+    for currency in {"USD", "EUR"}:
+        currency_summary.setdefault(currency, _empty_currency_summary(currency))
+
+    total_reserve_usd = sum((Decimal(x.total_reserve_value_usd or 0) for x in included), Decimal("0"))
+    tokenized_usd = sum((Decimal(x.tokenized_value_usd or 0) for x in included), Decimal("0"))
+    issued_tokens = sum((Decimal(x.issued_tokens or 0) for x in included), Decimal("0"))
+    issued_usd = sum((Decimal(x.issued_tokens_value_usd or 0) for x in included), Decimal("0"))
+    available = sum((Decimal(x.available_to_mint or 0) for x in included), Decimal("0"))
+    return {
+        "active_batches_count": str(len(active)),
+        "total_batches_count": str(len(rows)),
+        "usd_batches_count": str(len(currency_rows["USD"])),
+        "eur_batches_count": str(len(currency_rows["EUR"])),
+        "total_reserve_value_usd_equivalent": _money(total_reserve_usd),
+        "total_tokenized_value_usd_equivalent": _money(tokenized_usd),
+        "total_issued_tokens": _money(issued_tokens),
+        "total_issued_tokens_usd_equivalent": _money(issued_usd),
+        "total_available_to_mint": _money(available),
+        "currency_summary": currency_summary,
+        "raw_issued_tokens": issued_tokens,
+        "rows": rows,
+    }
+
+
+def _require_idempotency(value: str | None) -> str:
+    if not value:
+        raise HTTPException(400, {"code": "idempotency_key_required", "message": "X-Idempotency-Key is required."})
+    return value
+
+
+def _validate_wallet(wallet: str) -> str:
+    if not WALLET_RE.match(wallet or ""):
+        raise HTTPException(400, {"code": "invalid_wallet", "message": "Wallet must be a valid EVM address."})
+    return wallet
+
+
+def _validate_tx(tx_hash: str) -> str:
+    if not TX_RE.match(tx_hash or ""):
+        raise HTTPException(400, {"code": "invalid_tx_hash", "message": "tx_hash must be a valid EVM transaction hash."})
+    return tx_hash
+
+
+def _require_m1_contract(contract_address: str) -> str:
+    if (contract_address or "").lower() != settings.m1_token_contract_address.lower():
+        raise HTTPException(400, {"code": "invalid_contract_address", "message": "Confirmation must reference the official M1 token contract."})
+    return contract_address
+
+
+def _mint_row(r: M1MintRequest) -> dict[str, Any]:
+    return {
+        "mint_id": r.mint_id,
+        "fund_id": r.fund_id,
+        "wallet": r.wallet,
+        "amount": _money(r.amount),
+        "network": r.network,
+        "status": r.status,
+        "nonce": r.nonce,
+        "signature": r.signature,
+        "reason": r.reason,
+        "expires_at": r.expires_at.isoformat() if r.expires_at else None,
+        "tx_hash": r.tx_hash,
+        "contract_address": r.contract_address,
+        "block_number": r.block_number,
+        "metadata": r.metadata_json or {},
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
+    }
+
+
+def _redeem_row(r: M1RedeemRequest) -> dict[str, Any]:
+    return {
+        "redeem_id": r.redeem_id,
+        "fund_id": r.fund_id,
+        "wallet": r.wallet,
+        "amount": _money(r.amount),
+        "network": r.network,
+        "status": r.status,
+        "nonce": r.nonce,
+        "signature": r.signature,
+        "reason": r.reason,
+        "expires_at": r.expires_at.isoformat() if r.expires_at else None,
+        "tx_hash": r.tx_hash,
+        "contract_address": r.contract_address,
+        "block_number": r.block_number,
+        "metadata": r.metadata_json or {},
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
+    }
+
+
+@router.get("/m1-funds/reserve")
+async def get_private_reserve(db: DbSession, _: AdminKey):
+    body = _private(await _fund(db))
+    await _record_signature(db, "m1.reserve.private", body)
+    return body
+
+
+@router.get("/m1-funds/readiness")
+async def readiness(db: DbSession, _: AdminKey):
+    fund = await _fund(db)
+    contracts = await async_sync_token_contracts()
+    batches = await _batch_summary(db)
+    mint_count = (await db.execute(select(M1MintRequest))).scalars().all()
+    redeem_count = (await db.execute(select(M1RedeemRequest))).scalars().all()
+    confirmation_count = (await db.execute(select(M1BlockchainConfirmation))).scalars().all()
+    webhook_count = (await db.execute(select(WebhookEvent).where(WebhookEvent.event.like("m1.%")))).scalars().all()
+    chain = contracts.get("chain", {})
+    m1 = contracts.get("m1", {})
+    sig = contracts.get("sig", {})
+    batch_issued_sum = Decimal(str(batches["raw_issued_tokens"]))
+    warnings = _token_contract_warnings(fund, contracts, batch_issued_sum)
+    issued_matches_chain = True
+    if m1.get("total_supply") is not None:
+        try:
+            issued_matches_chain = batch_issued_sum.quantize(Decimal("0.01")) == Decimal(str(m1["total_supply"])).quantize(Decimal("0.01"))
+        except Exception:
+            issued_matches_chain = False
+    mismatch_allowed = settings.token_network.lower() == "sepolia" and settings.testnet_allow_supply_mismatch
+    batch_chain_ready = issued_matches_chain or mismatch_allowed
+    overall_status = "ready" if (
+        chain.get("rpc_connected")
+        and chain.get("chain_id_is_expected")
+        and m1.get("reachable")
+        and sig.get("reachable")
+        and bool(settings.treasury_wallet)
+        and batch_chain_ready
+    ) else "not_ready"
+    checks = [
+        {"name": "Admin authentication", "status": "ready", "detail": "All private M1 dashboard endpoints require admin authentication."},
+        {"name": "Reserve ledger", "status": "ready" if fund else "warning", "detail": fund.fund_id if fund else "Reserve will be created on first access."},
+        {"name": "Proof document hash", "status": "ready" if fund.proof_document_hash else "warning", "detail": fund.proof_document_hash or "No proof hash has been recorded yet."},
+        {"name": "RPC connected", "status": "ready" if chain.get("rpc_connected") else "not_ready", "detail": chain.get("error") or "Sepolia RPC is reachable."},
+        {"name": "Chain ID is Sepolia", "status": "ready" if chain.get("chain_id_is_expected") else "not_ready", "detail": f"Expected {settings.chain_id}, got {chain.get('chain_id_actual') or 'unavailable'}."},
+        {"name": "M1 contract configured", "status": "ready" if m1.get("configured") else "not_ready", "detail": settings.m1_token_contract_address},
+        {"name": "SIG contract configured", "status": "ready" if sig.get("configured") else "not_ready", "detail": settings.sig_token_contract_address},
+        {"name": "M1 contract reachable", "status": "ready" if m1.get("reachable") else "not_ready", "detail": m1.get("error") or f"totalSupply={m1.get('total_supply')}"},
+        {"name": "SIG contract reachable", "status": "ready" if sig.get("reachable") else "not_ready", "detail": sig.get("error") or f"totalSupply={sig.get('total_supply')}"},
+        {"name": "Treasury wallet configured", "status": "ready" if settings.treasury_wallet else "not_ready", "detail": settings.treasury_wallet or "TREASURY_WALLET is missing."},
+        {"name": "M1 total supply readable", "status": "ready" if m1.get("total_supply") is not None else "not_ready", "detail": str(m1.get("total_supply") or m1.get("error") or "Unavailable")},
+        {"name": "SIG total supply readable", "status": "ready" if sig.get("total_supply") is not None else "not_ready", "detail": str(sig.get("total_supply") or sig.get("error") or "Unavailable")},
+        {"name": "Batches configured", "status": "ready" if int(batches["total_batches_count"]) > 0 else "warning", "detail": f"{batches['total_batches_count']} batch(es) configured."},
+        {"name": "Active batches count", "status": "ready" if int(batches["active_batches_count"]) > 0 else "warning", "detail": str(batches["active_batches_count"])},
+        {"name": "USD batches count", "status": "ready", "detail": str(batches["usd_batches_count"])},
+        {"name": "EUR batches count", "status": "ready", "detail": str(batches["eur_batches_count"])},
+        {"name": "FX rates valid", "status": "ready", "detail": "USD/EUR batch FX rates are validated at create/update time."},
+        {"name": "Batch issued tokens match chain", "status": "ready" if issued_matches_chain else ("warning" if mismatch_allowed else "not_ready"), "detail": f"Batches={_money(batch_issued_sum)} / Chain={m1.get('total_supply') or 'unavailable'}."},
+        {"name": "Testnet supply mismatch allowed", "status": "ready" if mismatch_allowed else "disabled", "detail": f"TOKEN_NETWORK={settings.token_network}, TESTNET_ALLOW_SUPPLY_MISMATCH={settings.testnet_allow_supply_mismatch}."},
+        {"name": "Mint controls", "status": "ready", "detail": f"{len(mint_count)} mint request(s) recorded."},
+        {"name": "Redeem controls", "status": "ready", "detail": f"{len(redeem_count)} redeem request(s) recorded."},
+        {"name": "Blockchain confirmations", "status": "recording", "detail": f"{len(confirmation_count)} confirmation(s) recorded. Live verification requires SEPOLIA_RPC_URL."},
+        {"name": "Signed webhook ledger", "status": "ready" if settings.webhook_enabled and settings.webhook_callback_url and settings.webhook_secret else "recording", "detail": f"{len(webhook_count)} M1 webhook event(s) recorded. External delivery enabled={settings.webhook_enabled}."},
+        {"name": "Private key safety", "status": "ready", "detail": "Private keys are not requested, transmitted, logged, or stored by this module."},
+    ]
+    for item in warnings:
+        checks.append({"name": "Contract warning", "status": "warning", "detail": item})
+    return {
+        "fund_id": fund.fund_id,
+        "overall": overall_status,
+        "rpc_connected": bool(chain.get("rpc_connected")),
+        "chain_id_is_sepolia": bool(chain.get("chain_id_is_expected")),
+        "m1_contract_configured": bool(m1.get("configured")),
+        "sig_contract_configured": bool(sig.get("configured")),
+        "m1_contract_reachable": bool(m1.get("reachable")),
+        "sig_contract_reachable": bool(sig.get("reachable")),
+        "treasury_wallet_configured": bool(settings.treasury_wallet),
+        "m1_total_supply_readable": m1.get("total_supply") is not None,
+        "sig_total_supply_readable": sig.get("total_supply") is not None,
+        "batch_totals_valid": True,
+        "batch_issued_tokens_sum": _money(batch_issued_sum),
+        "batch_issued_tokens_usd_equivalent": batches["total_issued_tokens_usd_equivalent"],
+        "on_chain_total_supply": m1.get("total_supply"),
+        "batch_issued_tokens_match_chain": issued_matches_chain,
+        "testnet_supply_mismatch_allowed": mismatch_allowed,
+        "usd_batches_count": batches["usd_batches_count"],
+        "eur_batches_count": batches["eur_batches_count"],
+        "currency_totals_valid": True,
+        "fx_rates_valid": True,
+        "m1_db_issued_tokens_matches_chain": issued_matches_chain,
+        "last_sync_at": _now().isoformat(),
+        "overall_status": overall_status,
+        "warnings": warnings,
+        "checks": checks,
+    }
+
+
+@router.get("/m1-funds/token-contracts")
+async def token_contracts(db: DbSession, _: AdminKey):
+    fund = await _fund(db)
+    batches = await _batch_summary(db)
+    contracts = await async_sync_token_contracts()
+    contracts["warnings"] = _token_contract_warnings(fund, contracts, Decimal(str(batches["raw_issued_tokens"])))
+    contracts["batch_summary"] = {k: v for k, v in batches.items() if k not in {"raw_issued_tokens", "rows"}}
+    contracts["last_sync_at"] = _now().isoformat()
+    return contracts
+
+
+@router.post("/m1-funds/blockchain-sync")
+async def blockchain_sync(request: Request, db: DbSession, _: AdminKey):
+    fund = await _fund(db)
+    batches = await _batch_summary(db)
+    contracts = await async_sync_token_contracts()
+    contracts["warnings"] = _token_contract_warnings(fund, contracts, Decimal(str(batches["raw_issued_tokens"])))
+    contracts["batch_summary"] = {k: v for k, v in batches.items() if k not in {"raw_issued_tokens", "rows"}}
+    contracts["last_sync_at"] = _now().isoformat()
+    await _audit(
+        db,
+        request,
+        "blockchain_sync_completed" if contracts.get("readiness_status") == "ready" else "blockchain_sync_warning",
+        fund.fund_id,
+        actor="admin",
+        metadata={"readiness_status": contracts.get("readiness_status"), "warnings": contracts.get("warnings", [])},
+    )
+    await _record_webhook_event(db, "m1.blockchain.sync.completed" if contracts.get("readiness_status") == "ready" else "m1.blockchain.sync.warning", fund.fund_id, contracts, status="recorded_only")
+    return contracts
+
+
+@router.get("/public/m1-funds/reserve")
+async def get_public_reserve(db: DbSession):
+    return _public(await _fund(db))
+
+
+@router.get("/oracle/m1-funds/reserve")
+async def get_oracle_reserve(request: Request, db: DbSession, x_client_id: str | None = Header(default=None)):
+    fund = await _fund(db)
+    batches = await _batch_summary(db)
+    contracts = await async_sync_token_contracts()
+    batch_summary = {k: v for k, v in batches.items() if k not in {"raw_issued_tokens", "rows", "currency_summary"}}
+    body = {
+        "fund_id": fund.fund_id,
+        "network": settings.token_network,
+        "chain_id": settings.chain_id,
+        "m1_contract": settings.m1_token_contract_address,
+        "sig_contract": settings.sig_token_contract_address,
+        "batch_summary": batch_summary,
+        "currency_summary": batches["currency_summary"],
+        "on_chain": {
+            "m1_total_supply": contracts.get("m1", {}).get("total_supply"),
+            "m1_treasury_balance": contracts.get("m1", {}).get("treasury_balance"),
+            "sig_total_supply": contracts.get("sig", {}).get("total_supply"),
+            "sig_treasury_balance": contracts.get("sig", {}).get("treasury_balance"),
+        },
+        "testnet_supply_mismatch_allowed": settings.token_network.lower() == "sepolia" and settings.testnet_allow_supply_mismatch,
+        "available_to_mint": _money(fund.available_to_mint),
+        "issued_tokens": _money(fund.issued_tokens),
+        "tokenized_value": _money(fund.tokenized_value),
+        "backing_ratio": fund.backing_ratio,
+        "status": fund.status,
+        "sig_token_name": settings.sig_token_name,
+        "sig_token_symbol": settings.sig_token_symbol,
+        "sig_token_arabic_name": settings.sig_token_arabic_name,
+        "last_updated": fund.last_updated.isoformat() if fund.last_updated else None,
+        "proof_document_hash": fund.proof_document_hash,
+    }
+    body["signature"] = _sign(body)
+    await _record_signature(db, "m1.reserve.oracle", body, client_id=x_client_id)
+    db.add(M1OracleRead(
+        fund_id=fund.fund_id,
+        client_id=x_client_id,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        response_hash=_hash(body),
+        status="ok",
+    ))
+    await db.commit()
+    await _audit(db, request, "oracle_read", fund.fund_id, actor=x_client_id, metadata={"response_hash": _hash(body)})
+    return body
+
+
+@router.post("/m1-funds/reserve-update")
+async def reserve_update(payload: ReserveUpdateIn, request: Request, db: DbSession, _: AdminKey):
+    fund = await _fund(db, payload.fund_id)
+    total = _dec(payload.total_reserve_value)
+    tokenized = _dec(payload.tokenized_value)
+    issued = Decimal(fund.issued_tokens or 0)
+    if payload.currency.upper() != "USD":
+        raise HTTPException(400, {"code": "invalid_currency", "message": "Only USD reserve currency is enabled."})
+    if not payload.proof_document_hash:
+        raise HTTPException(400, {"code": "proof_hash_required", "message": "proof_document_hash is required."})
+    if tokenized > total:
+        raise HTTPException(400, {"code": "tokenized_value_exceeded", "message": "tokenized_value cannot exceed total_reserve_value."})
+    if tokenized < issued:
+        raise HTTPException(400, {"code": "issued_tokens_exceeded", "message": "tokenized_value cannot be lower than issued_tokens."})
+    available, backing = _calculate(total, tokenized, issued)
+    old = _private(fund)
+    fund.total_reserve_value = total
+    fund.tokenized_value = tokenized
+    fund.available_to_mint = available
+    fund.backing_ratio = backing
+    fund.currency = payload.currency.upper()
+    fund.proof_document_hash = payload.proof_document_hash
+    fund.valuation_date = _parse_dt(payload.valuation_date)
+    fund.last_updated = _now()
+    db.add(M1ReserveSnapshot(
+        fund_id=fund.fund_id,
+        total_reserve_value=total,
+        tokenized_value=tokenized,
+        issued_tokens=issued,
+        available_to_mint=available,
+        backing_ratio=backing,
+        proof_document_hash=payload.proof_document_hash,
+        valuation_date=fund.valuation_date,
+        approved_by=payload.approved_by,
+    ))
+    await db.commit()
+    await db.refresh(fund)
+    body = _private(fund)
+    await _audit(db, request, "reserve_updated", fund.fund_id, old_value=json.dumps(old), new_value=json.dumps(body), actor=payload.approved_by, proof_document_hash=payload.proof_document_hash)
+    await _record_signature(db, "m1.reserve.updated", body)
+    await _record_webhook_event(db, "m1.reserve.updated", fund.fund_id, body)
+    return body
+
+
+@router.patch("/m1-funds/status")
+async def update_fund_status(payload: StatusUpdateIn, request: Request, db: DbSession, _: AdminKey):
+    status = payload.status.strip().lower()
+    if status not in {"active", "paused", "inactive"}:
+        raise HTTPException(400, {"code": "invalid_status", "message": "Status must be active, paused, or inactive."})
+    fund = await _fund(db)
+    old = fund.status
+    fund.status = status
+    fund.last_updated = _now()
+    await db.commit()
+    await _audit(db, request, "status_changed", fund.fund_id, old_value=old, new_value=status, actor=payload.actor, metadata={"reason": payload.reason})
+    body = _private(fund)
+    await _record_signature(db, "m1.status.changed", body)
+    await _record_webhook_event(db, "m1.status.changed", fund.fund_id, {"event": "m1.status.changed", "fund_id": fund.fund_id, "old_status": old, "new_status": status, "reason": payload.reason, "timestamp": _now().isoformat()})
+    return body
+
+
+@router.get("/m1-funds/batches")
+async def list_batches(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1TokenizationBatch).order_by(desc(M1TokenizationBatch.created_at)).limit(min(limit, 500)))).scalars().all()
+    summary = await _batch_summary(db)
+    return {
+        "items": [_batch_row(r) for r in rows],
+        "batch_summary": {k: v for k, v in summary.items() if k not in {"raw_issued_tokens", "rows"}},
+    }
+
+
+@router.post("/m1-funds/batches")
+async def create_batch(payload: BatchCreateIn, request: Request, db: DbSession, _: AdminKey):
+    await _fund(db, payload.fund_id)
+    currency = _currency(payload.currency)
+    total = _dec(payload.total_reserve_value)
+    tokenized = _dec(payload.tokenized_value)
+    if total <= 0 or tokenized <= 0:
+        raise HTTPException(400, {"code": "invalid_amount", "message": "total_reserve_value and tokenized_value must be greater than zero."})
+    if tokenized > total:
+        raise HTTPException(400, {"code": "tokenized_value_exceeded", "message": "tokenized_value cannot exceed total_reserve_value."})
+    if not payload.proof_document_hash:
+        raise HTTPException(400, {"code": "proof_hash_required", "message": "proof_document_hash is required."})
+    existing_ref = (await db.execute(
+        select(M1TokenizationBatch).where(
+            M1TokenizationBatch.fund_id == payload.fund_id,
+            M1TokenizationBatch.sender_reference == payload.sender_reference,
+        )
+    )).scalar_one_or_none()
+    if existing_ref:
+        raise HTTPException(400, {"code": "duplicate_reference", "message": "sender_reference already exists for this fund_id."})
+    batch_id = payload.batch_id or _batch_id()
+    existing_batch = (await db.execute(select(M1TokenizationBatch).where(M1TokenizationBatch.batch_id == batch_id))).scalar_one_or_none()
+    if existing_batch:
+        raise HTTPException(400, {"code": "duplicate_batch_id", "message": "batch_id already exists."})
+    fx_rate = _fx_rate(currency, payload.fx_rate_to_usd)
+    valuation_date = _parse_dt(payload.valuation_date)
+    fx_timestamp = _parse_dt(payload.fx_rate_timestamp) if payload.fx_rate_timestamp else _now()
+    row = M1TokenizationBatch(
+        batch_id=batch_id,
+        fund_id=payload.fund_id,
+        sender_reference=payload.sender_reference,
+        sender_name=payload.sender_name,
+        sender_wallet=payload.sender_wallet,
+        source_asset_type=payload.source_asset_type,
+        source_network=payload.source_network,
+        source_transaction_hash=payload.source_transaction_hash,
+        total_reserve_value=total,
+        tokenized_value=tokenized,
+        issued_tokens=Decimal("0"),
+        available_to_mint=tokenized,
+        currency=currency,
+        fx_rate_to_usd=fx_rate,
+        total_reserve_value_usd=_usd_value(total, fx_rate),
+        tokenized_value_usd=_usd_value(tokenized, fx_rate),
+        issued_tokens_value_usd=Decimal("0"),
+        fx_rate_source=payload.fx_rate_source or "manual",
+        fx_rate_timestamp=fx_timestamp,
+        m1_contract_address=settings.m1_token_contract_address,
+        treasury_wallet=settings.treasury_wallet,
+        proof_document_hash=payload.proof_document_hash,
+        valuation_date=valuation_date,
+        status="draft",
+        created_by=payload.created_by,
+        metadata_json=payload.metadata_json or {},
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    await _audit(db, request, "batch_created", row.fund_id, batch_id=row.batch_id, actor=payload.created_by, proof_document_hash=row.proof_document_hash, metadata=_batch_row(row))
+    await _audit(db, request, "batch_currency_validated", row.fund_id, batch_id=row.batch_id, actor=payload.created_by, metadata={"currency": currency, "fx_rate_to_usd": str(fx_rate)})
+    await _record_webhook_event(db, "m1.batch.created", row.fund_id, {"event": "m1.batch.created", "batch": _batch_row(row), "timestamp": _now().isoformat()}, status="recorded_only")
+    return _batch_row(row)
+
+
+@router.get("/m1-funds/batches/{batch_id}")
+async def get_batch(batch_id: str, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1TokenizationBatch).where(M1TokenizationBatch.batch_id == batch_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_batch_id", "message": "Batch not found."})
+    return _batch_row(row)
+
+
+async def _batch_or_404(db: AsyncSession, batch_id: str) -> M1TokenizationBatch:
+    row = (await db.execute(select(M1TokenizationBatch).where(M1TokenizationBatch.batch_id == batch_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_batch_id", "message": "Batch not found."})
+    return row
+
+
+@router.post("/m1-funds/batches/{batch_id}/approve")
+async def approve_batch(batch_id: str, payload: BatchStatusIn, request: Request, db: DbSession, _: AdminKey):
+    row = await _batch_or_404(db, batch_id)
+    old = _batch_row(row)
+    row.status = "active"
+    row.approved_by = payload.actor
+    row.approved_at = _now()
+    await db.commit()
+    await db.refresh(row)
+    await _audit(db, request, "batch_approved", row.fund_id, batch_id=row.batch_id, old_value=json.dumps(old), new_value=json.dumps(_batch_row(row)), actor=payload.actor, metadata={"reason": payload.reason})
+    await _record_webhook_event(db, "m1.batch.approved", row.fund_id, {"event": "m1.batch.approved", "batch": _batch_row(row), "timestamp": _now().isoformat()}, status="recorded_only")
+    return _batch_row(row)
+
+
+@router.post("/m1-funds/batches/{batch_id}/pause")
+async def pause_batch(batch_id: str, payload: BatchStatusIn, request: Request, db: DbSession, _: AdminKey):
+    row = await _batch_or_404(db, batch_id)
+    old = row.status
+    row.status = "paused"
+    await db.commit()
+    await _audit(db, request, "batch_paused", row.fund_id, batch_id=row.batch_id, old_value=old, new_value=row.status, actor=payload.actor, metadata={"reason": payload.reason})
+    await _record_webhook_event(db, "m1.batch.paused", row.fund_id, {"event": "m1.batch.paused", "batch_id": row.batch_id, "reason": payload.reason, "timestamp": _now().isoformat()}, status="recorded_only")
+    return _batch_row(row)
+
+
+@router.post("/m1-funds/batches/{batch_id}/close")
+async def close_batch(batch_id: str, payload: BatchStatusIn, request: Request, db: DbSession, _: AdminKey):
+    row = await _batch_or_404(db, batch_id)
+    old = row.status
+    row.status = "closed"
+    await db.commit()
+    await _audit(db, request, "batch_closed", row.fund_id, batch_id=row.batch_id, old_value=old, new_value=row.status, actor=payload.actor, metadata={"reason": payload.reason})
+    await _record_webhook_event(db, "m1.batch.closed", row.fund_id, {"event": "m1.batch.closed", "batch_id": row.batch_id, "reason": payload.reason, "timestamp": _now().isoformat()}, status="recorded_only")
+    return _batch_row(row)
+
+
+@router.post("/m1-funds/batches/{batch_id}/reserve-update")
+async def update_batch_reserve(batch_id: str, payload: BatchReserveUpdateIn, request: Request, db: DbSession, _: AdminKey):
+    row = await _batch_or_404(db, batch_id)
+    old = _batch_row(row)
+    currency = _currency(payload.currency or row.currency)
+    total = _dec(payload.total_reserve_value or row.total_reserve_value)
+    tokenized = _dec(payload.tokenized_value or row.tokenized_value)
+    issued = Decimal(row.issued_tokens or 0)
+    if tokenized > total:
+        raise HTTPException(400, {"code": "tokenized_value_exceeded", "message": "tokenized_value cannot exceed total_reserve_value."})
+    if issued > tokenized:
+        raise HTTPException(400, {"code": "issued_tokens_exceeded", "message": "issued_tokens cannot exceed tokenized_value."})
+    fx_rate = _fx_rate(currency, payload.fx_rate_to_usd or str(row.fx_rate_to_usd))
+    if payload.proof_document_hash:
+        row.proof_document_hash = payload.proof_document_hash
+    row.currency = currency
+    row.total_reserve_value = total
+    row.tokenized_value = tokenized
+    row.available_to_mint = tokenized - issued
+    row.fx_rate_to_usd = fx_rate
+    row.total_reserve_value_usd = _usd_value(total, fx_rate)
+    row.tokenized_value_usd = _usd_value(tokenized, fx_rate)
+    row.issued_tokens_value_usd = _usd_value(issued, fx_rate)
+    row.fx_rate_source = payload.fx_rate_source or row.fx_rate_source
+    row.fx_rate_timestamp = _parse_dt(payload.fx_rate_timestamp) if payload.fx_rate_timestamp else (row.fx_rate_timestamp or _now())
+    row.valuation_date = _parse_dt(payload.valuation_date) if payload.valuation_date else row.valuation_date
+    row.metadata_json = {**(row.metadata_json or {}), **(payload.metadata_json or {})}
+    await db.commit()
+    await db.refresh(row)
+    await _audit(db, request, "batch_reserve_updated", row.fund_id, batch_id=row.batch_id, old_value=json.dumps(old), new_value=json.dumps(_batch_row(row)), actor=payload.approved_by, proof_document_hash=row.proof_document_hash)
+    await _audit(db, request, "batch_fx_rate_updated", row.fund_id, batch_id=row.batch_id, actor=payload.approved_by, metadata={"fx_rate_to_usd": str(row.fx_rate_to_usd), "fx_rate_source": row.fx_rate_source})
+    await _record_webhook_event(db, "m1.batch.reserve.updated", row.fund_id, {"event": "m1.batch.reserve.updated", "batch": _batch_row(row), "timestamp": _now().isoformat()}, status="recorded_only")
+    return _batch_row(row)
+
+
+@router.post("/m1-funds/batches/{batch_id}/reconcile")
+async def reconcile_batch(batch_id: str, payload: BatchReconcileIn, request: Request, db: DbSession, _: AdminKey):
+    row = await _batch_or_404(db, batch_id)
+    old = _batch_row(row)
+    issued = _dec(payload.issued_tokens)
+    if issued > Decimal(row.tokenized_value or 0):
+        raise HTTPException(400, {"code": "issued_tokens_exceeded", "message": "issued_tokens cannot exceed tokenized_value for this batch."})
+    verification_level = "manual_admin_reconciliation"
+    tx_hash = None
+    if payload.mint_tx_hash:
+        tx_hash = _validate_tx(payload.mint_tx_hash)
+        existing_tx = (await db.execute(select(M1TokenizationBatch).where(M1TokenizationBatch.mint_tx_hash == tx_hash))).scalar_one_or_none()
+        if existing_tx and existing_tx.batch_id != row.batch_id:
+            raise HTTPException(400, {"code": "duplicate_tx_hash", "message": "This mint_tx_hash is already linked to another batch."})
+        try:
+            verification = verify_m1_mint_event(tx_hash, row.treasury_wallet, _money(issued))
+        except Exception as exc:
+            await _audit(db, request, "batch_warning_created", row.fund_id, batch_id=row.batch_id, actor=payload.approved_by, tx_hash=tx_hash, metadata={"error": str(exc)})
+            await _record_webhook_event(db, "m1.batch.warning.created", row.fund_id, {"event": "m1.batch.warning.created", "batch_id": row.batch_id, "tx_hash": tx_hash, "error": str(exc)}, status="recorded_only")
+            raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": str(exc)}) from exc
+        if not verification.ok:
+            await _audit(db, request, "batch_warning_created", row.fund_id, batch_id=row.batch_id, actor=payload.approved_by, tx_hash=tx_hash, metadata={"status": verification.status, "detail": verification.detail})
+            await _record_webhook_event(db, "m1.batch.warning.created", row.fund_id, {"event": "m1.batch.warning.created", "batch_id": row.batch_id, "tx_hash": tx_hash, "status": verification.status, "detail": verification.detail}, status="recorded_only")
+            raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": verification.detail, "status": verification.status})
+        verification_level = "chain_verified"
+        row.mint_tx_hash = tx_hash
+        await _audit(db, request, "batch_mint_tx_verified", row.fund_id, batch_id=row.batch_id, actor=payload.approved_by, tx_hash=tx_hash, metadata={"verification": verification.status, "detail": verification.detail})
+    row.issued_tokens = issued
+    row.available_to_mint = Decimal(row.tokenized_value or 0) - issued
+    row.issued_tokens_value_usd = _usd_value(issued, Decimal(row.fx_rate_to_usd or 1))
+    row.status = "reconciled" if row.available_to_mint == 0 else "active"
+    row.approved_by = payload.approved_by or row.approved_by
+    row.approved_at = row.approved_at or _now()
+    row.metadata_json = {**(row.metadata_json or {}), **(payload.metadata_json or {}), "reconciliation_source": payload.source, "verification_level": verification_level}
+    await db.commit()
+    await db.refresh(row)
+    event_type = "batch_reconciled" if verification_level == "chain_verified" else "batch_manual_reconciliation"
+    await _audit(db, request, event_type, row.fund_id, batch_id=row.batch_id, old_value=json.dumps(old), new_value=json.dumps(_batch_row(row)), actor=payload.approved_by, tx_hash=tx_hash, metadata={"source": payload.source, "verification_level": verification_level})
+    await _record_webhook_event(db, "m1.batch.reconciled", row.fund_id, {"event": "m1.batch.reconciled", "batch": _batch_row(row), "timestamp": _now().isoformat()}, status="recorded_only")
+    return _batch_row(row)
+
+
+@router.get("/m1-funds/batches/{batch_id}/audit")
+async def batch_audit(batch_id: str, db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1AuditLog).where(M1AuditLog.batch_id == batch_id).order_by(desc(M1AuditLog.timestamp)).limit(min(limit, 500)))).scalars().all()
+    return {"batch_id": batch_id, "events": [
+        {
+            "event_id": r.event_id,
+            "fund_id": r.fund_id,
+            "batch_id": r.batch_id,
+            "type": r.event_type,
+            "old_value": r.old_value,
+            "new_value": r.new_value,
+            "actor": r.actor,
+            "tx_hash": r.tx_hash,
+            "proof_document_hash": r.proof_document_hash,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            "metadata": r.metadata_json or {},
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/batches/{batch_id}/export")
+async def export_batch(batch_id: str, request: Request, db: DbSession, _: AdminKey):
+    row = await _batch_or_404(db, batch_id)
+    await _audit(db, request, "batch_exported", row.fund_id, batch_id=row.batch_id, actor="admin", metadata={"format": "json"})
+    rows = (await db.execute(select(M1AuditLog).where(M1AuditLog.batch_id == batch_id).order_by(desc(M1AuditLog.timestamp)).limit(500))).scalars().all()
+    return {
+        "batch": _batch_row(row),
+        "audit": {
+            "batch_id": batch_id,
+            "events": [
+                {
+                    "event_id": r.event_id,
+                    "fund_id": r.fund_id,
+                    "batch_id": r.batch_id,
+                    "type": r.event_type,
+                    "old_value": r.old_value,
+                    "new_value": r.new_value,
+                    "actor": r.actor,
+                    "tx_hash": r.tx_hash,
+                    "proof_document_hash": r.proof_document_hash,
+                    "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                    "metadata": r.metadata_json or {},
+                }
+                for r in rows
+            ],
+        },
+    }
+
+
+@router.post("/m1-funds/mint-request")
+async def mint_request(payload: MintRequestIn, request: Request, db: DbSession, _: AdminKey, x_idempotency_key: str | None = Header(default=None)):
+    idem = _require_idempotency(x_idempotency_key)
+    existing = (await db.execute(select(M1MintRequest).where(M1MintRequest.idempotency_key == idem))).scalar_one_or_none()
+    if existing:
+        return {"approved": True, "mint_id": existing.mint_id, "wallet": existing.wallet, "amount": _money(existing.amount), "expires_at": existing.expires_at.isoformat(), "nonce": existing.nonce, "signature": existing.signature, "idempotent": True}
+    fund = await _fund(db, payload.fund_id)
+    if fund.status != "active":
+        raise HTTPException(400, {"code": "fund_inactive", "message": "Fund is not active."})
+    amount = _dec(payload.amount)
+    if amount <= 0:
+        raise HTTPException(400, {"code": "invalid_amount", "message": "Amount must be greater than zero."})
+    if amount > Decimal(fund.available_to_mint or 0):
+        raise HTTPException(400, {"code": "insufficient_reserve", "message": "Amount exceeds available_to_mint."})
+    wallet = _validate_wallet(payload.wallet)
+    mint_id = "MINT-" + uuid.uuid4().hex[:10].upper()
+    nonce = mint_id
+    expires = _now() + timedelta(hours=1)
+    body = {"mint_id": mint_id, "fund_id": fund.fund_id, "wallet": wallet, "amount": _money(amount), "nonce": nonce, "expires_at": expires.isoformat()}
+    sig = _sign(body)
+    row = M1MintRequest(mint_id=mint_id, fund_id=fund.fund_id, wallet=wallet, amount=amount, network=payload.network, nonce=nonce, signature=sig, idempotency_key=idem, reason=payload.reason, expires_at=expires)
+    db.add(row)
+    await db.commit()
+    await _audit(db, request, "mint_requested", fund.fund_id, actor="admin", metadata=body)
+    response = {"approved": True, **body, "signature": sig}
+    await _record_signature(db, "m1.mint.requested", response)
+    await _record_webhook_event(db, "m1.mint.requested", fund.fund_id, response)
+    return response
+
+
+@router.post("/m1-funds/mint-confirmation")
+async def mint_confirmation(payload: MintConfirmationIn, request: Request, db: DbSession, _: AdminKey):
+    req = (await db.execute(select(M1MintRequest).where(M1MintRequest.mint_id == payload.mint_id))).scalar_one_or_none()
+    if not req:
+        raise HTTPException(404, {"code": "invalid_mint_id", "message": "Mint request not found."})
+    tx_hash = _validate_tx(payload.tx_hash)
+    _require_m1_contract(payload.contract_address)
+    existing_tx = (await db.execute(select(M1BlockchainConfirmation).where(M1BlockchainConfirmation.tx_hash == tx_hash))).scalar_one_or_none()
+    if existing_tx:
+        raise HTTPException(400, {"code": "duplicate_tx_hash", "message": "This tx_hash has already been used in an M1 blockchain confirmation."})
+    wallet = _validate_wallet(payload.wallet)
+    amount = _dec(payload.amount)
+    if wallet.lower() != req.wallet.lower() or amount != Decimal(req.amount):
+        raise HTTPException(400, {"code": "mint_confirmation_mismatch", "message": "Confirmation does not match the mint request."})
+    try:
+        verification = verify_m1_mint_event(tx_hash, wallet, _money(amount))
+    except Exception as exc:
+        await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "mint", "request_id": req.mint_id, "tx_hash": tx_hash, "error": str(exc)}, status="verification_failed")
+        raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": str(exc)}) from exc
+    if not verification.ok:
+        await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "mint", "request_id": req.mint_id, "tx_hash": tx_hash, "status": verification.status, "detail": verification.detail}, status="verification_failed")
+        raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": verification.detail, "status": verification.status})
+    fund = await _fund(db, req.fund_id)
+    fund.issued_tokens = Decimal(fund.issued_tokens or 0) + amount
+    fund.available_to_mint, fund.backing_ratio = _calculate(Decimal(fund.total_reserve_value or 0), Decimal(fund.tokenized_value or 0), Decimal(fund.issued_tokens or 0))
+    fund.last_updated = _now()
+    req.status = "confirmed"
+    req.tx_hash = tx_hash
+    req.contract_address = settings.m1_token_contract_address
+    req.block_number = str(verification.block_number or payload.block_number or "")
+    req.confirmed_at = _now()
+    db.add(M1BlockchainConfirmation(
+        fund_id=fund.fund_id,
+        request_type="mint",
+        request_id=req.mint_id,
+        tx_hash=tx_hash,
+        contract_address=settings.m1_token_contract_address,
+        wallet=wallet,
+        amount=amount,
+        network=payload.network,
+        block_number=str(verification.block_number or payload.block_number or ""),
+        verification_status="chain_verified",
+        metadata_json={"verification_status": verification.status, "verification_detail": verification.detail},
+    ))
+    await db.commit()
+    await _audit(db, request, "mint_confirmed", fund.fund_id, actor="admin", tx_hash=tx_hash, metadata={"mint_id": req.mint_id, "verification_level": "chain_verified", "block_number": req.block_number})
+    response = {"status": "confirmed", "mint_id": req.mint_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": "chain_verified", "block_number": req.block_number}
+    await _record_signature(db, "m1.mint.confirmed", response)
+    await _record_webhook_event(db, "m1.mint.confirmed", fund.fund_id, {"event": "m1.mint.confirmed", "fund_id": fund.fund_id, "mint_id": req.mint_id, "amount": _money(amount), "tx_hash": tx_hash, "status": "confirmed", "timestamp": _now().isoformat()})
+    return response
+
+
+@router.post("/m1-funds/redeem-request")
+async def redeem_request(payload: RedeemRequestIn, request: Request, db: DbSession, _: AdminKey, x_idempotency_key: str | None = Header(default=None)):
+    idem = _require_idempotency(x_idempotency_key)
+    existing = (await db.execute(select(M1RedeemRequest).where(M1RedeemRequest.idempotency_key == idem))).scalar_one_or_none()
+    if existing:
+        return {"approved": True, "redeem_id": existing.redeem_id, "wallet": existing.wallet, "amount": _money(existing.amount), "burn_required": True, "expires_at": existing.expires_at.isoformat(), "nonce": existing.nonce, "signature": existing.signature, "idempotent": True}
+    fund = await _fund(db, payload.fund_id)
+    if fund.status != "active":
+        raise HTTPException(400, {"code": "fund_inactive", "message": "Fund is not active."})
+    amount = _dec(payload.amount)
+    if amount <= 0:
+        raise HTTPException(400, {"code": "invalid_amount", "message": "Amount must be greater than zero."})
+    wallet = _validate_wallet(payload.wallet)
+    redeem_id = "RED-" + uuid.uuid4().hex[:10].upper()
+    nonce = redeem_id
+    expires = _now() + timedelta(hours=1)
+    body = {"redeem_id": redeem_id, "fund_id": fund.fund_id, "wallet": wallet, "amount": _money(amount), "burn_required": True, "nonce": nonce, "expires_at": expires.isoformat()}
+    sig = _sign(body)
+    db.add(M1RedeemRequest(redeem_id=redeem_id, fund_id=fund.fund_id, wallet=wallet, amount=amount, network=payload.network, nonce=nonce, signature=sig, idempotency_key=idem, reason=payload.reason, expires_at=expires))
+    await db.commit()
+    await _audit(db, request, "redeem_requested", fund.fund_id, actor="admin", metadata=body)
+    response = {"approved": True, **body, "signature": sig}
+    await _record_signature(db, "m1.redeem.requested", response)
+    await _record_webhook_event(db, "m1.redeem.requested", fund.fund_id, response)
+    return response
+
+
+@router.post("/m1-funds/burn-confirmation")
+async def burn_confirmation(payload: BurnConfirmationIn, request: Request, db: DbSession, _: AdminKey):
+    req = (await db.execute(select(M1RedeemRequest).where(M1RedeemRequest.redeem_id == payload.redeem_id))).scalar_one_or_none()
+    if not req:
+        raise HTTPException(404, {"code": "invalid_redeem_id", "message": "Redeem request not found."})
+    tx_hash = _validate_tx(payload.tx_hash)
+    _require_m1_contract(payload.contract_address)
+    existing_tx = (await db.execute(select(M1BlockchainConfirmation).where(M1BlockchainConfirmation.tx_hash == tx_hash))).scalar_one_or_none()
+    if existing_tx:
+        raise HTTPException(400, {"code": "duplicate_tx_hash", "message": "This tx_hash has already been used in an M1 blockchain confirmation."})
+    wallet = _validate_wallet(payload.wallet)
+    amount = _dec(payload.amount)
+    if wallet.lower() != req.wallet.lower() or amount != Decimal(req.amount):
+        raise HTTPException(400, {"code": "burn_confirmation_mismatch", "message": "Confirmation does not match the redeem request."})
+    verification_level = "chain_verified"
+    block_number_used = payload.block_number or ""
+    if payload.admin_override:
+        # Admin manual override — skip blockchain verification, record as admin_override
+        verification_level = "admin_override"
+        await _record_webhook_event(db, "m1.blockchain.verification.skipped", req.fund_id, {"event": "m1.blockchain.verification.skipped", "request_type": "burn", "request_id": req.redeem_id, "tx_hash": tx_hash, "reason": "admin_override"}, status="admin_override")
+    else:
+        try:
+            verification = verify_m1_burn_event(tx_hash, wallet, _money(amount))
+        except Exception as exc:
+            await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "burn", "request_id": req.redeem_id, "tx_hash": tx_hash, "error": str(exc)}, status="verification_failed")
+            raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": str(exc)}) from exc
+        if not verification.ok:
+            await _record_webhook_event(db, "m1.blockchain.verification.failed", req.fund_id, {"event": "m1.blockchain.verification.failed", "request_type": "burn", "request_id": req.redeem_id, "tx_hash": tx_hash, "status": verification.status, "detail": verification.detail}, status="verification_failed")
+            raise HTTPException(400, {"code": "unverified_blockchain_tx", "message": verification.detail, "status": verification.status})
+        block_number_used = str(verification.block_number or payload.block_number or "")
+    fund = await _fund(db, req.fund_id)
+    fund.issued_tokens = max(Decimal("0"), Decimal(fund.issued_tokens or 0) - amount)
+    fund.available_to_mint, fund.backing_ratio = _calculate(Decimal(fund.total_reserve_value or 0), Decimal(fund.tokenized_value or 0), Decimal(fund.issued_tokens or 0))
+    fund.last_updated = _now()
+    req.status = "completed"
+    req.tx_hash = tx_hash
+    req.contract_address = settings.m1_token_contract_address
+    req.block_number = block_number_used
+    req.confirmed_at = _now()
+    db.add(M1BlockchainConfirmation(
+        fund_id=fund.fund_id,
+        request_type="burn",
+        request_id=req.redeem_id,
+        tx_hash=tx_hash,
+        contract_address=settings.m1_token_contract_address,
+        wallet=wallet,
+        amount=amount,
+        network=payload.network,
+        block_number=block_number_used,
+        verification_status=verification_level,
+        metadata_json={"verification_status": verification_level, "admin_override": payload.admin_override},
+    ))
+    await db.commit()
+    await _audit(db, request, "burn_confirmed", fund.fund_id, actor="admin", tx_hash=tx_hash, metadata={"redeem_id": req.redeem_id, "verification_level": verification_level, "block_number": req.block_number})
+    response = {"status": "completed", "redeem_id": req.redeem_id, "issued_tokens": _money(fund.issued_tokens), "available_to_mint": _money(fund.available_to_mint), "verification_level": verification_level, "block_number": req.block_number}
+    await _record_signature(db, "m1.burn.confirmed", response)
+    await _record_webhook_event(db, "m1.burn.confirmed", fund.fund_id, {"event": "m1.burn.confirmed", "fund_id": fund.fund_id, "redeem_id": req.redeem_id, "amount": _money(amount), "tx_hash": tx_hash, "status": "completed", "timestamp": _now().isoformat()})
+    return response
+
+
+@router.get("/m1-funds/audit")
+async def audit_logs(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1AuditLog).order_by(desc(M1AuditLog.timestamp)).limit(min(limit, 500)))).scalars().all()
+    return {"events": [
+        {
+            "event_id": r.event_id,
+            "fund_id": r.fund_id,
+            "batch_id": r.batch_id,
+            "type": r.event_type,
+            "old_value": r.old_value,
+            "new_value": r.new_value,
+            "approved_by": r.actor,
+            "proof_document_hash": r.proof_document_hash,
+            "tx_hash": r.tx_hash,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            "metadata": r.metadata_json or {},
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/audit.csv")
+async def audit_logs_csv(db: DbSession, _: AdminKey, limit: int = 500):
+    rows = (await db.execute(select(M1AuditLog).order_by(desc(M1AuditLog.timestamp)).limit(min(limit, 2000)))).scalars().all()
+    lines = ["event_id,fund_id,batch_id,event_type,actor,tx_hash,proof_document_hash,timestamp"]
+    for r in rows:
+        values = [
+            r.event_id or "",
+            r.fund_id or "",
+            r.batch_id or "",
+            r.event_type or "",
+            r.actor or "",
+            r.tx_hash or "",
+            r.proof_document_hash or "",
+            r.timestamp.isoformat() if r.timestamp else "",
+        ]
+        lines.append(",".join('"' + str(v).replace('"', '""') + '"' for v in values))
+    return Response("\n".join(lines) + "\n", media_type="text/csv", headers={"Content-Disposition": "attachment; filename=m1_funds_audit.csv"})
+
+
+@router.get("/m1-funds/snapshots")
+async def reserve_snapshots(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1ReserveSnapshot).order_by(desc(M1ReserveSnapshot.created_at)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "fund_id": r.fund_id,
+            "total_reserve_value": _money(r.total_reserve_value),
+            "tokenized_value": _money(r.tokenized_value),
+            "issued_tokens": _money(r.issued_tokens),
+            "available_to_mint": _money(r.available_to_mint),
+            "backing_ratio": r.backing_ratio,
+            "proof_document_hash": r.proof_document_hash,
+            "valuation_date": r.valuation_date.isoformat() if r.valuation_date else None,
+            "approved_by": r.approved_by,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/signatures")
+async def api_signatures(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(ApiSignature).where(ApiSignature.scope.like("m1.%")).order_by(desc(ApiSignature.timestamp)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "scope": r.scope,
+            "client_id": r.client_id,
+            "signature": r.signature,
+            "response_hash": r.response_hash,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            "metadata": r.metadata_json or {},
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/confirmations")
+async def confirmations(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1BlockchainConfirmation).order_by(desc(M1BlockchainConfirmation.created_at)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "fund_id": r.fund_id,
+            "request_type": r.request_type,
+            "request_id": r.request_id,
+            "tx_hash": r.tx_hash,
+            "contract_address": r.contract_address,
+            "wallet": r.wallet,
+            "amount": _money(r.amount),
+            "network": r.network,
+            "block_number": r.block_number,
+            "verification_status": r.verification_status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/mint-requests")
+async def mint_requests(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1MintRequest).order_by(desc(M1MintRequest.created_at)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [_mint_row(r) for r in rows]}
+
+
+@router.get("/m1-funds/mint-requests/{mint_id}")
+async def mint_request_detail(mint_id: str, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1MintRequest).where(M1MintRequest.mint_id == mint_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_mint_id", "message": "Mint request not found."})
+    return _mint_row(row)
+
+
+@router.post("/m1-funds/mint-requests/{mint_id}/reject")
+async def reject_mint_request(mint_id: str, payload: RequestDecisionIn, request: Request, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1MintRequest).where(M1MintRequest.mint_id == mint_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_mint_id", "message": "Mint request not found."})
+    if row.status == "confirmed":
+        raise HTTPException(400, {"code": "request_already_confirmed", "message": "Confirmed mint requests cannot be rejected."})
+    old = row.status
+    row.status = "rejected"
+    row.metadata_json = {**(row.metadata_json or {}), "reject_reason": payload.reason}
+    await db.commit()
+    await _audit(db, request, "mint_rejected", row.fund_id, old_value=old, new_value=row.status, actor=payload.actor, metadata={"mint_id": mint_id, "reason": payload.reason})
+    return _mint_row(row)
+
+
+@router.post("/m1-funds/mint-requests/{mint_id}/expire")
+async def expire_mint_request(mint_id: str, payload: RequestDecisionIn, request: Request, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1MintRequest).where(M1MintRequest.mint_id == mint_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_mint_id", "message": "Mint request not found."})
+    if row.status == "confirmed":
+        raise HTTPException(400, {"code": "request_already_confirmed", "message": "Confirmed mint requests cannot be expired."})
+    old = row.status
+    row.status = "expired"
+    row.metadata_json = {**(row.metadata_json or {}), "expire_reason": payload.reason}
+    await db.commit()
+    await _audit(db, request, "mint_expired", row.fund_id, old_value=old, new_value=row.status, actor=payload.actor, metadata={"mint_id": mint_id, "reason": payload.reason})
+    return _mint_row(row)
+
+
+@router.get("/m1-funds/redeem-requests")
+async def redeem_requests(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1RedeemRequest).order_by(desc(M1RedeemRequest.created_at)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [_redeem_row(r) for r in rows]}
+
+
+@router.get("/m1-funds/redeem-requests/{redeem_id}")
+async def redeem_request_detail(redeem_id: str, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1RedeemRequest).where(M1RedeemRequest.redeem_id == redeem_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_redeem_id", "message": "Redeem request not found."})
+    return _redeem_row(row)
+
+
+@router.post("/m1-funds/redeem-requests/{redeem_id}/reject")
+async def reject_redeem_request(redeem_id: str, payload: RequestDecisionIn, request: Request, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1RedeemRequest).where(M1RedeemRequest.redeem_id == redeem_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_redeem_id", "message": "Redeem request not found."})
+    if row.status == "completed":
+        raise HTTPException(400, {"code": "request_already_completed", "message": "Completed redeem requests cannot be rejected."})
+    old = row.status
+    row.status = "rejected"
+    row.metadata_json = {**(row.metadata_json or {}), "reject_reason": payload.reason}
+    await db.commit()
+    await _audit(db, request, "redeem_rejected", row.fund_id, old_value=old, new_value=row.status, actor=payload.actor, metadata={"redeem_id": redeem_id, "reason": payload.reason})
+    return _redeem_row(row)
+
+
+@router.post("/m1-funds/redeem-requests/{redeem_id}/expire")
+async def expire_redeem_request(redeem_id: str, payload: RequestDecisionIn, request: Request, db: DbSession, _: AdminKey):
+    row = (await db.execute(select(M1RedeemRequest).where(M1RedeemRequest.redeem_id == redeem_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, {"code": "invalid_redeem_id", "message": "Redeem request not found."})
+    if row.status == "completed":
+        raise HTTPException(400, {"code": "request_already_completed", "message": "Completed redeem requests cannot be expired."})
+    old = row.status
+    row.status = "expired"
+    row.metadata_json = {**(row.metadata_json or {}), "expire_reason": payload.reason}
+    await db.commit()
+    await _audit(db, request, "redeem_expired", row.fund_id, old_value=old, new_value=row.status, actor=payload.actor, metadata={"redeem_id": redeem_id, "reason": payload.reason})
+    return _redeem_row(row)
+
+
+@router.get("/m1-funds/oracle-reads")
+async def oracle_reads(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(M1OracleRead).order_by(desc(M1OracleRead.timestamp)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "fund_id": r.fund_id,
+            "client_id": r.client_id,
+            "ip_address": r.ip_address,
+            "user_agent": r.user_agent,
+            "response_hash": r.response_hash,
+            "status": r.status,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+        }
+        for r in rows
+    ]}
+
+
+@router.get("/m1-funds/webhook-events")
+async def webhook_events(db: DbSession, _: AdminKey, limit: int = 100):
+    rows = (await db.execute(select(WebhookEvent).where(WebhookEvent.event.like("m1.%")).order_by(desc(WebhookEvent.created_at)).limit(min(limit, 500)))).scalars().all()
+    return {"items": [
+        {
+            "event": r.event,
+            "fund_id": r.fund_id,
+            "status": r.status,
+            "status_code": r.status_code,
+            "target_url": r.target_url,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "sent_at": r.sent_at.isoformat() if r.sent_at else None,
+            "error_message": r.error_message,
+        }
+        for r in rows
+    ]}
+
+
+@router.post("/wallets/verify-signature")
+async def verify_signature(payload: WalletVerifyIn, request: Request, db: DbSession, _: AdminKey):
+    wallet = _validate_wallet(payload.wallet)
+    nonce = payload.message.split("nonce:", 1)[-1].strip() if "nonce:" in payload.message else hashlib.sha256(payload.message.encode()).hexdigest()[:24]
+    reused = (await db.execute(select(WalletVerification).where(WalletVerification.nonce == nonce))).scalar_one_or_none()
+    if reused:
+        raise HTTPException(400, {"code": "nonce_reused", "message": "This verification nonce has already been used."})
+    try:
+        recovered = Account.recover_message(encode_defunct(text=payload.message), signature=payload.signature)
+        verified = recovered.lower() == wallet.lower()
+    except Exception as exc:
+        raise HTTPException(400, {"code": "invalid_signature", "message": "Wallet signature could not be verified."}) from exc
+    row = WalletVerification(
+        wallet=wallet,
+        message=payload.message,
+        signature=payload.signature,
+        nonce=nonce,
+        verified=verified,
+        verified_at=_now() if verified else None,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.add(row)
+    await db.commit()
+    await _audit(db, request, "wallet_signature_verified" if verified else "wallet_signature_failed", None, actor="admin", metadata={"wallet": wallet, "nonce": nonce})
+    return {"verified": verified, "wallet": wallet, "verified_at": row.verified_at.isoformat() if row.verified_at else None}
