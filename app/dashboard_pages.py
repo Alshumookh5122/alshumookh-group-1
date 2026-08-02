@@ -8140,14 +8140,40 @@ function genInvestorLink() {
 function renderRegistry() {
   var container = document.getElementById('regRows');
   container.innerHTML = '';
-  Object.keys(registry).forEach(function(currency) {
+  var keys = Object.keys(registry);
+  if (!keys.length) {
+    container.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px;">No contracts saved yet.</div>';
+    return;
+  }
+  keys.forEach(function(currency) {
     var addr = registry[currency];
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:6px;font-size:12px;';
-    row.innerHTML = '<span style="font-weight:700;color:var(--gold);min-width:60px;">'+currency+'</span>'
-      +'<code style="flex:1;color:var(--muted);font-size:10px;word-break:break-all;">'+addr+'</code>'
-      +'<button class="dist-btn ghost" onclick="loadRegistryContract(''+currency+'')" style="font-size:10px;padding:4px 10px;">Load</button>'
-      +'<button class="dist-btn danger" onclick="deleteRegistry(''+currency+'')" style="font-size:10px;padding:4px 8px;">✕</button>';
+
+    var label = document.createElement('span');
+    label.style.cssText = 'font-weight:700;color:var(--gold);min-width:60px;';
+    label.textContent = currency;
+
+    var code = document.createElement('code');
+    code.style.cssText = 'flex:1;color:var(--muted);font-size:10px;word-break:break-all;';
+    code.textContent = addr;
+
+    var loadBtn = document.createElement('button');
+    loadBtn.className = 'dist-btn ghost';
+    loadBtn.style.cssText = 'font-size:10px;padding:4px 10px;';
+    loadBtn.textContent = 'Load';
+    loadBtn.addEventListener('click', (function(cur){ return function(){ loadRegistryContract(cur); }; })(currency));
+
+    var delBtn = document.createElement('button');
+    delBtn.className = 'dist-btn danger';
+    delBtn.style.cssText = 'font-size:10px;padding:4px 8px;';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', (function(cur){ return function(){ deleteRegistry(cur); }; })(currency));
+
+    row.appendChild(label);
+    row.appendChild(code);
+    row.appendChild(loadBtn);
+    row.appendChild(delBtn);
     container.appendChild(row);
   });
 }
