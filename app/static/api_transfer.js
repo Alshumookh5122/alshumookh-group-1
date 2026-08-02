@@ -1,6 +1,8 @@
 /* API Transfer Workflow — Transfer Requests, Fiat Deposits, OTC Quotes
    Uses global  api()  and  showToast()  from _SHARED_JS              */
 
+var _BASE = '/api/v1';
+
 function showTab(id) {
   document.querySelectorAll('.tab-panel').forEach(function(p) {
     p.style.display = 'none';
@@ -30,7 +32,7 @@ function sbOtc(s) {
 
 function loadTR() {
   var st  = document.getElementById('tr_filter').value;
-  var url = '/admin/transfer-requests?limit=100' + (st ? '&status=' + st : '');
+  var url = _BASE + '/admin/transfer-requests?limit=100' + (st ? '&status=' + st : '');
   api(url).then(function(d) {
     if (!d.ok) {
       document.getElementById('tr_table').innerHTML =
@@ -91,7 +93,7 @@ function createTR() {
     client_id:   document.getElementById('tr_cid').value    || null,
     notes:       document.getElementById('tr_notes').value  || null
   });
-  api('/admin/transfer-requests', { method: 'POST', body: payload }).then(function(d) {
+  api(_BASE + '/admin/transfer-requests', { method: 'POST', body: payload }).then(function(d) {
     if (d.ok) {
       document.getElementById('tr_msg').innerHTML =
         '<span style="color:#34d399;">✓ Created: ' + d.transfer_request.reference + '</span>';
@@ -107,7 +109,7 @@ function createTR() {
 }
 
 function advanceTR(id, status) {
-  api('/admin/transfer-requests/' + id + '/advance', {
+  api(_BASE + '/admin/transfer-requests/' + id + '/advance', {
     method: 'POST',
     body: JSON.stringify({ status: status })
   }).then(function(d) {
@@ -119,7 +121,7 @@ function advanceTR(id, status) {
 /* ── Fiat Deposits ────────────────────────────────────────────────── */
 
 function loadFD() {
-  api('/admin/fiat/deposits?limit=100').then(function(d) {
+  api(_BASE + '/admin/fiat/deposits?limit=100').then(function(d) {
     if (!d.ok) {
       document.getElementById('fd_table').innerHTML =
         '<p style="color:#ef4444;">' + JSON.stringify(d) + '</p>';
@@ -174,7 +176,7 @@ function createFD() {
     payment_method: document.getElementById('fd_method').value,
     bank_reference: document.getElementById('fd_ref').value    || null
   });
-  api('/admin/fiat/deposits', { method: 'POST', body: payload }).then(function(d) {
+  api(_BASE + '/admin/fiat/deposits', { method: 'POST', body: payload }).then(function(d) {
     if (d.ok) {
       document.getElementById('fd_msg').innerHTML =
         '<span style="color:#34d399;">✓ Registered: ' + d.deposit.reference + '</span>';
@@ -190,14 +192,14 @@ function createFD() {
 }
 
 function confirmFD(id) {
-  api('/admin/fiat/deposits/' + id + '/confirm', { method: 'POST' })
+  api(_BASE + '/admin/fiat/deposits/' + id + '/confirm', { method: 'POST' })
     .then(function(d) { if (d.ok) loadFD(); else showToast(JSON.stringify(d), 'error'); })
     .catch(function(e) { showToast(e.message, 'error'); });
 }
 
 function refundFD(id) {
   if (!confirm('Mark this deposit as REFUNDED?')) return;
-  api('/admin/fiat/deposits/' + id + '/refund', { method: 'POST', body: '{}' })
+  api(_BASE + '/admin/fiat/deposits/' + id + '/refund', { method: 'POST', body: '{}' })
     .then(function(d) { if (d.ok) loadFD(); else showToast(JSON.stringify(d), 'error'); })
     .catch(function(e) { showToast(e.message, 'error'); });
 }
@@ -205,7 +207,7 @@ function refundFD(id) {
 /* ── OTC Quotes ───────────────────────────────────────────────────── */
 
 function loadOTC() {
-  api('/admin/otc/quotes?limit=100').then(function(d) {
+  api(_BASE + '/admin/otc/quotes?limit=100').then(function(d) {
     if (!d.ok) {
       document.getElementById('otc_table').innerHTML =
         '<p style="color:#ef4444;">' + JSON.stringify(d) + '</p>';
@@ -277,7 +279,7 @@ function createOTC() {
     fiat_deposit_id: document.getElementById('otc_fdid').value  || null,
     notes:           document.getElementById('otc_notes').value || null
   });
-  api('/admin/otc/quotes', { method: 'POST', body: payload }).then(function(d) {
+  api(_BASE + '/admin/otc/quotes', { method: 'POST', body: payload }).then(function(d) {
     if (d.ok) {
       var q = d.quote;
       document.getElementById('otc_msg').innerHTML =
@@ -296,7 +298,7 @@ function createOTC() {
 }
 
 function otcAction(id, action) {
-  api('/admin/otc/quotes/' + id + '/' + action, { method: 'POST' })
+  api(_BASE + '/admin/otc/quotes/' + id + '/' + action, { method: 'POST' })
     .then(function(d) { if (d.ok) loadOTC(); else showToast(JSON.stringify(d), 'error'); })
     .catch(function(e) { showToast(e.message, 'error'); });
 }
@@ -307,7 +309,7 @@ var _liveRate = null;
 
 function fetchLiveRate() {
   document.getElementById('live_rate_val').textContent = '⏳';
-  api('/admin/otc/rate').then(function(d) {
+  api(_BASE + '/admin/otc/rate').then(function(d) {
     if (d.ok) {
       _liveRate = parseFloat(d.rate);
       document.getElementById('live_rate_val').textContent =
