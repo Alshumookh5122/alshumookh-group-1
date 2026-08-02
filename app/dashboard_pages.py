@@ -7823,7 +7823,7 @@ var registry = JSON.parse(localStorage.getItem('distRegistry') || '{}');
 function log(msg) {
   var el = document.getElementById('distLog');
   if (!el) return;
-  el.textContent += new Date().toLocaleTimeString() + ' — ' + msg + '\n';
+  el.textContent += new Date().toLocaleTimeString() + ' — ' + msg + '\\n';
   el.scrollTop = el.scrollHeight;
 }
 
