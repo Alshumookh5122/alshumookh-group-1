@@ -30,10 +30,30 @@ def _whatsapp_configured() -> bool:
 
 
 async def send_whatsapp(message: str) -> bool:
-    """Send WhatsApp message via Twilio REST API. Returns True on success."""
+    """Send WhatsApp message to the configured admin number via Twilio."""
     if not _whatsapp_configured():
         logger.debug("WhatsApp not configured — skipping")
         return False
+    return await send_whatsapp_to(settings.twilio_whatsapp_to, message)
+
+
+async def send_whatsapp_to(to_number: str, message: str) -> bool:
+    """Send WhatsApp message to a specific number via Twilio REST API.
+    to_number can be '971501234567' or 'whatsapp:+971501234567'.
+    Returns True on success."""
+    if not (settings.twilio_account_sid and settings.twilio_auth_token and settings.twilio_whatsapp_from):
+        logger.debug("WhatsApp credentials not configured — skipping")
+        return False
+
+    # Normalize number to Twilio WhatsApp format
+    if not to_number:
+        return False
+    to_clean = to_number.strip()
+    if not to_clean.startswith("whatsapp:"):
+        if not to_clean.startswith("+"):
+            to_clean = "+" + to_clean
+        to_clean = "whatsapp:" + to_clean
+
     url = (
         f"https://api.twilio.com/2010-04-01/Accounts/"
         f"{settings.twilio_account_sid}/Messages.json"
@@ -45,17 +65,17 @@ async def send_whatsapp(message: str) -> bool:
                 auth=(settings.twilio_account_sid, settings.twilio_auth_token),
                 data={
                     "From": settings.twilio_whatsapp_from,
-                    "To":   settings.twilio_whatsapp_to,
+                    "To":   to_clean,
                     "Body": message,
                 },
             )
             if r.status_code in (200, 201):
-                logger.info("WhatsApp notification sent")
+                logger.info("WhatsApp sent to %s", to_clean)
                 return True
-            logger.warning("WhatsApp failed: %s %s", r.status_code, r.text[:200])
+            logger.warning("WhatsApp to %s failed: %s %s", to_clean, r.status_code, r.text[:200])
             return False
     except Exception as exc:
-        logger.error("WhatsApp error: %s", exc)
+        logger.error("WhatsApp error sending to %s: %s", to_clean, exc)
         return False
 
 

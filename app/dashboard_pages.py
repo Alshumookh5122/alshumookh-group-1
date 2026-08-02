@@ -75,8 +75,9 @@ _SIDEBAR_LINKS = [
     ("/dashboard/distributor",   "⛓", "Profit Distributor"),
     ("/dashboard/topup",         "💳", "Top-Up Engine"),
     ("/dashboard/nowpayments",   "₿",  "NOWPayments"),
-    ("/dashboard/api-transfer",  "🔄", "API Transfer"),
-    ("/swift",                   "⬡", "SWIFT Terminal"),
+    ("/dashboard/api-transfer",   "🔄", "API Transfer"),
+    ("/dashboard/wallet-verify",  "🔐", "Wallet Verify OTP"),
+    ("/swift",                    "⬡", "SWIFT Terminal"),
 ]
 
 
@@ -7509,1033 +7510,738 @@ _DISTRIBUTOR_BODY = """
 <div class="page-body">
 <style>
 .dist-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;}
-.dist-card h3{font-size:14px;font-weight:700;color:var(--gold);margin:0 0 14px;text-transform:uppercase;letter-spacing:.06em;}
+.dist-card h3{font-size:13px;font-weight:700;color:var(--gold);margin:0 0 14px;text-transform:uppercase;letter-spacing:.06em;}
 .dist-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .dist-grid.three{grid-template-columns:1fr 1fr 1fr;}
+.dist-grid.four{grid-template-columns:1fr 1fr 1fr 1fr;}
+@media(max-width:700px){.dist-grid,.dist-grid.three,.dist-grid.four{grid-template-columns:1fr 1fr;}}
+@media(max-width:460px){.dist-grid,.dist-grid.three,.dist-grid.four{grid-template-columns:1fr;}}
 .dist-stat{background:rgba(255,255,255,.04);border-radius:8px;padding:12px 14px;}
-.dist-stat label{font-size:10px;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;}
-.dist-stat span{font-size:14px;font-weight:700;color:#f0f0f0;word-break:break-all;}
-.dist-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.2s;}
+.dist-stat label{font-size:10px;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
+.dist-stat .val{font-size:16px;font-weight:800;color:#f0f0f0;word-break:break-all;}
+.dist-stat .sub{font-size:10px;color:var(--muted);margin-top:2px;}
+.dist-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:.18s;}
 .dist-btn.primary{background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;}
 .dist-btn.danger{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;}
 .dist-btn.ghost{background:rgba(255,255,255,.07);color:#e5e7eb;border:1px solid var(--border);}
 .dist-btn.success{background:linear-gradient(135deg,#059669,#047857);color:#fff;}
+.dist-btn.gold{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;}
 .dist-btn:disabled{opacity:.45;cursor:not-allowed;}
 .dist-input{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:#f0f0f0;font-size:13px;box-sizing:border-box;margin-bottom:8px;}
 .dist-input:focus{outline:none;border-color:#7c3aed;}
-.dist-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;}
-.dist-tag.green{background:rgba(5,150,105,.2);color:#34d399;}
-.dist-tag.red{background:rgba(220,38,38,.2);color:#f87171;}
-.dist-tag.yellow{background:rgba(217,119,6,.2);color:#fbbf24;}
-.payee-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;font-size:12px;}
-.payee-row code{flex:1;color:var(--muted);font-size:11px;}
-.payee-row span{font-weight:700;color:#a78bfa;}
-.wallet-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:10px;margin-bottom:18px;}
+.wallet-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.25);border-radius:10px;margin-bottom:16px;}
 .wallet-bar code{font-size:12px;color:#c4b5fd;flex:1;}
-#distLog{background:#0a0a0f;border:1px solid var(--border);border-radius:8px;padding:12px;font-size:11px;color:#6ee7b7;height:120px;overflow-y:auto;font-family:monospace;white-space:pre-wrap;margin-top:10px;}
+#distLog{background:#0a0a0f;border:1px solid var(--border);border-radius:8px;padding:12px;font-size:11px;color:#6ee7b7;height:110px;overflow-y:auto;font-family:monospace;white-space:pre-wrap;margin-top:10px;}
+.payee-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.payee-row input{flex:1;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:#f0f0f0;font-size:12px;font-family:monospace;}
+.payee-row .bps-input{width:80px;flex:none;text-align:center;}
+.bps-pct{font-size:11px;color:#a78bfa;min-width:42px;text-align:right;}
+.dist-tabs{display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid var(--border);}
+.dist-tab{padding:9px 18px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s;}
+.dist-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.dist-section{display:none;}.dist-section.active{display:block;}
 </style>
 
-<!-- Currency Registry -->
+<!-- System Profit Overview -->
 <div class="dist-card" style="border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.03);">
-  <h3 style="margin-bottom:10px;">&#x1F3E6; Contract Registry — Multi-Currency</h3>
-  <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Save a SIGProfitDistributor contract for each currency. Click Load to switch the active contract.</p>
-  <div id="regRows" style="display:flex;flex-direction:column;gap:8px;"></div>
-</div>
-
-<!-- Wallet Connect Bar -->
-<div class="wallet-bar">
-  <span style="font-size:18px;">🦊</span>
-  <code id="walletAddr" style="flex:1;">Not connected</code>
-  <button class="dist-btn primary" onclick="connectWallet()" id="connectBtn">Connect MetaMask</button>
-  <button class="dist-btn ghost" onclick="diagWallet()" style="font-size:11px;padding:6px 10px;" title="Diagnose connection">🔍 Diagnose</button>
-  <span id="walletBalance" style="font-size:11px;color:#34d399;display:none;white-space:nowrap;"></span>
-  <select id="networkSelect" class="dist-input" style="width:160px;margin:0;" onchange="switchNetwork()">
-    <option value="1">Ethereum Mainnet</option>
-    <option value="97">BSC Testnet</option>
-    <option value="56" selected>BSC Mainnet</option>
-  </select>
-</div>
-<div id="diagBox" style="display:none;margin-bottom:12px;padding:12px 16px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.3);border-radius:10px;font-size:12px;line-height:1.8;"></div>
-
-<!-- Deploy New Contract -->
-<div class="dist-card" style="border-color:rgba(124,58,237,.5);background:rgba(124,58,237,.06);">
-  <h3>🚀 Deploy New Contract</h3>
-  <p style="font-size:12px;color:var(--muted);margin:0 0 14px;">Deploy SIGProfitDistributor directly from here via MetaMask — no Terminal, no Private Key needed.</p>
-  <label style="font-size:11px;color:var(--muted);">Owner Address (INITIAL_OWNER) — will be the true owner of the contract</label>
-  <input class="dist-input" id="deployOwner" placeholder="0x... your main wallet address" style="margin:6px 0 10px;" />
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-    <button class="dist-btn primary" onclick="deployContract()" id="deployBtn">🚀 Deploy Contract Now</button>
-    <span id="deployStatus" style="font-size:12px;color:var(--muted);"></span>
+  <h3>📊 System Profit Overview</h3>
+  <div class="dist-grid four" id="profitStats">
+    <div class="dist-stat"><label>Total EUR Processed</label><div class="val" id="pEur">—</div><div class="sub">Fiat Deposits + M1 Jobs</div></div>
+    <div class="dist-stat"><label>SIG Tokens Issued</label><div class="val" id="pSig" style="color:#a78bfa;">—</div><div class="sub">M1 Tokenization</div></div>
+    <div class="dist-stat"><label>USDT Settled</label><div class="val" id="pUsdt" style="color:#34d399;">—</div><div class="sub">Outbound Transfers</div></div>
+    <div class="dist-stat"><label>Completed Quotes</label><div class="val" id="pQuotes" style="color:var(--gold);">—</div><div class="sub">OTC EUR→USDT</div></div>
   </div>
-  <div id="deployResult" style="display:none;margin-top:14px;padding:12px 16px;background:rgba(5,150,105,.1);border:1px solid rgba(5,150,105,.3);border-radius:8px;">
-    <p style="font-size:12px;color:#34d399;margin:0 0 6px;font-weight:700;">✅ Contract deployed successfully!</p>
-    <label style="font-size:11px;color:var(--muted);">Contract Address:</label>
-    <div style="display:flex;gap:8px;margin-top:4px;">
-      <input class="dist-input" id="deployedAddr" readonly style="margin:0;background:rgba(5,150,105,.1);border-color:#34d399;color:#34d399;font-family:monospace;" />
-      <button class="dist-btn ghost" onclick="useDeployedContract()" style="white-space:nowrap;">⬇️ Use This Contract</button>
-    </div>
-    <div id="deployExplorerLink" style="margin-top:8px;font-size:12px;"></div>
+  <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+    <button class="dist-btn ghost" onclick="loadProfitOverview()" style="font-size:11px;padding:6px 14px;">🔄 Refresh Stats</button>
+    <button class="dist-btn gold" onclick="calcDistribution()" style="font-size:11px;padding:6px 14px;">⚡ Calculate Distribution</button>
   </div>
+  <div id="calcResult" style="display:none;margin-top:12px;padding:14px 16px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.3);border-radius:8px;font-size:12px;"></div>
 </div>
 
-<!-- Contract Address -->
-<div class="dist-card">
-  <h3>⛓ Contract Settings</h3>
-  <label class="dist-input" style="background:none;border:none;color:var(--muted);font-size:11px;padding:0;margin:0 0 4px;">Distributor Contract Address</label>
-  <input class="dist-input" id="contractAddr" placeholder="0x... SIGProfitDistributor address" />
-  <button class="dist-btn ghost" onclick="loadContractState()" style="margin-top:4px;">🔄 Load Contract State</button>
+<!-- Tabs -->
+<div class="dist-tabs">
+  <button class="dist-tab active" onclick="switchTab('blockchain')">⛓ Blockchain</button>
+  <button class="dist-tab" onclick="switchTab('payees')">👥 Payees</button>
+  <button class="dist-tab" onclick="switchTab('deposit')">💰 Deposit</button>
+  <button class="dist-tab" onclick="switchTab('claim')">🏦 Claim</button>
+  <button class="dist-tab" onclick="switchTab('registry')">🗂 Registry</button>
 </div>
 
-<!-- Contract State -->
-<div class="dist-card" id="stateCard" style="display:none;">
-  <h3>📊 Contract State</h3>
-  <div class="dist-grid three" style="margin-bottom:12px;">
-    <div class="dist-stat"><label>Shares Frozen</label><span id="stSharesFrozen">—</span></div>
-    <div class="dist-stat"><label>Deposits Closed</label><span id="stDepositsClosed">—</span></div>
-    <div class="dist-stat"><label>Payee Count</label><span id="stPayeeCount">—</span></div>
-  </div>
-  <div class="dist-grid" style="margin-bottom:12px;">
-    <div class="dist-stat"><label>ETH Received (total)</label><span id="stNativeReceived">—</span></div>
-    <div class="dist-stat"><label>ETH Tracked Balance</label><span id="stNativeTracked">—</span></div>
-  </div>
-  <div id="payeesList"></div>
-</div>
-
-<!-- Set Payees -->
-<div class="dist-card">
-  <h3>👥 Set Payees</h3>
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-    <label style="font-size:12px;color:var(--muted);white-space:nowrap;">Number of wallets:</label>
-    <select class="dist-input" id="payeeCount" style="width:100px;margin:0;" onchange="buildPayeeRows()">
-      <option value="2">2</option>
-      <option value="3">3</option>
-      <option value="4">4</option>
-      <option value="5">5</option>
-      <option value="6">6</option>
-      <option value="7">7</option>
-      <option value="8">8</option>
-      <option value="10">10</option>
+<!-- TAB: Blockchain -->
+<div id="tab-blockchain" class="dist-section active">
+  <!-- Wallet Connect -->
+  <div class="wallet-bar">
+    <span style="font-size:18px;">🦊</span>
+    <code id="walletAddr">Not connected</code>
+    <button class="dist-btn primary" onclick="connectWallet()" id="connectBtn">Connect MetaMask</button>
+    <button class="dist-btn ghost" onclick="diagWallet()" style="font-size:10px;padding:5px 10px;" title="Diagnose">🔍</button>
+    <span id="walletBalance" style="font-size:11px;color:#34d399;display:none;white-space:nowrap;"></span>
+    <select id="networkSelect" class="dist-input" style="width:150px;margin:0;" onchange="switchNetwork()">
+      <option value="1">Ethereum Mainnet</option>
+      <option value="56" selected>BSC Mainnet</option>
+      <option value="97">BSC Testnet</option>
     </select>
-    <span id="bpsSumLabel" style="font-size:12px;font-weight:700;color:#fbbf24;">Total: 0 / 10000 BPS</span>
   </div>
-  <div id="payeeRows" style="display:flex;flex-direction:column;gap:10px;"></div>
-  <div style="margin-top:14px;padding:10px 14px;background:rgba(124,58,237,.1);border-radius:8px;font-size:12px;color:var(--muted);">
-    BPS = Basis Points &nbsp;|&nbsp; 10000 BPS = 100% &nbsp;|&nbsp; 7000 = 70% &nbsp;|&nbsp; 3000 = 30%
-  </div>
-  <button class="dist-btn primary" onclick="doSetPayees()" style="margin-top:14px;">✅ Set Payees on Contract</button>
-</div>
+  <div id="diagBox" style="display:none;margin-bottom:12px;padding:12px 16px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.3);border-radius:10px;font-size:12px;line-height:1.8;"></div>
 
-<!-- Freeze / Close -->
-<div class="dist-card">
-  <h3>🔒 Lifecycle Controls</h3>
-  <div style="display:flex;gap:12px;flex-wrap:wrap;">
-    <button class="dist-btn success" onclick="doFreezeShares()">❄️ Freeze Shares</button>
-    <button class="dist-btn danger" onclick="doCloseDeposits()">🚫 Close Deposits</button>
-  </div>
-  <p style="font-size:11px;color:var(--muted);margin:10px 0 0;">Freeze = lock payees permanently (required before deposits).<br>Close Deposits = end investor period (claims stay open).</p>
-</div>
-
-<!-- Active Token Setup -->
-<div class="dist-card" style="border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.04);">
-  <h3>🪙 Active Token (ERC-20)</h3>
-  <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Enter the contract address of any ERC-20 token the client will send — USDT, USDC, or any other token. This will be used for all deposit and claim operations.</p>
-  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
-    <div style="flex:1;">
-      <label style="font-size:11px;color:var(--muted);">Token Contract Address</label>
-      <input class="dist-input" id="activeTokenAddr" placeholder="0x... paste token contract address here" style="margin:4px 0 0;border-color:rgba(251,191,36,.5);" oninput="clearTokenInfo()" />
+  <!-- Deploy Contract -->
+  <div class="dist-card" style="border-color:rgba(124,58,237,.4);">
+    <h3>🚀 Deploy New Contract</h3>
+    <p style="font-size:11px;color:var(--muted);margin:0 0 12px;">Deploy SIGProfitDistributor via MetaMask — no Terminal or private key needed.</p>
+    <label style="font-size:11px;color:var(--muted);">Owner Address</label>
+    <input class="dist-input" id="deployOwner" placeholder="0x... your main wallet" style="margin:6px 0 10px;" />
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <button class="dist-btn primary" onclick="deployContract()" id="deployBtn">🚀 Deploy Contract</button>
+      <span id="deployStatus" style="font-size:11px;color:var(--muted);"></span>
     </div>
-    <button class="dist-btn ghost" onclick="lookupToken()" style="margin-bottom:8px;border-color:rgba(251,191,36,.5);color:#fbbf24;">🔍 Lookup Token</button>
-  </div>
-  <div id="tokenInfoBox" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;">
-    <div style="display:flex;gap:20px;flex-wrap:wrap;">
-      <div><span style="font-size:10px;color:var(--muted);display:block;text-transform:uppercase;">Symbol</span><span id="tokenSymbolDisplay" style="font-size:15px;font-weight:800;color:#fbbf24;">—</span></div>
-      <div><span style="font-size:10px;color:var(--muted);display:block;text-transform:uppercase;">Decimals</span><span id="tokenDecimalsDisplay" style="font-size:15px;font-weight:800;color:#fbbf24;">—</span></div>
-      <div><span style="font-size:10px;color:var(--muted);display:block;text-transform:uppercase;">Name</span><span id="tokenNameDisplay" style="font-size:13px;font-weight:600;color:#f0f0f0;">—</span></div>
-    </div>
-  </div>
-  <div id="tokenInfoError" style="display:none;margin-top:8px;font-size:12px;color:#f87171;"></div>
-  <!-- Quick presets -->
-  <div style="margin-top:12px;">
-    <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Quick Select:</span>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
-      <button class="dist-btn ghost" onclick="setPresetToken('0xdac17f958d2ee523a2206206994597c13d831ec7','USDT')" style="font-size:11px;padding:5px 12px;">USDT (ETH)</button>
-      <button class="dist-btn ghost" onclick="setPresetToken('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48','USDC')" style="font-size:11px;padding:5px 12px;">USDC (ETH)</button>
-      <button class="dist-btn ghost" onclick="setPresetToken('0x55d398326f99059ff775485246999027b3197955','USDT-BSC')" style="font-size:11px;padding:5px 12px;">USDT (BSC)</button>
-      <button class="dist-btn ghost" onclick="setPresetToken('0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d','USDC-BSC')" style="font-size:11px;padding:5px 12px;">USDC (BSC)</button>
-      <button class="dist-btn ghost" onclick="setPresetToken('0xc2ac880e474c3576cc3afb7c560e402ce24d5b37','SIG')" style="font-size:11px;padding:5px 12px;">SIG</button>
-    </div>
-  </div>
-</div>
-
-<!-- Deposit -->
-<div class="dist-card">
-  <h3>💰 Deposit Funds</h3>
-  <div class="dist-grid">
-    <div>
-      <label style="font-size:11px;color:var(--muted);">Deposit Native ETH</label>
-      <input class="dist-input" id="nativeAmount" placeholder="Amount in ETH (e.g. 0.1)" />
-      <button class="dist-btn success" onclick="doDepositNative()">⬇️ Deposit ETH</button>
-    </div>
-    <div>
-      <label style="font-size:11px;color:var(--muted);">Deposit ERC-20 Token — <span id="depositTokenLabel" style="color:#fbbf24;">select token above first</span></label>
-      <div style="padding:8px 10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;margin-bottom:8px;font-size:11px;color:var(--muted);">
-        Token: <code id="depositTokenAddrDisplay" style="color:#fbbf24;">not set</code>
+    <div id="deployResult" style="display:none;margin-top:12px;padding:12px 14px;background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.3);border-radius:8px;">
+      <p style="font-size:12px;color:#34d399;margin:0 0 8px;font-weight:700;">✅ Contract deployed!</p>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <input class="dist-input" id="deployedAddr" readonly style="margin:0;background:rgba(5,150,105,.1);border-color:#34d399;color:#34d399;font-family:monospace;" />
+        <button class="dist-btn ghost" onclick="useDeployedContract()" style="white-space:nowrap;">⬇️ Use This</button>
       </div>
-      <input class="dist-input" id="tokenAmount" placeholder="Amount (e.g. 1000)" />
-      <button class="dist-btn success" onclick="doDepositToken()">⬇️ Approve & Deposit Token</button>
+      <div id="deployExplorerLink" style="margin-top:8px;font-size:11px;"></div>
     </div>
   </div>
-</div>
 
-<!-- Claim -->
-<div class="dist-card">
-  <h3>🏦 Claim Your Share</h3>
-  <div class="dist-grid">
-    <div>
-      <label style="font-size:11px;color:var(--muted);">Claimable ETH for connected wallet</label>
-      <div class="dist-stat" style="margin-bottom:10px;"><span id="claimableNative">—</span> <span style="font-size:11px;color:var(--muted);">ETH</span></div>
-      <button class="dist-btn primary" onclick="doClaimNative()">💎 Claim ETH</button>
-    </div>
-    <div>
-      <label style="font-size:11px;color:var(--muted);">Claim Token — <span id="claimTokenLabel" style="color:#fbbf24;">select token above first</span></label>
-      <div style="padding:8px 10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;margin-bottom:8px;font-size:11px;color:var(--muted);">
-        Token: <code id="claimTokenAddrDisplay" style="color:#fbbf24;">not set</code>
-      </div>
-      <div class="dist-stat" style="margin-bottom:10px;"><span id="claimableToken">—</span> <span id="claimableTokenSymbol" style="font-size:11px;color:var(--muted);">tokens</span></div>
-      <button class="dist-btn primary" onclick="checkClaimableToken()">🔍 Check Balance</button>
-      <button class="dist-btn success" onclick="doClaimToken()" style="margin-left:6px;">💎 Claim Token</button>
+  <!-- Contract Settings -->
+  <div class="dist-card">
+    <h3>⚙️ Contract Settings</h3>
+    <label style="font-size:11px;color:var(--muted);">SIGProfitDistributor Contract Address</label>
+    <input class="dist-input" id="contractAddr" placeholder="0x..." style="margin:6px 0 10px;" />
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <button class="dist-btn ghost" onclick="loadContractState()">🔄 Load Contract State</button>
+      <span id="contractStatus" style="font-size:11px;color:var(--muted);"></span>
     </div>
   </div>
-</div>
 
-<!-- Rescue -->
-<div class="dist-card">
-  <h3>🛟 Rescue Untracked Funds</h3>
-  <p style="font-size:11px;color:var(--muted);margin:0 0 10px;">Only for funds sent by mistake — cannot rescue tracked investor funds.</p>
-  <div class="dist-grid">
-    <div>
-      <input class="dist-input" id="rescueNativeAmt" placeholder="ETH amount to rescue" />
-      <input class="dist-input" id="rescueNativeTo" placeholder="Recipient address (0x...)" />
-      <button class="dist-btn ghost" onclick="doRescueNative()">🛟 Rescue ETH</button>
+  <!-- Contract State -->
+  <div class="dist-card" id="stateCard" style="display:none;">
+    <h3>📊 Contract State</h3>
+    <div class="dist-grid three" style="margin-bottom:12px;">
+      <div class="dist-stat"><label>Shares Frozen</label><span class="val" id="stSharesFrozen">—</span></div>
+      <div class="dist-stat"><label>Deposits Closed</label><span class="val" id="stDepositsClosed">—</span></div>
+      <div class="dist-stat"><label>Payee Count</label><span class="val" id="stPayeeCount">—</span></div>
     </div>
-    <div>
-      <input class="dist-input" id="rescueTokenAddr" placeholder="Token address (0x...)" />
-      <input class="dist-input" id="rescueTokenAmt" placeholder="Token amount to rescue" />
-      <input class="dist-input" id="rescueTokenTo" placeholder="Recipient address (0x...)" />
-      <button class="dist-btn ghost" onclick="doRescueToken()">🛟 Rescue Token</button>
+    <div class="dist-grid" style="margin-bottom:12px;">
+      <div class="dist-stat"><label>ETH Received (total)</label><span class="val" id="stNativeReceived">—</span></div>
+      <div class="dist-stat"><label>ETH Tracked Balance</label><span class="val" id="stNativeTracked">—</span></div>
     </div>
+    <div id="payeesList"></div>
   </div>
+  <!-- Lifecycle Controls -->
+  <div class="dist-card">
+    <h3>🔒 Lifecycle Controls</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="dist-btn success" onclick="doFreezeShares()">❄️ Freeze Shares</button>
+      <button class="dist-btn danger" onclick="doCloseDeposits()">🚫 Close Deposits</button>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin:10px 0 0;">Freeze locks payees permanently (required before deposits). Close Deposits ends investor period.</p>
+  </div>
+  <div id="distLog"></div>
 </div>
 
-<!-- Investor Proof Link Generator -->
-<div class="dist-card">
-  <h3>🔗 Generate Investor Proof Link</h3>
-  <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Generate a shareable link for each investor to verify their wallet registration and claimable balance on the blockchain — no login required.</p>
-  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
-    <div style="flex:1;">
-      <label style="font-size:11px;color:var(--muted);">Investor Wallet Address</label>
-      <input class="dist-input" id="investorWallet" placeholder="0xInvestorWallet" style="margin:4px 0 0;" />
-    </div>
-    <div style="flex:1;">
-      <label style="font-size:11px;color:var(--muted);">Network</label>
-      <select class="dist-input" id="proofNetwork" style="margin:4px 0 0;">
-        <option value="ethereum" selected>Ethereum Mainnet</option>
-        <option value="bscMainnet">BSC Mainnet</option>
-        <option value="bscTestnet">BSC Testnet</option>
+<!-- TAB: Payees -->
+<div id="tab-payees" class="dist-section">
+  <div class="dist-card">
+    <h3>👥 Set Payees</h3>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <label style="font-size:12px;color:var(--muted);">Number of wallets:</label>
+      <select class="dist-input" id="payeeCount" style="width:80px;margin:0;" onchange="buildPayeeRows()">
+        <option value="2">2</option><option value="3">3</option><option value="4">4</option>
+        <option value="5">5</option><option value="6">6</option><option value="7">7</option>
+        <option value="8">8</option><option value="10">10</option>
       </select>
+      <span id="bpsSumLabel" style="font-size:12px;font-weight:700;color:#fbbf24;">Total: 0 / 10000 BPS</span>
+      <button class="dist-btn ghost" onclick="distributeEvenly()" style="font-size:11px;padding:5px 12px;">⚖️ Distribute Evenly</button>
     </div>
-    <button class="dist-btn primary" onclick="generateProofLink()" style="margin-bottom:8px;">🔗 Generate Link</button>
-  </div>
-  <div id="proofLinkBox" style="display:none;margin-top:12px;">
-    <label style="font-size:11px;color:var(--muted);">Shareable Investor Link:</label>
-    <div style="display:flex;gap:8px;margin-top:6px;">
-      <input class="dist-input" id="proofLinkOut" readonly style="margin:0;background:rgba(124,58,237,.1);border-color:#7c3aed;color:#c4b5fd;" />
-      <button class="dist-btn ghost" onclick="copyProofLink()" style="white-space:nowrap;">📋 Copy</button>
+    <div style="display:grid;grid-template-columns:1fr 80px 50px;gap:8px;margin-bottom:6px;">
+      <span style="font-size:10px;color:var(--muted);text-transform:uppercase;">Wallet Address</span>
+      <span style="font-size:10px;color:var(--muted);text-transform:uppercase;text-align:center;">BPS</span>
+      <span style="font-size:10px;color:var(--muted);text-transform:uppercase;text-align:right;">%</span>
     </div>
-    <div id="bscscanLinkBox" style="margin-top:8px;font-size:12px;"></div>
+    <div id="payeeRows"></div>
+    <div style="margin-top:12px;padding:8px 12px;background:rgba(124,58,237,.08);border-radius:6px;font-size:11px;color:var(--muted);">
+      BPS = Basis Points &nbsp;|&nbsp; 10000 BPS = 100% &nbsp;|&nbsp; 5000 = 50% &nbsp;|&nbsp; 2500 = 25%
+    </div>
+    <button class="dist-btn primary" onclick="doSetPayees()" style="margin-top:12px;">✅ Set Payees on Contract</button>
+  </div>
+  <!-- Token Setup -->
+  <div class="dist-card" style="border-color:rgba(251,191,36,.3);">
+    <h3>🪙 Active ERC-20 Token</h3>
+    <p style="font-size:11px;color:var(--muted);margin:0 0 10px;">Select the token clients will deposit — USDT, USDC, SIG, or any ERC-20.</p>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
+      <div style="flex:1;"><label style="font-size:11px;color:var(--muted);">Token Contract Address</label>
+        <input class="dist-input" id="activeTokenAddr" placeholder="0x... paste address" style="margin:4px 0 0;border-color:rgba(251,191,36,.4);" oninput="clearTokenInfo()" /></div>
+      <button class="dist-btn ghost" onclick="lookupToken()" style="margin-bottom:8px;border-color:rgba(251,191,36,.4);color:#fbbf24;">🔍 Lookup</button>
+    </div>
+    <div id="tokenInfoBox" style="display:none;margin-bottom:10px;padding:10px 14px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.25);border-radius:8px;">
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <div><span style="font-size:10px;color:var(--muted);display:block;text-transform:uppercase;">Symbol</span><span id="tokenSymbolDisplay" style="font-size:15px;font-weight:800;color:#fbbf24;">—</span></div>
+        <div><span style="font-size:10px;color:var(--muted);display:block;text-transform:uppercase;">Decimals</span><span id="tokenDecimalsDisplay" style="font-size:15px;font-weight:800;color:#fbbf24;">—</span></div>
+        <div><span style="font-size:10px;color:var(--muted);display:block;text-transform:uppercase;">Name</span><span id="tokenNameDisplay" style="font-size:13px;font-weight:600;color:#f0f0f0;">—</span></div>
+      </div>
+    </div>
+    <div id="tokenInfoError" style="display:none;margin-bottom:8px;font-size:12px;color:#f87171;"></div>
+    <div>
+      <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Quick Select:</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+        <button class="dist-btn ghost" onclick="setPresetToken('0xdac17f958d2ee523a2206206994597c13d831ec7','USDT')" style="font-size:11px;padding:5px 10px;">USDT (ETH)</button>
+        <button class="dist-btn ghost" onclick="setPresetToken('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48','USDC')" style="font-size:11px;padding:5px 10px;">USDC (ETH)</button>
+        <button class="dist-btn ghost" onclick="setPresetToken('0x55d398326f99059ff775485246999027b3197955','USDT-BSC')" style="font-size:11px;padding:5px 10px;">USDT (BSC)</button>
+        <button class="dist-btn ghost" onclick="setPresetToken('0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d','USDC-BSC')" style="font-size:11px;padding:5px 10px;">USDC (BSC)</button>
+        <button class="dist-btn ghost" onclick="setPresetToken('0xc2ac880e474c3576cc3afb7c560e402ce24d5b37','SIG')" style="font-size:11px;padding:5px 10px;border-color:rgba(167,139,250,.5);color:#a78bfa;">SIG Token</button>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- Transaction Log -->
-<div class="dist-card">
-  <h3>📋 Transaction Log</h3>
-  <div id="distLog">Waiting for operations...\n</div>
+<!-- TAB: Deposit -->
+<div id="tab-deposit" class="dist-section">
+  <div class="dist-card">
+    <h3>💰 Deposit Funds into Contract</h3>
+    <div class="dist-grid">
+      <div>
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Deposit Native ETH/BNB</label>
+        <input class="dist-input" id="nativeAmount" placeholder="Amount in ETH (e.g. 0.1)" />
+        <button class="dist-btn success" onclick="doDepositNative()">⬇️ Deposit Native</button>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Deposit ERC-20 Token — <span id="depositTokenLabel" style="color:#fbbf24;">select in Payees tab</span></label>
+        <div style="padding:7px 10px;background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.2);border-radius:6px;margin-bottom:8px;font-size:11px;color:var(--muted);">
+          Token: <code id="depositTokenAddrDisplay" style="color:#fbbf24;">not set</code>
+        </div>
+        <input class="dist-input" id="tokenAmount" placeholder="Amount (e.g. 1000)" />
+        <button class="dist-btn success" onclick="doDepositToken()">⬇️ Approve & Deposit</button>
+      </div>
+    </div>
+  </div>
+  <!-- Generate deposit link -->
+  <div class="dist-card" style="border-color:rgba(124,58,237,.3);">
+    <h3>🔗 Generate Investor Deposit Link</h3>
+    <p style="font-size:11px;color:var(--muted);margin:0 0 12px;">Share a link with investors so they can deposit directly to the contract via their own MetaMask.</p>
+    <div class="dist-grid" style="margin-bottom:12px;">
+      <div class="otp-field">
+        <label style="font-size:11px;color:var(--muted);">Investor Wallet</label>
+        <input class="dist-input" id="invWallet" placeholder="0x..." />
+      </div>
+      <div class="otp-field">
+        <label style="font-size:11px;color:var(--muted);">Network</label>
+        <select class="dist-input" id="invNetwork"><option value="ethereum">Ethereum</option><option value="bsc" selected>BSC</option></select>
+      </div>
+    </div>
+    <button class="dist-btn primary" onclick="genInvestorLink()">🔗 Generate Link</button>
+    <div id="invLinkBox" style="display:none;margin-top:12px;padding:10px 14px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.3);border-radius:8px;word-break:break-all;font-size:11px;color:#c4b5fd;"></div>
+  </div>
 </div>
 
+<!-- TAB: Claim -->
+<div id="tab-claim" class="dist-section">
+  <div class="dist-card">
+    <h3>🏦 Claim Your Share</h3>
+    <div class="dist-grid">
+      <div>
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:8px;">Claimable ETH/BNB</label>
+        <div class="dist-stat" style="margin-bottom:10px;"><span class="val" id="claimableNative">—</span> <span style="font-size:11px;color:var(--muted);">native</span></div>
+        <button class="dist-btn primary" onclick="doClaimNative()">💎 Claim Native</button>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:8px;">Claimable Token — <span id="claimTokenLabel" style="color:#fbbf24;">select in Payees tab</span></label>
+        <div style="padding:7px 10px;background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.2);border-radius:6px;margin-bottom:8px;font-size:11px;color:var(--muted);">
+          Token: <code id="claimTokenAddrDisplay" style="color:#fbbf24;">not set</code>
+        </div>
+        <div class="dist-stat" style="margin-bottom:10px;"><span class="val" id="claimableToken">—</span> <span id="claimableTokenSymbol" style="font-size:11px;color:var(--muted);">tokens</span></div>
+        <button class="dist-btn ghost" onclick="checkClaimableToken()" style="margin-right:6px;">🔍 Check</button>
+        <button class="dist-btn success" onclick="doClaimToken()">💎 Claim Token</button>
+      </div>
+    </div>
+  </div>
 </div>
 
-<script src="/static/ethers.umd.min.js" onerror="var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js';document.head.appendChild(s);"></script>
+<!-- TAB: Registry -->
+<div id="tab-registry" class="dist-section">
+  <div class="dist-card" style="border-color:rgba(251,191,36,.3);">
+    <h3>🗂 Multi-Currency Contract Registry</h3>
+    <p style="font-size:11px;color:var(--muted);margin:0 0 12px;">Save a SIGProfitDistributor contract for each currency. Click Load to switch the active contract.</p>
+    <div id="regRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="dist-input" id="regCurrency" placeholder="Currency (e.g. EUR, USDT)" style="width:120px;margin:0;" />
+      <input class="dist-input" id="regContract" placeholder="Contract address 0x..." style="flex:1;margin:0;" />
+      <button class="dist-btn primary" onclick="saveRegistry()" style="white-space:nowrap;">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/ethers.umd.min.js"></script>
 <script>
-// ── ABI ──────────────────────────────────────────────────────────────────────
-const ABI = [
-  "function setPayees(address[] accounts, uint256[] bpsValues) external",
+// ─── Ethers / ABI setup ───────────────────────────────────────────────────────
+var _ethers = window.ethers;
+var provider, signer, contract;
+var DIST_ABI = [
+  "constructor(address initialOwner)",
+  "function setPayees(address[] calldata wallets, uint256[] calldata bps) external",
   "function freezeShares() external",
   "function closeDeposits() external",
   "function depositNative() external payable",
   "function depositToken(address token, uint256 amount) external",
+  "function approve(address token, address spender, uint256 amount) external",
   "function claimNative() external",
   "function claimToken(address token) external",
-  "function rescueUntrackedNative(address to, uint256 amount) external",
-  "function rescueUntrackedToken(address token, address to, uint256 amount) external",
-  "function sharesFrozen() view returns (bool)",
-  "function depositsClosed() view returns (bool)",
-  "function payeeCount() view returns (uint256)",
-  "function payees() view returns (address[])",
-  "function shareBps(address) view returns (uint256)",
-  "function totalReceived(address asset) view returns (uint256)",
-  "function trackedBalance(address asset) view returns (uint256)",
-  "function claimable(address asset, address payee) view returns (uint256)",
-  "function untrackedBalance(address asset) view returns (uint256)",
+  "function claimableNative(address wallet) external view returns (uint256)",
+  "function claimableToken(address token, address wallet) external view returns (uint256)",
+  "function sharesFrozen() external view returns (bool)",
+  "function depositsClosed() external view returns (bool)",
+  "function payeeCount() external view returns (uint256)",
+  "function totalNativeReceived() external view returns (uint256)",
+  "function trackedNativeBalance() external view returns (uint256)",
+  "function getPayees() external view returns (address[] memory, uint256[] memory)",
+  "function setActiveToken(address token) external",
+  "function activeToken() external view returns (address)",
+  "function symbol() external view returns (string)",
+  "function decimals() external view returns (uint8)",
+  "function name() external view returns (string)",
+  "function totalSupply() external view returns (uint256)",
+  "function balanceOf(address) external view returns (uint256)",
+  "function approve(address,uint256) external returns (bool)",
+  "function allowance(address,address) external view returns (uint256)",
 ];
-const ERC20_ABI = [
-  "function approve(address spender, uint256 amount) external returns (bool)",
-  "function decimals() view returns (uint8)",
+var ERC20_ABI = [
   "function symbol() view returns (string)",
+  "function decimals() view returns (uint8)",
+  "function name() view returns (string)",
+  "function balanceOf(address) view returns (uint256)",
+  "function approve(address,uint256) returns (bool)",
+  "function allowance(address,address) view returns (uint256)",
 ];
+var DIST_BYTECODE = "0x";  // Insert compiled bytecode if available; deploy via Remix otherwise
 
-const ZERO = "0x0000000000000000000000000000000000000000";
-let provider, signer, walletAddress;
-
-// ── Active Token State ────────────────────────────────────────────────────────
-let activeTokenAddr = '';
-let activeTokenSymbol = '';
-let activeTokenDecimals = 18;
-
-function getActiveTokenAddr() {
-  const a = document.getElementById('activeTokenAddr').value.trim();
-  if (!a) { alert('Please set the Active Token address first (ERC-20 section above).'); return null; }
-  return a;
-}
-
-function clearTokenInfo() {
-  activeTokenAddr = '';
-  activeTokenSymbol = '';
-  activeTokenDecimals = 18;
-  document.getElementById('tokenInfoBox').style.display = 'none';
-  document.getElementById('tokenInfoError').style.display = 'none';
-  _refreshTokenDisplays('not set', '');
-}
-
-function _refreshTokenDisplays(addrText, symbol) {
-  const lbl = symbol ? symbol + ' (' + addrText.slice(0,10) + '...)' : addrText;
-  const el1 = document.getElementById('depositTokenAddrDisplay');
-  const el2 = document.getElementById('claimTokenAddrDisplay');
-  const el3 = document.getElementById('depositTokenLabel');
-  const el4 = document.getElementById('claimTokenLabel');
-  const el5 = document.getElementById('claimableTokenSymbol');
-  if (el1) el1.textContent = addrText;
-  if (el2) el2.textContent = addrText;
-  if (el3) el3.textContent = symbol ? symbol : 'select token above first';
-  if (el4) el4.textContent = symbol ? symbol : 'select token above first';
-  if (el5) el5.textContent = symbol || 'tokens';
-}
-
-function getPublicRpcs(chainId) {
-  // Free public RPC endpoints confirmed to support browser CORS (no API key needed)
-  const rpcMap = {
-    1:  [
-      'https://ethereum.publicnode.com',   // PublicNode — free, CORS OK
-      'https://eth.drpc.org',              // dRPC — free, CORS OK
-      'https://1rpc.io/eth'               // 1RPC — free, CORS OK
-    ],
-    56: [
-      'https://bsc.publicnode.com',        // PublicNode BSC
-      'https://bsc-dataseed.binance.org',
-      'https://bsc-dataseed1.binance.org'
-    ],
-    97: ['https://data-seed-prebsc-1-s1.binance.org:8545']
-  };
-  return rpcMap[chainId] || rpcMap[1];
-}
-
-// Raw JSON-RPC call via fetch — bypasses ethers.js provider initialization
-async function _rpcCall(rpcUrl, to, calldata, reqId) {
-  const res = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0', id: reqId || 1,
-      method: 'eth_call',
-      params: [{ to: to, data: calldata }, 'latest']
-    })
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const json = await res.json();
-  if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
-  if (!json.result || json.result === '0x') throw new Error('Empty result from RPC (contract not on this network)');
-  return json.result;
-}
-
-async function lookupToken() {
-  const addr = document.getElementById('activeTokenAddr').value.trim();
-  if (!addr || !addr.startsWith('0x')) {
-    document.getElementById('tokenInfoError').textContent = 'Enter a valid 0x token contract address.';
-    document.getElementById('tokenInfoError').style.display = 'block';
-    document.getElementById('tokenInfoBox').style.display = 'none';
-    return;
-  }
-  const errEl = document.getElementById('tokenInfoError');
-  const infoEl = document.getElementById('tokenInfoBox');
-  errEl.style.display = 'none';
-  infoEl.style.display = 'none';
-
-  const ERC20_META = [
-    'function symbol() view returns (string)',
-    'function decimals() view returns (uint8)',
-    'function name() view returns (string)'
-  ];
-
-  function _applyTokenInfo(sym, dec, name, via) {
-    activeTokenAddr = addr;
-    activeTokenSymbol = sym;
-    activeTokenDecimals = dec;
-    document.getElementById('tokenSymbolDisplay').textContent = sym;
-    document.getElementById('tokenDecimalsDisplay').textContent = String(dec);
-    document.getElementById('tokenNameDisplay').textContent = name;
-    infoEl.style.display = 'block';
-    _refreshTokenDisplays(addr, sym);
-    log('\\u2705 Token: ' + name + ' (' + sym + ') decimals=' + dec + ' via ' + via);
-  }
-
-  // Priority 1: use MetaMask provider (no CORS issues)
-  if (provider) {
-    try {
-      log('Looking up token via MetaMask provider...');
-      const token = new ethers.Contract(addr, ERC20_META, provider);
-      const [sym, dec, name] = await Promise.all([token.symbol(), token.decimals(), token.name()]);
-      _applyTokenInfo(sym, Number(dec), name, 'MetaMask');
-      return;
-    } catch(e) {
-      log('\\u26a0\\ufe0f MetaMask lookup failed: ' + (e.message||String(e)).substring(0,100) + ' — trying public RPC...');
-    }
-  }
-
-  // Priority 2: public RPC with raw eth_call (CORS may still fail in some browsers)
-  const chainId = parseInt(document.getElementById('networkSelect').value);
-  const rpcs = getPublicRpcs(chainId);
-  const SYM_SEL  = '0x95d89b41';
-  const DEC_SEL  = '0x313ce567';
-  const NAME_SEL = '0x06fdde03';
-  const coder = ethers.AbiCoder.defaultAbiCoder();
-
-  let lastError = null;
-  for (const rpcUrl of rpcs) {
-    try {
-      log('Trying ' + rpcUrl + '...');
-      const [symHex, decHex, nameHex] = await Promise.all([
-        _rpcCall(rpcUrl, addr, SYM_SEL,  1),
-        _rpcCall(rpcUrl, addr, DEC_SEL,  2),
-        _rpcCall(rpcUrl, addr, NAME_SEL, 3)
-      ]);
-      const sym  = coder.decode(['string'], symHex)[0];
-      const dec  = Number(coder.decode(['uint8'], decHex)[0]);
-      const name = coder.decode(['string'], nameHex)[0];
-      _applyTokenInfo(sym, dec, name, rpcUrl);
-      return;
-    } catch(e) {
-      lastError = e;
-      log('\\u26a0\\ufe0f ' + rpcUrl + ' => ' + (e.message || String(e)).substring(0, 120));
-    }
-  }
-  errEl.textContent = 'Connect MetaMask first for best results — or all RPC endpoints failed: ' +
-    ((lastError && lastError.message) || String(lastError));
-  errEl.style.display = 'block';
-}
-
-async function setPresetToken(addr, sym) {
-  document.getElementById('activeTokenAddr').value = addr;
-  clearTokenInfo();
-  document.getElementById('activeTokenAddr').value = addr;
-  await lookupToken();
-}
+var activeTokenAddr = "";
+var activeTokenDecimals = 18;
+var activeTokenSymbol = "";
+var registry = JSON.parse(localStorage.getItem('distRegistry') || '{}');
 
 function log(msg) {
-  const el = document.getElementById('distLog');
-  const ts = new Date().toLocaleTimeString();
-  el.textContent += '[' + ts + '] ' + msg + '\\n';
+  var el = document.getElementById('distLog');
+  if (!el) return;
+  el.textContent += new Date().toLocaleTimeString() + ' — ' + msg + '\n';
   el.scrollTop = el.scrollHeight;
 }
 
-function diagWallet() {
-  const box = document.getElementById('diagBox');
-  box.style.display = 'block';
-  const lines = [];
-  lines.push('<b>🔍 Wallet Connection Diagnostics</b>');
-  lines.push('─────────────────────────────────');
-  // ethers check
-  lines.push('ethers.js loaded: ' + (typeof ethers !== 'undefined' ? '✅ Yes (v' + (ethers.version||'?') + ')' : '❌ NO — page may not have internet access'));
-  // window.ethereum check
-  lines.push('window.ethereum: ' + (window.ethereum ? '✅ Detected' : '❌ NOT found — MetaMask is not installed or not active'));
-  if (window.ethereum) {
-    lines.push('isMetaMask: ' + (window.ethereum.isMetaMask ? '✅ Yes' : '⚠️ No — may be another wallet'));
-    lines.push('isTrustWallet: ' + (window.ethereum.isTrustWallet ? '⚠️ Trust Wallet detected (may conflict)' : 'No'));
-    if (window.ethereum.providers && window.ethereum.providers.length) {
-      lines.push('Multiple providers: ' + window.ethereum.providers.length + ' detected');
-      window.ethereum.providers.forEach(function(p,i){ lines.push('  Provider['+i+']: isMetaMask=' + !!p.isMetaMask + ' isTrust=' + !!(p.isTrustWallet||p.isTrust)); });
-    }
-    lines.push('Current accounts: checking...');
-    window.ethereum.request({method:'eth_accounts'}).then(function(accs){
-      lines.push(accs && accs.length ? '✅ Already connected: ' + accs[0] : '⚠️ No accounts — MetaMask may be locked');
-      box.innerHTML = lines.join('<br>');
-    }).catch(function(e){ lines.push('Error checking accounts: ' + e.message); box.innerHTML = lines.join('<br>'); });
-  }
-  lines.push('─────────────────────────────────');
-  lines.push('<b>If MetaMask not detected:</b> Install from <a href="https://metamask.io" target="_blank" style="color:#a78bfa;">metamask.io</a>, then refresh page.');
-  lines.push('<b>If "isTrustWallet: Yes":</b> Disable Trust Wallet extension, keep only MetaMask active.');
-  lines.push('<b>If locked:</b> Open MetaMask extension and unlock it first.');
-  box.innerHTML = lines.join('<br>');
+// ─── Tabs ───────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.dist-section').forEach(function(s){s.classList.remove('active');});
+  document.querySelectorAll('.dist-tab').forEach(function(t){t.classList.remove('active');});
+  document.getElementById('tab-'+name).classList.add('active');
+  event.target.classList.add('active');
 }
 
-function distContract() {
-  const addr = document.getElementById('contractAddr').value.trim();
-  if (!addr) { alert('Enter contract address first'); return null; }
-  return new ethers.Contract(addr, ABI, signer);
-}
-
-// ── Deploy bytecode ───────────────────────────────────────────────────────────
-const DEPLOY_BYTECODE = "0x60806040523480156200001157600080fd5b5060405162001d4138038062001d41833981016040819052620000349162000131565b806001600160a01b0381166200006457604051631e4fbdf760e01b81526000600482015260240160405180910390fd5b6200006f81620000c3565b5060017f9b779b17422d0df92223018b32b4d1fa46e071723d6817e2486d003becc55f00556001600160a01b038116620000bc5760405163b4fa3fb360e01b815260040160405180910390fd5b5062000163565b600180546001600160a01b0319169055620000de81620000e1565b50565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6000602082840312156200014457600080fd5b81516001600160a01b03811681146200015c57600080fd5b9392505050565b611bce80620001736000396000f3fe6080604052600436106101db5760003560e01c806379ba509711610102578063bcc7445f11610095578063e30c397811610064578063e30c39781461056d578063ef5d9ae81461058b578063f2fde38b146105ab578063f4856230146105cb57600080fd5b8063bcc7445f1461050f578063d4570c1c1461052f578063db6b52461461054f578063e1a452181461055757600080fd5b80639a59b336116100d15780639a59b336146104815780639e546c38146104a1578063a369b0ac146104c1578063b354a414146104e257600080fd5b806379ba5097146104195780638102ef091461042e5780638da5cb5b1461044e5780639496fd1c1461046c57600080fd5b806332f289cf1161017a5780634e8086aa116101495780634e8086aa146103955780635ecc86e8146103b7578063715018a6146103cc57806371e158e7146103e157600080fd5b806332f289cf146102ff578063338b5dea1461031f578063385561c21461033f5780634df9cfb31461035f57600080fd5b80631b5c059e116101b65780631b5c059e146102485780631df04d3a146102685780631f5231731461029957806332150fbb146102b957600080fd5b8062dbe109146101ef5780630dd7b0cb146102135780631b05cbc51461023357600080fd5b366101ea576101e86105e0565b005b600080fd5b3480156101fb57600080fd5b506002545b6040519081526020015b60405180910390f35b34801561021f57600080fd5b506101e861022e366004611875565b6106cd565b34801561023f57600080fd5b506101e86106fa565b34801561025457600080fd5b506101e86102633660046118ae565b61078e565b34801561027457600080fd5b5060015461028990600160a01b900460ff1681565b604051901515815260200161020a565b3480156102a557600080fd5b506102006102b43660046118da565b6108cc565b3480156102c557600080fd5b506102006102d4366004611875565b6001600160a01b03918216600090815260056020908152604080832093909416825291909152205490565b34801561030b57600080fd5b506101e861031a3660046118da565b6108dd565b34801561032b57600080fd5b506101e861033a3660046118ae565b610909565b34801561034b57600080fd5b506101e861035a3660046118da565b610b32565b34801561036b57600080fd5b5061020061037a3660046118da565b6001600160a01b031660009081526004602052604090205490565b3480156103a157600080fd5b506103aa610b43565b60405161020a91906118f7565b3480156103c357600080fd5b50610200606481565b3480156103d857600080fd5b506101e8610ba5565b3480156103ed57600080fd5b506104016103fc366004611944565b610bb9565b6040516001600160a01b03909116815260200161020a565b34801561042557600080fd5b506101e8610c0c565b34801561043a57600080fd5b506102006104493660046118da565b610c52565b34801561045a57600080fd5b506000546001600160a01b0316610401565b34801561047857600080fd5b506101e8610c5d565b34801561048d57600080fd5b506101e861049c36600461195d565b610cf8565b3480156104ad57600080fd5b506102006104bc3660046118da565b610df7565b3480156104cd57600080fd5b5060015461028990600160a81b900460ff1681565b3480156104ee57600080fd5b506102006104fd3660046118da565b60036020526000908152604090205481565b34801561051b57600080fd5b506101e861052a3660046119ea565b610e02565b34801561053b57600080fd5b5061020061054a366004611875565b61108c565b6101e861109f565b34801561056357600080fd5b5061020061271081565b34801561057957600080fd5b506001546001600160a01b0316610401565b34801561059757600080fd5b506102006105a63660046118da565b6110a7565b3480156105b757600080fd5b506101e86105c63660046118da565b611125565b3480156105d757600080fd5b506101e8611196565b600154600160a01b900460ff1661060a57604051631c0c3e3360e31b815260040160405180910390fd5b600154600160a81b900460ff16156106355760405163b31da41d60e01b815260040160405180910390fd5b346000036106565760405163b4fa3fb360e01b815260040160405180910390fd5b600080805260046020527f17ef568e3e12ab5b9c7254a8d58478811de00f9e6eb34345acd53bf8fd09d3ec8054349290610691908490611a6c565b909155505060405134815233907fb5d7700fb0cf415158b8db7cc7c39f0eab16a825c92e221404b4c8bb099b4bbb9060200160405180910390a2565b6106d56111be565b6106df82826111da565b6106f66001600080516020611b7983398151915255565b5050565b6107026112d3565b600154600160a01b900460ff161561072d5760405163fa16d6d760e01b815260040160405180910390fd5b6002546000036107505760405163b4fa3fb360e01b815260040160405180910390fd5b6001805460ff60a01b1916600160a01b1790556040517f2a7f0b97ceb555feb02c19ecf286f4d773a1e432ab71a64cc1b31727beba0dee90600090a1565b6107966112d3565b61079e6111be565b6001600160a01b0382166107c55760405163b4fa3fb360e01b815260040160405180910390fd5b60006107d16000611300565b90508115806107df57508082115b156107fc57604051620f6b2160e41b815260040160405180910390fd5b6000836001600160a01b03168360405160006040518083038185875af1925050503d8060008114610849576040519150601f19603f3d011682016040523d82523d6000602084013e61084e565b606091505b505090508061087057604051633d2cec6f60e21b815260040160405180910390fd5b836001600160a01b03167f346f910abff60596b3ad9077602d7507ae43b64b42a9d5713baab2892c863e45846040516108ab91815260200190565b60405180910390a250506106f66001600080516020611b7983398151915255565b60006108d782611300565b92915050565b6108e56111be565b6108ef81336111da565b6109066001600080516020611b7983398151915255565b50565b6109116111be565b600154600160a01b900460ff1661093b57604051631c0c3e3360e31b815260040160405180910390fd5b600154600160a81b900460ff16156109665760405163b31da41d60e01b815260040160405180910390fd5b6001600160a01b03821661098d5760405163b4fa3fb360e01b815260040160405180910390fd5b806000036109ae5760405163b4fa3fb360e01b815260040160405180910390fd5b6040516370a0823160e01b81523060048201526000906001600160a01b038416906370a0823190602401602060405180830381865afa1580156109f5573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190610a199190611a7f565b9050610a306001600160a01b03841633308561133e565b6040516370a0823160e01b815230600482015260009082906001600160a01b038616906370a0823190602401602060405180830381865afa158015610a79573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190610a9d9190611a7f565b610aa79190611a98565b6001600160a01b038516600090815260046020526040812080549293508392909190610ad4908490611a6c565b90915550506040518181526001600160a01b0385169033907ff1444b5cad7ce70cb018d1b8edc8618fe303f3c7f034d8d572a6e27facbf2bef9060200160405180910390a350506106f66001600080516020611b7983398151915255565b610b3a6111be565b6108ef8161137a565b60606002805480602002602001604051908101604052809291908181526020018280548015610b9b57602002820191906000526020600020905b81546001600160a01b03168152600190910190602001808311610b7d575b5050505050905090565b610bad6112d3565b610bb760006114b0565b565b6002546000908210610bde5760405163b4fa3fb360e01b815260040160405180910390fd5b60028281548110610bf157610bf1611aab565b6000918252602090912001546001600160a01b031692915050565b60015433906001600160a01b03168114610c495760405163118cdaa760e01b81526001600160a01b03821660048201526024015b60405180910390fd5b610906816114b0565b60006108d7826114c9565b610c656112d3565b600154600160a01b900460ff16610c8f57604051631c0c3e3360e31b815260040160405180910390fd5b600154600160a81b900460ff1615610cba5760405163b31da41d60e01b815260040160405180910390fd5b6001805460ff60a81b1916600160a81b1790556040517f1a8ade30f60946b8fb7b4d1cf93dc594fa0e441eca24e1b9b88cfa375e3488b190600090a1565b610d006112d3565b610d086111be565b6001600160a01b0383161580610d2557506001600160a01b038216155b15610d435760405163b4fa3fb360e01b815260040160405180910390fd5b6000610d4e84611300565b9050811580610d5c57508082115b15610d7957604051620f6b2160e41b815260040160405180910390fd5b610d8d6001600160a01b0385168484611575565b826001600160a01b0316846001600160a01b03167f204874061edf1b61f01e55eb957ff789bf733451c43d111f54ba6d84122b716084604051610dd291815260200190565b60405180910390a350610df26001600080516020611b7983398151915255565b505050565b60006108d7826115aa565b610e0a6112d3565b600154600160a01b900460ff1615610e355760405163fa16d6d760e01b815260040160405180910390fd5b821580610e425750828114155b15610e605760405163b4fa3fb360e01b815260040160405180910390fd5b6064831115610e825760405163b4fa3fb360e01b815260040160405180910390fd5b60005b600254811015610ed3576003600060028381548110610ea657610ea6611aab565b60009182526020808320909101546001600160a01b03168352820192909252604001812055600101610e85565b50610ee06002600061182e565b6000805b84811015611025576000868683818110610f0057610f00611aab565b9050602002016020810190610f1591906118da565b90506000858584818110610f2b57610f2b611aab565b60200291909101359150506001600160a01b038216610f5d57604051631670f44760e31b815260040160405180910390fd5b80600003610f7e5760405163b4fa3fb360e01b815260040160405180910390fd5b6001600160a01b03821660009081526003602052604090205415610fb557604051631670f44760e31b815260040160405180910390fd5b6001600160a01b03821660008181526003602052604081208390556002805460018101825591527f405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace0180546001600160a01b03191690911790556110198185611a6c565b93505050600101610ee4565b5061271081146110485760405163b4fa3fb360e01b815260040160405180910390fd5b7fa9644fecdff69c1ee9bda6d55144f30eebdf057a0712f9923c4f843199f036a48585858560405161107d9493929190611ac1565b60405180910390a15050505050565b60006110988383611629565b9392505050565b610bb76105e0565b600080805b60025481101561111e576001600160a01b038416600090815260056020526040812060028054919291849081106110e5576110e5611aab565b60009182526020808320909101546001600160a01b031683528201929092526040019020546111149083611a6c565b91506001016110ac565b5092915050565b61112d6112d3565b600180546001600160a01b0383166001600160a01b0319909116811790915561115e6000546001600160a01b031690565b6001600160a01b03167f38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e2270060405160405180910390a350565b61119e6111be565b6111a73361137a565b610bb76001600080516020611b7983398151915255565b6111c66116d6565b6002600080516020611b7983398151915255565b6001600160a01b0382166112015760405163b4fa3fb360e01b815260040160405180910390fd5b600061120d8383611629565b905080600003611230576040516312d37ee560e31b815260040160405180910390fd5b6001600160a01b03808416600090815260056020908152604080832093861683529290529081208054839290611267908490611a6c565b9091555061128190506001600160a01b0384168383611575565b826001600160a01b0316826001600160a01b03167f4831bdd9dcf3048a28319ce81d3cab7a15366bcf449bc7803a539107440809cc836040516112c691815260200190565b60405180910390a3505050565b6000546001600160a01b03163314610bb75760405163118cdaa760e01b8152336004820152602401610c40565b60008061130c836115aa565b90506000611319846114c9565b905080821161132c575060009392505050565b6113368183611a98565b949350505050565b61134c848484846001611706565b61137457604051635274afe760e01b81526001600160a01b0385166004820152602401610c40565b50505050565b6000611387600083611629565b9050806000036113aa576040516312d37ee560e31b815260040160405180910390fd5b6001600160a01b03821660009081527f05b8ccbb9d4d8fb16ea74ce3c29a41f1b461fbdaff4714a0d9a8eb05499746bc6020526040812080548392906113f1908490611a6c565b90915550506040516000906001600160a01b0384169083908381818185875af1925050503d8060008114611441576040519150601f19603f3d011682016040523d82523d6000602084013e611446565b606091505b505090508061146857604051633d2cec6f60e21b815260040160405180910390fd5b826001600160a01b03167f7b3fcf6b642a0d537ec94e3e3554737ca883871bc8a5ea348d8ee3a9b9d9656c836040516114a391815260200190565b60405180910390a2505050565b600180546001600160a01b031916905561090681611778565b600080805b600254811015611540576001600160a01b0384166000908152600560205260408120600280549192918490811061150757611507611aab565b60009182526020808320909101546001600160a01b031683528201929092526040019020546115369083611a6c565b91506001016114ce565b506001600160a01b03831660009081526004602052604090205481811161156b575060009392505050565b6113368282611a98565b61158283838360016117c8565b610df257604051635274afe760e01b81526001600160a01b0384166004820152602401610c40565b60006001600160a01b0382166115c1575047919050565b6040516370a0823160e01b81523060048201526001600160a01b038316906370a0823190602401602060405180830381865afa158015611605573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906108d79190611a7f565b6001600160a01b0381166000908152600360205260408120548082036116535760009150506108d7565b6001600160a01b0384166000908152600460205260408120549061271061167a8484611b3f565b6116849190611b56565b6001600160a01b038088166000908152600560209081526040808320938a16835292905220549091508082116116c15760009450505050506108d7565b6116cb8183611a98565b979650505050505050565b600080516020611b7983398151915254600203610bb757604051633ee5aeb560e01b815260040160405180910390fd5b6040516323b872dd60e01b60008181526001600160a01b038781166004528616602452604485905291602083606481808c5af192506001600051148316611766578383151615611759573d6000823e3d81fd5b6000883b113d1516831692505b60405250600060605295945050505050565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b60405163a9059cbb60e01b60008181526001600160a01b038616600452602485905291602083604481808b5af192506001600051148316611822578383151615611815573d6000823e3d81fd5b6000873b113d1516831692505b60405250949350505050565b508054600082559060005260206000209081019061090691905b8082111561185c5760008155600101611848565b5090565b6001600160a01b038116811461090657600080fd5b6000806040838503121561188857600080fd5b823561189381611860565b915060208301356118a381611860565b809150509250929050565b600080604083850312156118c157600080fd5b82356118cc81611860565b946020939093013593505050565b6000602082840312156118ec57600080fd5b813561109881611860565b6020808252825182820181905260009190848201906040850190845b818110156119385783516001600160a01b031683529284019291840191600101611913565b50909695505050505050565b60006020828403121561195657600080fd5b5035919050565b60008060006060848603121561197257600080fd5b833561197d81611860565b9250602084013561198d81611860565b929592945050506040919091013590565b60008083601f8401126119b057600080fd5b50813567ffffffffffffffff8111156119c857600080fd5b6020830191508360208260051b85010111156119e357600080fd5b9250929050565b60008060008060408587031215611a0057600080fd5b843567ffffffffffffffff80821115611a1857600080fd5b611a248883890161199e565b90965094506020870135915080821115611a3d57600080fd5b50611a4a8782880161199e565b95989497509550505050565b634e487b7160e01b600052601160045260246000fd5b808201808211156108d7576108d7611a56565b600060208284031215611a9157600080fd5b5051919050565b818103818111156108d7576108d7611a56565b634e487b7160e01b600052603260045260246000fd5b6040808252810184905260008560608301825b87811015611b04578235611ae781611860565b6001600160a01b0316825260209283019290910190600101611ad4565b5083810360208501528481526001600160fb1b03851115611b2457600080fd5b8460051b915081866020830137016020019695505050505050565b80820281158282048414176108d7576108d7611a56565b600082611b7357634e487b7160e01b600052601260045260246000fd5b50049056fe9b779b17422d0df92223018b32b4d1fa46e071723d6817e2486d003becc55f00a264697066735822122031c4d84b1c7cc8f531bc10836d97523933ad8176fe96d31cff43703d48e2bf3064736f6c63430008180033";
-const DEPLOY_ABI = ["constructor(address initialOwner)"];
-
-async function deployContract() {
-  const mm = getMetaMaskProvider();
-  if (!mm) { alert('Connect MetaMask first'); return; }
-  const ownerAddr = document.getElementById('deployOwner').value.trim();
-  if (!ownerAddr) { alert('Enter INITIAL_OWNER address'); return; }
-  if (!ethers.isAddress(ownerAddr)) { alert('Invalid owner address format'); return; }
-  const btn = document.getElementById('deployBtn');
-  const status = document.getElementById('deployStatus');
-  btn.disabled = true;
-  try {
-    const _provider = new ethers.BrowserProvider(mm);
-    const _signer = await _provider.getSigner();
-    const network = await _provider.getNetwork();
-    const chainId = Number(network.chainId);
-    const explorerMap = { 1: 'https://etherscan.io', 56: 'https://bscscan.com', 97: 'https://testnet.bscscan.com' };
-    const explorer = explorerMap[chainId] || 'https://etherscan.io';
-
-    // Check balance (warn, don't block)
-    const signerAddr = await _signer.getAddress();
-    const bal = await _provider.getBalance(signerAddr);
-    const sym = chainId===56||chainId===97 ? 'BNB' : 'ETH';
-    const balFormatted = parseFloat(ethers.formatEther(bal)).toFixed(6);
-    log('Deployer: ' + signerAddr + ' | Network chainId=' + chainId + ' | Balance: ' + balFormatted + ' ' + sym);
-    if (bal === 0n) {
-      log('⚠️ Balance is 0 ' + sym + '. If you have funds on BSC, switch to BSC Mainnet in the network dropdown and reconnect.');
-      status.textContent = '⚠️ Balance is 0 ' + sym + ' — make sure you are on the right network (use BSC Mainnet for SIG).';
-    }
-
-    status.textContent = 'Sending deployment transaction...';
-    log('Deploying SIGProfitDistributor with owner: ' + ownerAddr);
-
-    const factory = new ethers.ContractFactory(
-      ["constructor(address initialOwner)"],
-      DEPLOY_BYTECODE,
-      _signer
-    );
-
-    // Estimate gas first; if that fails, fall back to a safe manual limit
-    var gasLimit;
-    try {
-      const deployTx = await factory.getDeployTransaction(ownerAddr);
-      gasLimit = await _provider.estimateGas(deployTx);
-      gasLimit = gasLimit * 130n / 100n; // +30% buffer
-      log('Estimated gas: ' + gasLimit.toString());
-    } catch(estErr) {
-      gasLimit = 4000000n; // safe fallback for ~7500 byte contract
-      log('estimateGas failed (' + (estErr.shortMessage||estErr.message) + ') — using manual gasLimit: ' + gasLimit);
-    }
-
-    const contract = await factory.deploy(ownerAddr, { gasLimit: gasLimit });
-    status.textContent = 'Waiting for confirmation (this may take 15-60s)...';
-    log('Deploy tx sent: ' + contract.deploymentTransaction().hash);
-    await contract.waitForDeployment();
-    const addr = await contract.getAddress();
-
-    log('Contract deployed at: ' + addr);
-    document.getElementById('deployedAddr').value = addr;
-    document.getElementById('deployExplorerLink').innerHTML =
-      '<a href="' + explorer + '/address/' + addr + '" target="_blank" style="color:#34d399;">View on Explorer ↗</a>';
-    document.getElementById('deployResult').style.display = 'block';
-    status.textContent = '';
-    showToast('Contract deployed successfully!', 'ok');
-  } catch(e) {
-    var msg = e.reason || e.shortMessage || e.message || String(e);
-    log('Deploy error: ' + msg);
-    status.textContent = 'Error: ' + msg;
-    showToast('Deployment failed', 'error');
-  }
-  btn.disabled = false;
-}
-
-function useDeployedContract() {
-  const addr = document.getElementById('deployedAddr').value;
-  document.getElementById('contractAddr').value = addr;
-  showToast('Contract address set. Click Load Contract State.', 'ok');
-}
-
-function getMetaMaskProvider() {
-  // Priority 1: multiple providers — prefer MetaMask over Trust Wallet
-  if (window.ethereum?.providers?.length) {
-    const mm = window.ethereum.providers.find(p => p.isMetaMask && !p.isTrustWallet && !p.isTrust);
-    if (mm) return mm;
-    const tw = window.ethereum.providers.find(p => p.isTrustWallet || p.isTrust);
-    if (tw) return tw; // fallback to Trust Wallet if no MetaMask
-    return window.ethereum.providers[0]; // any provider
-  }
-  // Priority 2: single provider — use whatever is injected
-  if (window.ethereum) return window.ethereum;
-  return null;
-}
-
+// ─── MetaMask ────────────────────────────────────────────────────────────────
 async function connectWallet() {
-  // 1. Check ethers loaded
-  if (typeof ethers === 'undefined') {
-    alert('⚠️ ethers.js library not loaded. Check your internet connection and refresh the page.');
-    return;
-  }
-  // 2. Detect provider
-  const mm = getMetaMaskProvider();
-  if (!mm) {
-    alert('🦊 MetaMask not detected.\\n\\nMake sure:\\n1. MetaMask extension is installed in your browser\\n2. MetaMask is unlocked\\n3. You are not in Incognito mode (MetaMask is disabled in Incognito by default)\\n4. Refresh the page after installing/unlocking MetaMask');
-    return;
-  }
-  const btn = document.getElementById('connectBtn');
-  const addrEl = document.getElementById('walletAddr');
-  btn.textContent = 'Connecting...';
-  btn.disabled = true;
   try {
-    provider = new ethers.BrowserProvider(mm);
-    // Request account access — this triggers the MetaMask popup
-    const accounts = await provider.send('eth_requestAccounts', []);
-    if (!accounts || accounts.length === 0) {
-      throw new Error('No accounts returned. Please unlock MetaMask and try again.');
-    }
+    if (!window.ethereum) { alert('MetaMask not found. Please install MetaMask extension.'); return; }
+    await window.ethereum.request({method:'eth_requestAccounts'});
+    provider = new _ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
-    walletAddress = await signer.getAddress();
-    addrEl.textContent = walletAddress.slice(0,8)+'…'+walletAddress.slice(-6);
-    btn.textContent = '✅ Connected';
-    btn.style.background = '#059669';
-    btn.disabled = false;
-    log('✅ MetaMask connected: ' + walletAddress);
-    // Show balance
-    const bal = await provider.getBalance(walletAddress);
-    const net = await provider.getNetwork();
-    const chainId = Number(net.chainId);
-    const sym = chainId===56||chainId===97 ? 'BNB' : 'ETH';
-    const balEth = ethers.formatEther(bal);
-    const balEl = document.getElementById('walletBalance');
-    balEl.textContent = parseFloat(balEth).toFixed(4) + ' ' + sym;
-    balEl.style.display = 'inline';
-    // Sync network dropdown
-    const sel = document.getElementById('networkSelect');
-    if (sel) { for(var o of sel.options){ if(parseInt(o.value)===chainId){sel.value=o.value;break;} } }
-    log('Network: chainId=' + chainId + ' | Balance: ' + balEth + ' ' + sym);
-    if (chainId === 1 && parseFloat(balEth) < 0.005) {
-      log('⚠️ You are on Ethereum Mainnet with low ETH. SIG token is on BSC — consider switching to BSC Mainnet in the dropdown above.');
-    }
-  } catch(e) {
-    btn.textContent = 'Connect MetaMask';
-    btn.disabled = false;
-    const msg = e.message || String(e);
-    log('❌ Connect error: ' + msg);
-    if (e.code === 4001 || msg.includes('rejected') || msg.includes('denied')) {
-      alert('❌ Connection rejected.\\nYou cancelled the MetaMask request. Please try again and click "Connect" in MetaMask.');
-    } else if (msg.includes('already pending')) {
-      alert('⏳ MetaMask popup is already open.\\nCheck your browser taskbar — MetaMask may be waiting for your approval.');
-    } else {
-      alert('❌ MetaMask connection failed:\\n' + msg + '\\n\\nTry refreshing the page.');
-    }
-  }
+    var addr = await signer.getAddress();
+    document.getElementById('walletAddr').textContent = addr;
+    document.getElementById('connectBtn').textContent = '✅ Connected';
+    var bal = await provider.getBalance(addr);
+    document.getElementById('walletBalance').textContent = parseFloat(_ethers.formatEther(bal)).toFixed(4) + ' native';
+    document.getElementById('walletBalance').style.display = '';
+    log('Wallet connected: ' + addr);
+    var ca = document.getElementById('contractAddr').value.trim();
+    if (ca) loadContractState();
+  } catch(e) { log('Connect error: '+e.message); alert(e.message); }
 }
 
 async function switchNetwork() {
-  const mm = getMetaMaskProvider();
-  if (!mm) { alert('MetaMask not found'); return; }
-  const chainId = parseInt(document.getElementById('networkSelect').value);
-  const hexId = '0x' + chainId.toString(16);
-  try {
-    await mm.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hexId }] });
-    log('Switched to chain ' + chainId);
-  } catch(e) {
-    if (e.code === 4902 && chainId === 97) {
-      await mm.request({ method: 'wallet_addEthereumChain', params: [{
-        chainId: '0x61', chainName: 'BSC Testnet',
-        nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
-        rpcUrls: ['https://data-seed-prebsc-1-s1.binance.org:8545/'],
-        blockExplorerUrls: ['https://testnet.bscscan.com']
-      }]});
-    } else if (e.code === 4902 && chainId === 56) {
-      await mm.request({ method: 'wallet_addEthereumChain', params: [{
-        chainId: '0x38', chainName: 'BNB Smart Chain',
-        nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
-        rpcUrls: ['https://bsc-dataseed.binance.org/'],
-        blockExplorerUrls: ['https://bscscan.com']
-      }]});
-    }
-  }
+  var chainId = document.getElementById('networkSelect').value;
+  if (!window.ethereum) return;
+  try { await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x'+parseInt(chainId).toString(16)}]}); }
+  catch(e) { log('Network switch: '+e.message); }
 }
 
+async function diagWallet() {
+  var box = document.getElementById('diagBox');
+  box.style.display = 'block';
+  var lines = [];
+  lines.push('MetaMask: ' + (window.ethereum ? '✅ Found' : '❌ Not found'));
+  lines.push('ethers.js: ' + (window.ethers ? '✅ Loaded' : '❌ Not loaded'));
+  if (window.ethereum && window.ethers) {
+    try {
+      var p = new _ethers.BrowserProvider(window.ethereum);
+      var n = await p.getNetwork();
+      lines.push('Network: ' + n.name + ' (chain ' + n.chainId + ')');
+      var accounts = await window.ethereum.request({method:'eth_accounts'});
+      lines.push('Accounts: ' + (accounts.length ? accounts[0] : 'none connected'));
+    } catch(e) { lines.push('Network error: '+e.message); }
+  }
+  lines.push('Contract: ' + (document.getElementById('contractAddr').value.trim() || 'not set'));
+  box.innerHTML = lines.join('<br>');
+}
+
+// ─── Deploy ──────────────────────────────────────────────────────────────────
+async function deployContract() {
+  if (!signer) { alert('Connect MetaMask first'); return; }
+  var owner = document.getElementById('deployOwner').value.trim() || await signer.getAddress();
+  document.getElementById('deployBtn').disabled = true;
+  document.getElementById('deployStatus').textContent = 'Deploying…';
+  log('Deploying SIGProfitDistributor with owner: ' + owner);
+  try {
+    var factory = new _ethers.ContractFactory(DIST_ABI, DIST_BYTECODE, signer);
+    var deployed = await factory.deploy(owner);
+    log('TX sent: ' + deployed.deploymentTransaction().hash);
+    document.getElementById('deployStatus').textContent = 'Waiting for confirmation…';
+    await deployed.waitForDeployment();
+    var addr = await deployed.getAddress();
+    log('✅ Deployed at: ' + addr);
+    document.getElementById('deployedAddr').value = addr;
+    document.getElementById('deployResult').style.display = 'block';
+    document.getElementById('deployStatus').textContent = '✅ Done';
+    var net = document.getElementById('networkSelect').value;
+    var explorer = net==='1'?'https://etherscan.io':net==='56'?'https://bscscan.com':'https://testnet.bscscan.com';
+    document.getElementById('deployExplorerLink').innerHTML = '<a href="'+explorer+'/address/'+addr+'" target="_blank" style="color:#7c3aed;">View on Explorer ↗</a>';
+  } catch(e) { log('Deploy error: '+e.message); document.getElementById('deployStatus').textContent = '❌ Error'; alert(e.message); }
+  document.getElementById('deployBtn').disabled = false;
+}
+
+function useDeployedContract() {
+  document.getElementById('contractAddr').value = document.getElementById('deployedAddr').value;
+  loadContractState();
+}
+
+// ─── Contract State ──────────────────────────────────────────────────────────
 async function loadContractState() {
-  if (!signer) { alert('Connect wallet first'); return; }
-  const c = distContract(); if (!c) return;
-  try {
-    log('Loading contract state...');
-    const [frozen, closed, count] = await Promise.all([c.sharesFrozen(), c.depositsClosed(), c.payeeCount()]);
-    const nativeReceived = await c.totalReceived(ZERO);
-    const nativeTracked = await c.trackedBalance(ZERO);
-
-    document.getElementById('stSharesFrozen').innerHTML = frozen
-      ? '<span class="dist-tag green">YES</span>' : '<span class="dist-tag red">NO</span>';
-    document.getElementById('stDepositsClosed').innerHTML = closed
-      ? '<span class="dist-tag red">YES</span>' : '<span class="dist-tag green">NO</span>';
-    document.getElementById('stPayeeCount').textContent = count.toString();
-    document.getElementById('stNativeReceived').textContent = ethers.formatEther(nativeReceived) + ' ETH';
-    document.getElementById('stNativeTracked').textContent = ethers.formatEther(nativeTracked) + ' ETH';
-
-    // Load payees
-    const payeeAddrs = await c.payees();
-    let html = '';
-    for (const p of payeeAddrs) {
-      const bps = await c.shareBps(p);
-      html += '<div class="payee-row"><code>' + p + '</code><span>' + bps + ' BPS (' + (Number(bps)/100) + '%)</span></div>';
-    }
-    document.getElementById('payeesList').innerHTML = html || '<p style="color:var(--muted);font-size:12px;">No payees set yet.</p>';
-    document.getElementById('stateCard').style.display = 'block';
-
-    // Load claimable for connected wallet
-    if (walletAddress) {
-      const nc = await c.claimable(ZERO, walletAddress);
-      document.getElementById('claimableNative').textContent = ethers.formatEther(nc);
-    }
-    log('Contract state loaded successfully.');
-  } catch(e) { log('Load error: ' + e.message); }
-}
-
-// ── Build dynamic payee rows ─────────────────────────────────────────────────
-const BPS_PRESETS = [
-  {label:'100% — All', v:10000},
-  {label:'90%',  v:9000}, {label:'80%', v:8000}, {label:'75%', v:7500},
-  {label:'70%',  v:7000}, {label:'60%', v:6000}, {label:'50%', v:5000},
-  {label:'40%',  v:4000}, {label:'30%', v:3000}, {label:'25%', v:2500},
-  {label:'20%',  v:2000}, {label:'15%', v:1500}, {label:'10%', v:1000},
-  {label:'7.5%', v:750},  {label:'5%',  v:500},  {label:'2.5%',v:250},
-  {label:'1%',   v:100},  {label:'Custom', v:'custom'},
-];
-
-function bpsOptions(selected) {
-  return BPS_PRESETS.map(p =>
-    '<option value="' + p.v + '"' + (p.v == selected ? ' selected' : '') + '>' + p.label + '</option>'
-  ).join('');
-}
-
-function buildPayeeRows() {
-  const count = parseInt(document.getElementById('payeeCount').value);
-  const container = document.getElementById('payeeRows');
-  const existing = container.querySelectorAll('.payee-builder-row');
-  // keep existing values when rebuilding
-  const oldAddrs = [], oldBps = [], oldCustom = [];
-  existing.forEach((row, i) => {
-    oldAddrs[i] = row.querySelector('.pb-addr').value;
-    oldBps[i]   = row.querySelector('.pb-bps-sel').value;
-    oldCustom[i]= row.querySelector('.pb-bps-custom').value;
-  });
-
-  let html = '';
-  for (let i = 0; i < count; i++) {
-    const prevBps = oldBps[i] || (i === 0 ? 7000 : (i === 1 ? 3000 : 0));
-    const prevAddr = oldAddrs[i] || '';
-    const prevCustom = oldCustom[i] || '';
-    html += `
-<div class="payee-builder-row" style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;">
-  <input class="dist-input pb-addr" placeholder="Wallet #${i+1} address (0x...)" value="${prevAddr}" style="margin:0;" oninput="updateBpsSum()" />
-  <select class="dist-input pb-bps-sel" style="width:150px;margin:0;" onchange="onBpsChange(this)">
-    ${bpsOptions(prevBps)}
-  </select>
-  <input class="dist-input pb-bps-custom" type="number" min="1" max="10000" placeholder="BPS"
-         value="${prevCustom}" style="width:90px;margin:0;display:${prevBps==='custom'?'block':'none'};"
-         oninput="updateBpsSum()" />
-</div>`;
+  var addr = document.getElementById('contractAddr').value.trim();
+  if (!addr) { alert('Enter contract address'); return; }
+  if (!provider) {
+    try {
+      var net = document.getElementById('networkSelect').value;
+      var rpcMap = {'1':'https://rpc.ankr.com/eth','56':'https://bsc-dataseed.binance.org','97':'https://data-seed-prebsc-1-s1.binance.org:8545'};
+      provider = new _ethers.JsonRpcProvider(rpcMap[net]||rpcMap['56']);
+    } catch(e) { alert('Connect MetaMask or have a provider'); return; }
   }
-  container.innerHTML = html;
-  updateBpsSum();
+  document.getElementById('contractStatus').textContent = 'Loading…';
+  log('Loading contract state for '+addr);
+  try {
+    contract = new _ethers.Contract(addr, DIST_ABI, signer||provider);
+    var [frozen, closed, count, totNative, trackedNative] = await Promise.all([
+      contract.sharesFrozen(), contract.depositsClosed(), contract.payeeCount(),
+      contract.totalNativeReceived(), contract.trackedNativeBalance()
+    ]);
+    document.getElementById('stSharesFrozen').textContent = frozen ? '✅ Yes' : '❌ No';
+    document.getElementById('stDepositsClosed').textContent = closed ? '✅ Yes' : '❌ No';
+    document.getElementById('stPayeeCount').textContent = count.toString();
+    document.getElementById('stNativeReceived').textContent = parseFloat(_ethers.formatEther(totNative)).toFixed(6);
+    document.getElementById('stNativeTracked').textContent = parseFloat(_ethers.formatEther(trackedNative)).toFixed(6);
+    document.getElementById('stateCard').style.display = 'block';
+    document.getElementById('contractStatus').textContent = '✅ Loaded';
+    if (count > 0) {
+      var [wallets, bps] = await contract.getPayees();
+      var html = '<div style="margin-top:10px;"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Payees</div>';
+      for (var i=0;i<wallets.length;i++) {
+        html += '<div style="display:flex;gap:10px;padding:6px 10px;background:rgba(255,255,255,.04);border-radius:6px;margin-bottom:4px;font-size:11px;">'
+          +'<code style="flex:1;color:var(--muted);">'+wallets[i]+'</code>'
+          +'<span style="font-weight:700;color:#a78bfa;">'+bps[i].toString()+' BPS ('+parseFloat(bps[i])/100+'%)</span></div>';
+      }
+      html += '</div>';
+      document.getElementById('payeesList').innerHTML = html;
+    }
+    log('Contract loaded. Payees: '+count+', Frozen: '+frozen);
+  } catch(e) { log('Load error: '+e.message); document.getElementById('contractStatus').textContent = '❌ Error'; }
 }
 
-function onBpsChange(sel) {
-  const customInp = sel.closest('.payee-builder-row').querySelector('.pb-bps-custom');
-  customInp.style.display = sel.value === 'custom' ? 'block' : 'none';
+// ─── Payees ──────────────────────────────────────────────────────────────────
+function buildPayeeRows() {
+  var n = parseInt(document.getElementById('payeeCount').value);
+  var container = document.getElementById('payeeRows');
+  var existing = container.querySelectorAll('.payee-row');
+  var existingData = [];
+  existing.forEach(function(row) {
+    existingData.push({w:row.querySelector('.pw').value, b:row.querySelector('.bps-input').value});
+  });
+  container.innerHTML = '';
+  for (var i=0;i<n;i++) {
+    var row = document.createElement('div');
+    row.className = 'payee-row';
+    row.innerHTML = '<input class="pw" placeholder="0x wallet address" value="'+(existingData[i]?existingData[i].w:'')+'" onchange="updateBpsSum()" style="flex:1;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:#f0f0f0;font-size:12px;font-family:monospace;" />'
+      +'<input class="bps-input" type="number" min="0" max="10000" placeholder="BPS" value="'+(existingData[i]?existingData[i].b:'')+'" oninput="updateBpsSum()" style="width:80px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:#a78bfa;font-size:13px;font-weight:700;text-align:center;" />'
+      +'<span class="bps-pct">—</span>';
+    container.appendChild(row);
+  }
   updateBpsSum();
 }
 
 function updateBpsSum() {
-  let total = 0;
-  document.querySelectorAll('.payee-builder-row').forEach(row => {
-    const sel = row.querySelector('.pb-bps-sel');
-    const bps = sel.value === 'custom'
-      ? (parseInt(row.querySelector('.pb-bps-custom').value) || 0)
-      : parseInt(sel.value) || 0;
-    total += bps;
+  var total = 0;
+  document.querySelectorAll('.bps-input').forEach(function(inp, i) {
+    var v = parseInt(inp.value)||0;
+    total += v;
+    var pct = inp.parentElement.querySelector('.bps-pct');
+    if (pct) pct.textContent = (v/100).toFixed(1)+'%';
   });
-  const lbl = document.getElementById('bpsSumLabel');
-  lbl.textContent = 'Total: ' + total + ' / 10000 BPS';
-  lbl.style.color = total === 10000 ? '#34d399' : (total > 10000 ? '#f87171' : '#fbbf24');
+  var lbl = document.getElementById('bpsSumLabel');
+  lbl.textContent = 'Total: '+total+' / 10000 BPS';
+  lbl.style.color = total===10000 ? '#34d399' : total>10000 ? '#f87171' : '#fbbf24';
 }
 
-// Initialize on load
-// DOMContentLoaded handled below
+function distributeEvenly() {
+  var inputs = document.querySelectorAll('.bps-input');
+  var n = inputs.length;
+  if (!n) return;
+  var each = Math.floor(10000/n);
+  var remainder = 10000 - each*n;
+  inputs.forEach(function(inp, i) {
+    inp.value = i===0 ? each+remainder : each;
+  });
+  updateBpsSum();
+}
 
 async function doSetPayees() {
-  if (!signer) { alert('Connect wallet first'); return; }
-  const c = distContract(); if (!c) return;
-  const rows = document.querySelectorAll('.payee-builder-row');
-  const addrs = [], shares = [];
-  for (const row of rows) {
-    const addr = row.querySelector('.pb-addr').value.trim();
-    const sel  = row.querySelector('.pb-bps-sel');
-    const bps  = sel.value === 'custom'
-      ? (parseInt(row.querySelector('.pb-bps-custom').value) || 0)
-      : parseInt(sel.value) || 0;
-    if (!addr) { alert('Enter all wallet addresses'); return; }
-    addrs.push(addr); shares.push(bps);
+  if (!contract || !signer) { alert('Load contract and connect MetaMask first'); return; }
+  var wallets=[], bps=[];
+  var rows = document.querySelectorAll('.payee-row');
+  rows.forEach(function(row) {
+    var w = row.querySelector('.pw').value.trim();
+    var b = parseInt(row.querySelector('.bps-input').value)||0;
+    if (w && b > 0) { wallets.push(w); bps.push(b); }
+  });
+  var total = bps.reduce(function(a,b){return a+b;},0);
+  if (total !== 10000) { alert('BPS must sum to exactly 10000. Current: '+total); return; }
+  if (!wallets.length) { alert('Add at least one payee'); return; }
+  log('Setting '+wallets.length+' payees…');
+  try {
+    var c = contract.connect(signer);
+    var tx = await c.setPayees(wallets, bps);
+    log('TX: '+tx.hash); await tx.wait();
+    log('✅ Payees set successfully'); loadContractState();
+  } catch(e) { log('Error: '+e.message); alert(e.message); }
+}
+
+// ─── Token ───────────────────────────────────────────────────────────────────
+async function lookupToken() {
+  var addr = document.getElementById('activeTokenAddr').value.trim();
+  if (!addr) return;
+  document.getElementById('tokenInfoError').style.display = 'none';
+  document.getElementById('tokenInfoBox').style.display = 'none';
+  if (!provider) { alert('Connect MetaMask first'); return; }
+  try {
+    var tok = new _ethers.Contract(addr, ERC20_ABI, provider);
+    var [sym, dec, name] = await Promise.all([tok.symbol(), tok.decimals(), tok.name()]);
+    activeTokenAddr = addr; activeTokenDecimals = Number(dec); activeTokenSymbol = sym;
+    document.getElementById('tokenSymbolDisplay').textContent = sym;
+    document.getElementById('tokenDecimalsDisplay').textContent = dec.toString();
+    document.getElementById('tokenNameDisplay').textContent = name;
+    document.getElementById('tokenInfoBox').style.display = 'block';
+    document.getElementById('depositTokenLabel').textContent = sym;
+    document.getElementById('depositTokenAddrDisplay').textContent = addr.slice(0,10)+'…'+addr.slice(-6);
+    document.getElementById('claimTokenLabel').textContent = sym;
+    document.getElementById('claimTokenAddrDisplay').textContent = addr.slice(0,10)+'…'+addr.slice(-6);
+    document.getElementById('claimableTokenSymbol').textContent = sym;
+    log('Token: '+name+' ('+sym+') — '+dec+' decimals');
+  } catch(e) {
+    document.getElementById('tokenInfoError').textContent = 'Could not load token: '+e.message;
+    document.getElementById('tokenInfoError').style.display = 'block';
   }
-  const sum = shares.reduce((a,b)=>a+b,0);
-  if (sum !== 10000) { alert('BPS sum is ' + sum + ' — must be exactly 10000 (100%)'); return; }
-  try {
-    log('Sending setPayees transaction...');
-    const tx = await c.setPayees(addrs, shares);
-    log('Tx sent: ' + tx.hash + ' — waiting...');
-    await tx.wait();
-    log('setPayees confirmed! Payees set: ' + addrs.join(', '));
-    loadContractState();
-  } catch(e) { log('setPayees error: ' + (e.reason || e.message)); }
 }
 
-async function doFreezeShares() {
-  if (!signer) { alert('Connect wallet first'); return; }
-  if (!confirm('Freeze shares permanently? This cannot be undone.')) return;
-  const c = distContract(); if (!c) return;
-  try {
-    log('Sending freezeShares...');
-    const tx = await c.freezeShares();
-    log('Tx: ' + tx.hash + ' — waiting...');
-    await tx.wait();
-    log('Shares frozen permanently! Deposits now accepted.');
-    loadContractState();
-  } catch(e) { log('freezeShares error: ' + (e.reason || e.message)); }
+function setPresetToken(addr, sym) {
+  document.getElementById('activeTokenAddr').value = addr;
+  lookupToken();
+}
+function clearTokenInfo() {
+  document.getElementById('tokenInfoBox').style.display='none';
+  document.getElementById('tokenInfoError').style.display='none';
 }
 
-async function doCloseDeposits() {
-  if (!signer) { alert('Connect wallet first'); return; }
-  if (!confirm('Close deposits permanently? Investors can still claim their balance, but no new deposits will be accepted.')) return;
-  const c = distContract(); if (!c) return;
-  try {
-    log('Sending closeDeposits...');
-    const tx = await c.closeDeposits();
-    log('Tx: ' + tx.hash + ' — waiting...');
-    await tx.wait();
-    log('Deposits closed. Claims remain open. Deploy new distributor for future profits.');
-    loadContractState();
-  } catch(e) { log('closeDeposits error: ' + (e.reason || e.message)); }
-}
-
+// ─── Deposit / Claim ─────────────────────────────────────────────────────────
 async function doDepositNative() {
-  if (!signer) { alert('Connect wallet first'); return; }
-  const c = distContract(); if (!c) return;
-  const amt = document.getElementById('nativeAmount').value.trim();
-  if (!amt) { alert('Enter amount'); return; }
-  try {
-    const value = ethers.parseEther(amt);
-    log('Depositing ' + amt + ' BNB...');
-    const tx = await c.depositNative({ value });
-    log('Tx: ' + tx.hash + ' — waiting...');
-    await tx.wait();
-    log('Deposit confirmed! ' + amt + ' BNB deposited.');
-    loadContractState();
-  } catch(e) { log('depositNative error: ' + (e.reason || e.message)); }
+  if (!contract||!signer){alert('Load contract and connect MetaMask');return;}
+  var amt = document.getElementById('nativeAmount').value.trim();
+  if (!amt){alert('Enter amount');return;}
+  log('Depositing '+amt+' native…');
+  try { var c=contract.connect(signer); var tx=await c.depositNative({value:_ethers.parseEther(amt)}); log('TX: '+tx.hash); await tx.wait(); log('✅ Deposit confirmed'); loadContractState(); }
+  catch(e){log('Error: '+e.message);alert(e.message);}
 }
 
 async function doDepositToken() {
-  if (!signer) { alert('Connect wallet first'); return; }
-  const c = distContract(); if (!c) return;
-  const tokenAddr = getActiveTokenAddr(); if (!tokenAddr) return;
-  const amtRaw = document.getElementById('tokenAmount').value.trim();
-  if (!amtRaw) { alert('Enter the amount to deposit'); return; }
+  if (!contract||!signer||!activeTokenAddr){alert('Load contract, connect MetaMask, and select a token');return;}
+  var amt = document.getElementById('tokenAmount').value.trim();
+  if (!amt){alert('Enter amount');return;}
+  var amtWei = _ethers.parseUnits(amt, activeTokenDecimals);
+  var contractAddr = document.getElementById('contractAddr').value.trim();
+  log('Approving '+amt+' '+activeTokenSymbol+'…');
   try {
-    const token = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
-    const decimals = activeTokenDecimals || Number(await token.decimals());
-    const symbol = activeTokenSymbol || await token.symbol();
-    const amount = ethers.parseUnits(amtRaw, decimals);
-    const distAddr = document.getElementById('contractAddr').value.trim();
-
-    log('Approving ' + amtRaw + ' ' + symbol + ' (' + tokenAddr + ')...');
-    const approveTx = await token.approve(distAddr, amount);
-    await approveTx.wait();
-    log('Approved! Now depositing into contract...');
-
-    const tx = await c.depositToken(tokenAddr, amount);
-    log('Tx: ' + tx.hash + ' — waiting for confirmation...');
-    await tx.wait();
-    log('✅ Token deposit confirmed! ' + amtRaw + ' ' + symbol + ' deposited.');
-    loadContractState();
-  } catch(e) { log('depositToken error: ' + (e.reason || e.message)); }
+    var tok = new _ethers.Contract(activeTokenAddr, ERC20_ABI, signer);
+    var appTx = await tok.approve(contractAddr, amtWei);
+    log('Approve TX: '+appTx.hash); await appTx.wait(); log('Approved. Depositing…');
+    var c=contract.connect(signer); var tx=await c.depositToken(activeTokenAddr, amtWei);
+    log('Deposit TX: '+tx.hash); await tx.wait(); log('✅ Token deposit confirmed'); loadContractState();
+  } catch(e){log('Error: '+e.message);alert(e.message);}
 }
 
 async function doClaimNative() {
-  if (!signer) { alert('Connect wallet first'); return; }
-  const c = distContract(); if (!c) return;
-  try {
-    log('Claiming BNB...');
-    const tx = await c.claimNative();
-    log('Tx: ' + tx.hash + ' — waiting...');
-    await tx.wait();
-    log('BNB claimed successfully!');
-    loadContractState();
-  } catch(e) { log('claimNative error: ' + (e.reason || e.message)); }
+  if (!contract||!signer){alert('Load contract and connect MetaMask');return;}
+  log('Claiming native…');
+  try { var c=contract.connect(signer); var tx=await c.claimNative(); log('TX: '+tx.hash); await tx.wait(); log('✅ Native claimed'); }
+  catch(e){log('Error: '+e.message);alert(e.message);}
 }
 
 async function checkClaimableToken() {
-  if (!signer || !walletAddress) { alert('Connect wallet first'); return; }
-  const c = distContract(); if (!c) return;
-  const tokenAddr = getActiveTokenAddr(); if (!tokenAddr) return;
+  if (!contract||!signer||!activeTokenAddr){alert('Load contract, connect MetaMask, select token');return;}
   try {
-    const token = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
-    const decimals = activeTokenDecimals || Number(await token.decimals());
-    const sym = activeTokenSymbol || await token.symbol();
-    const amt = await c.claimable(tokenAddr, walletAddress);
-    document.getElementById('claimableToken').textContent = ethers.formatUnits(amt, decimals);
-    document.getElementById('claimableTokenSymbol').textContent = sym;
-    log('Claimable ' + sym + ': ' + ethers.formatUnits(amt, decimals));
-  } catch(e) { log('checkClaimable error: ' + e.message); }
+    var addr=await signer.getAddress();
+    var amt=await contract.claimableToken(activeTokenAddr,addr);
+    var fmt=_ethers.formatUnits(amt,activeTokenDecimals);
+    document.getElementById('claimableToken').textContent=fmt;
+    log('Claimable '+activeTokenSymbol+': '+fmt);
+  } catch(e){log('Error: '+e.message);}
 }
 
 async function doClaimToken() {
-  if (!signer) { alert('Connect wallet first'); return; }
-  const c = distContract(); if (!c) return;
-  const tokenAddr = getActiveTokenAddr(); if (!tokenAddr) return;
-  try {
-    const sym = activeTokenSymbol || tokenAddr.slice(0,10) + '...';
-    log('Claiming ' + sym + ' from contract...');
-    const tx = await c.claimToken(tokenAddr);
-    log('Tx: ' + tx.hash + ' — waiting...');
-    await tx.wait();
-    log('✅ ' + sym + ' claimed successfully!');
-  } catch(e) { log('claimToken error: ' + (e.reason || e.message)); }
+  if (!contract||!signer||!activeTokenAddr){alert('Load contract, connect MetaMask, select token');return;}
+  log('Claiming '+activeTokenSymbol+'…');
+  try { var c=contract.connect(signer); var tx=await c.claimToken(activeTokenAddr); log('TX: '+tx.hash); await tx.wait(); log('✅ Token claimed'); }
+  catch(e){log('Error: '+e.message);alert(e.message);}
 }
 
-async function doRescueNative() {
-  if (!signer) { alert('Connect wallet first'); return; }
-  const c = distContract(); if (!c) return;
-  const amt = document.getElementById('rescueNativeAmt').value.trim();
-  const to = document.getElementById('rescueNativeTo').value.trim();
-  if (!amt || !to) { alert('Enter amount and recipient'); return; }
-  try {
-    const value = ethers.parseEther(amt);
-    log('Rescuing ' + amt + ' BNB to ' + to + '...');
-    const tx = await c.rescueUntrackedNative(to, value);
-    await tx.wait();
-    log('Rescue confirmed!');
-  } catch(e) { log('rescueNative error: ' + (e.reason || e.message)); }
+async function doFreezeShares() {
+  if (!contract||!signer){alert('Load contract and connect MetaMask');return;}
+  if (!confirm('Freeze shares? This is irreversible.')) return;
+  log('Freezing shares…');
+  try { var c=contract.connect(signer); var tx=await c.freezeShares(); log('TX: '+tx.hash); await tx.wait(); log('✅ Shares frozen'); loadContractState(); }
+  catch(e){log('Error: '+e.message);alert(e.message);}
 }
 
-async function doRescueToken() {
-  if (!signer) { alert('Connect wallet first'); return; }
-  const c = distContract(); if (!c) return;
-  const tAddr = document.getElementById('rescueTokenAddr').value.trim();
-  const amt = document.getElementById('rescueTokenAmt').value.trim();
-  const to = document.getElementById('rescueTokenTo').value.trim();
-  if (!tAddr || !amt || !to) { alert('Fill all rescue token fields'); return; }
-  try {
-    const token = new ethers.Contract(tAddr, ERC20_ABI, signer);
-    const decimals = await token.decimals();
-    const amount = ethers.parseUnits(amt, decimals);
-    log('Rescuing token...');
-    const tx = await c.rescueUntrackedToken(tAddr, to, amount);
-    await tx.wait();
-    log('Token rescue confirmed!');
-  } catch(e) { log('rescueToken error: ' + (e.reason || e.message)); }
+async function doCloseDeposits() {
+  if (!contract||!signer){alert('Load contract and connect MetaMask');return;}
+  if (!confirm('Close deposits? Claims remain open. Deploy new distributor for future profits.')) return;
+  log('Closing deposits…');
+  try { var c=contract.connect(signer); var tx=await c.closeDeposits(); log('TX: '+tx.hash); await tx.wait(); log('✅ Deposits closed'); loadContractState(); }
+  catch(e){log('Error: '+e.message);alert(e.message);}
 }
 
-const EXPLORERS = {
-  bscTestnet: 'https://testnet.bscscan.com',
-  bscMainnet: 'https://bscscan.com',
-  ethereum:   'https://etherscan.io',
-};
-
-function generateProofLink() {
-  const contract = document.getElementById('contractAddr').value.trim();
-  const investor = document.getElementById('investorWallet').value.trim();
-  const network  = document.getElementById('proofNetwork').value;
-  if (!contract) { alert('Enter the distributor contract address first'); return; }
-  if (!investor) { alert('Enter the investor wallet address'); return; }
-
-  const base = window.location.origin;
-  const link = base + '/verify/distributor?contract=' + contract + '&wallet=' + investor + '&network=' + network;
-  document.getElementById('proofLinkOut').value = link;
-
-  const explorer = EXPLORERS[network] || EXPLORERS.ethereum;
-  document.getElementById('bscscanLinkBox').innerHTML =
-    '<a href="' + explorer + '/address/' + contract + '" target="_blank" style="color:#7c3aed;font-size:12px;">🔍 View Contract on Explorer (' + network + ')</a>';
-  document.getElementById('proofLinkBox').style.display = 'block';
-  log('Investor proof link generated for ' + investor);
+// ─── Investor Link ────────────────────────────────────────────────────────────
+function genInvestorLink() {
+  var contract = document.getElementById('contractAddr').value.trim();
+  var investor = document.getElementById('invWallet').value.trim();
+  var network  = document.getElementById('invNetwork').value;
+  if (!contract) { alert('Enter contract address first'); return; }
+  if (!investor) { alert('Enter investor wallet address'); return; }
+  var base = window.location.origin;
+  var link = base + '/verify/distributor?contract=' + contract + '&wallet=' + investor + '&network=' + network;
+  var box = document.getElementById('invLinkBox');
+  box.innerHTML = '<strong style="color:#34d399;">Investor Link:</strong><br><a href="'+link+'" target="_blank" style="color:#c4b5fd;word-break:break-all;">'+link+'</a>'
+    +'<br><button onclick="navigator.clipboard.writeText(''+link+'').then(function(){this.textContent='✅ Copied';}.bind(this))" class="dist-btn ghost" style="font-size:11px;padding:4px 12px;margin-top:8px;">📋 Copy</button>';
+  box.style.display = 'block';
 }
 
-function copyProofLink() {
-  const link = document.getElementById('proofLinkOut').value;
-  navigator.clipboard.writeText(link).then(() => {
-    showToast('Link copied!', 'ok');
+// ─── Registry ─────────────────────────────────────────────────────────────────
+function renderRegistry() {
+  var container = document.getElementById('regRows');
+  container.innerHTML = '';
+  Object.keys(registry).forEach(function(currency) {
+    var addr = registry[currency];
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:6px;font-size:12px;';
+    row.innerHTML = '<span style="font-weight:700;color:var(--gold);min-width:60px;">'+currency+'</span>'
+      +'<code style="flex:1;color:var(--muted);font-size:10px;word-break:break-all;">'+addr+'</code>'
+      +'<button class="dist-btn ghost" onclick="loadRegistryContract(''+currency+'')" style="font-size:10px;padding:4px 10px;">Load</button>'
+      +'<button class="dist-btn danger" onclick="deleteRegistry(''+currency+'')" style="font-size:10px;padding:4px 8px;">✕</button>';
+    container.appendChild(row);
   });
 }
-// ── Currency Registry ────────────────────────────────────────────────────────
-const REG_CURRS = [
-  {sym:'ETH',  label:'Ethereum',      col:'#627eea'},
-  {sym:'USDT', label:'Tether USDT',   col:'#26a17b'},
-  {sym:'USDC', label:'USD Coin',      col:'#2775ca'},
-  {sym:'DAI',  label:'DAI',           col:'#f5ac37'},
-];
-const TOKEN_PRESETS = {
-  USDT: '0xdac17f958d2ee523a2206206994597c13d831ec7',
-  USDC: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-  DAI:  '0x6b175474e89094c44da98b954eedeac495271d0f',
-};
 
-function getReg() {
-  try { return JSON.parse(localStorage.getItem('dist_reg_v2') || '{}'); } catch(e) { return {}; }
+function saveRegistry() {
+  var cur = document.getElementById('regCurrency').value.trim().toUpperCase();
+  var addr = document.getElementById('regContract').value.trim();
+  if (!cur||!addr) { alert('Enter currency and contract address'); return; }
+  registry[cur] = addr;
+  localStorage.setItem('distRegistry', JSON.stringify(registry));
+  renderRegistry();
+  document.getElementById('regCurrency').value='';
+  document.getElementById('regContract').value='';
 }
-function saveReg(r) { localStorage.setItem('dist_reg_v2', JSON.stringify(r)); }
 
-function renderReg() {
-  var r = getReg(), h = '';
-  for (var i = 0; i < REG_CURRS.length; i++) {
-    var c = REG_CURRS[i], val = r[c.sym] || '';
-    h += '<div style="display:grid;grid-template-columns:80px 1fr 80px 40px;gap:8px;align-items:center;">'
-       + '<span style="background:rgba(255,255,255,.08);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;color:' + c.col + ';text-align:center;">' + c.sym + '</span>'
-       + '<input class="dist-input" id="ri-' + c.sym + '" placeholder="' + c.label + ' contract (0x...)" value="' + val + '" style="margin:0;font-size:11px;font-family:monospace;" />'
-       + '<button class="dist-btn ghost" style="font-size:11px;padding:5px 10px;" data-sym="' + c.sym + '" onclick="loadReg(this.dataset.sym)">Load →</button>'
-       + '<button class="dist-btn ghost" style="font-size:11px;padding:5px 8px;color:#f87171;" data-sym="' + c.sym + '" onclick="clearReg(this.dataset.sym)">✕</button>'
-       + '</div>';
+function loadRegistryContract(currency) {
+  document.getElementById('contractAddr').value = registry[currency];
+  switchTab('blockchain');
+  document.querySelectorAll('.dist-tab')[0].classList.add('active');
+  loadContractState();
+}
+
+function deleteRegistry(currency) {
+  if (!confirm('Remove '+currency+' from registry?')) return;
+  delete registry[currency];
+  localStorage.setItem('distRegistry', JSON.stringify(registry));
+  renderRegistry();
+}
+
+// ─── Profit Overview ─────────────────────────────────────────────────────────
+function loadProfitOverview() {
+  Promise.all([
+    api('/api/v1/admin/tokenization-jobs?limit=1000').catch(function(){return{jobs:[]};}),
+    api('/api/v1/admin/outbound-transfers?limit=1000').catch(function(){return{transfers:[]};}),
+    api('/api/v1/admin/otc/quotes?limit=1000').catch(function(){return{quotes:[]};}),
+    api('/api/v1/admin/fiat/deposits?limit=1000').catch(function(){return{deposits:[]};}),
+  ]).then(function(results) {
+    var jobs = results[0].jobs||[];
+    var xfers = results[1].transfers||[];
+    var quotes = results[2].quotes||[];
+    var deposits = results[3].deposits||[];
+
+    var totalEur = 0;
+    jobs.filter(function(j){return j.status==='COMPLETED';}).forEach(function(j){totalEur+=parseFloat(j.amount_eur||0);});
+    deposits.filter(function(d){return d.status==='CONFIRMED';}).forEach(function(d){totalEur+=parseFloat(d.amount_eur||0);});
+
+    var totalSig = jobs.filter(function(j){return j.status==='COMPLETED';})
+      .reduce(function(sum,j){return sum+parseFloat(j.usdt_amount||j.sig_amount||0);},0);
+
+    var totalUsdt = xfers.filter(function(x){return x.status==='COMPLETED';})
+      .reduce(function(sum,x){return sum+parseFloat(x.amount_usdt||x.amount||0);},0);
+
+    var completedQuotes = quotes.filter(function(q){return q.status==='EXECUTED';}).length;
+
+    document.getElementById('pEur').textContent = totalEur.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' EUR';
+    document.getElementById('pSig').textContent = totalSig.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' SIG';
+    document.getElementById('pUsdt').textContent = totalUsdt.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' USDT';
+    document.getElementById('pQuotes').textContent = completedQuotes;
+  }).catch(function(e){console.warn('Overview error:',e);});
+}
+
+function calcDistribution() {
+  var rows = document.querySelectorAll('.payee-row');
+  if (!rows.length) {
+    document.getElementById('calcResult').innerHTML = '<span style="color:#fbbf24;">⚠️ Add payees in the Payees tab first to calculate shares.</span>';
+    document.getElementById('calcResult').style.display = 'block';
+    return;
   }
-  var el = document.getElementById('regRows'); if(el) el.innerHTML = h;
-  // Save on input
-  for (var j = 0; j < REG_CURRS.length; j++) {
-    (function(sym){ var inp = document.getElementById('ri-' + sym); if(inp) inp.oninput = function(){ var rr=getReg(); rr[sym]=this.value; saveReg(rr); }; })(REG_CURRS[j].sym);
+  var totalUsdt = parseFloat((document.getElementById('pUsdt').textContent||'0').replace(/[^0-9.]/g,''))||0;
+  if (!totalUsdt) {
+    document.getElementById('calcResult').innerHTML = '<span style="color:#fbbf24;">⚠️ Load profit stats first (click Refresh Stats).</span>';
+    document.getElementById('calcResult').style.display = 'block';
+    return;
   }
+  var html = '<div style="font-weight:700;color:var(--gold);margin-bottom:8px;">💎 Distribution Calculation (Total: '+totalUsdt.toFixed(2)+' USDT)</div>';
+  rows.forEach(function(row, i) {
+    var w = row.querySelector('.pw').value.trim() || '(wallet '+(i+1)+')';
+    var b = parseInt(row.querySelector('.bps-input').value)||0;
+    var share = (totalUsdt * b / 10000).toFixed(2);
+    html += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06);">'
+      +'<code style="font-size:10px;color:var(--muted);">'+w.slice(0,16)+'…'+'</code>'
+      +'<span style="color:#34d399;font-weight:700;">'+share+' USDT</span>'
+      +'<span style="color:var(--muted);font-size:11px;">'+(b/100).toFixed(1)+'%</span></div>';
+  });
+  document.getElementById('calcResult').innerHTML = html;
+  document.getElementById('calcResult').style.display = 'block';
 }
 
-function loadReg(sym) {
-  var r = getReg(), addr = r[sym] || '';
-  if (!addr) { alert('No contract saved for ' + sym + '. Paste the address and it auto-saves.'); return; }
-  var ca = document.getElementById('contractAddr'); if(ca) ca.value = addr;
-  if (TOKEN_PRESETS[sym]) { var ta = document.getElementById('activeTokenAddr'); if(ta) ta.value = TOKEN_PRESETS[sym]; }
-  log('Loaded ' + sym + ' contract: ' + addr);
-  showToast('Contract loaded. Click "Load Contract State" to refresh.', 'ok');
-}
-
-function clearReg(sym) {
-  var r = getReg(); delete r[sym]; saveReg(r);
-  var inp = document.getElementById('ri-' + sym); if(inp) inp.value = '';
-  log('Cleared ' + sym + ' from registry.');
-}
-
-document.addEventListener('DOMContentLoaded', function() { renderReg(); buildPayeeRows(); });
+// ─── Init ────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  buildPayeeRows();
+  renderRegistry();
+  loadProfitOverview();
+});
 </script>
 """
 
@@ -9191,3 +8897,237 @@ async def dashboard_api_transfer(request: Request, db: AsyncSession = Depends(ge
     body = html_part + js_part
     return HTMLResponse(_page("🔄 API Transfer", "/dashboard/api-transfer", body))
 
+
+
+# ─── Wallet Verify OTP Page ───────────────────────────────────────────────────
+
+_WALLET_OTP_BODY = """
+<div class="page-body">
+<style>
+.otp-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px;}
+.otp-card h3{font-size:13px;font-weight:700;color:var(--gold);margin:0 0 14px;text-transform:uppercase;letter-spacing:.06em;}
+.otp-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:640px){.otp-grid{grid-template-columns:1fr;}}
+.otp-field{display:flex;flex-direction:column;gap:5px;}
+.otp-field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+.otp-input{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;padding:10px 13px;color:#f0f0f0;font-size:13px;width:100%;box-sizing:border-box;}
+.otp-input:focus{outline:none;border-color:#7c3aed;}
+.otp-btn{display:inline-flex;align-items:center;gap:7px;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.18s;}
+.otp-btn.primary{background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;}
+.otp-btn.success{background:linear-gradient(135deg,#059669,#047857);color:#fff;}
+.otp-btn.danger{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;}
+.otp-btn.ghost{background:rgba(255,255,255,.07);color:#e5e7eb;border:1px solid var(--border);}
+.otp-btn:disabled{opacity:.45;cursor:not-allowed;}
+.otp-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;}
+.otp-badge.verified{background:rgba(5,150,105,.2);color:#34d399;}
+.otp-badge.pending{background:rgba(217,119,6,.2);color:#fbbf24;}
+.otp-badge.expired{background:rgba(100,116,139,.15);color:#94a3b8;}
+.otp-badge.failed{background:rgba(220,38,38,.2);color:#f87171;}
+.otp-toast{position:fixed;top:18px;right:18px;z-index:9999;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;max-width:340px;box-shadow:0 4px 20px rgba(0,0,0,.4);}
+</style>
+
+<!-- Step 1: Send OTP -->
+<div class="otp-card" style="border-color:rgba(124,58,237,.5);background:rgba(124,58,237,.05);">
+  <h3>📤 Step 1 — Send OTP to Recipient</h3>
+  <p style="font-size:12px;color:var(--muted);margin:0 0 16px;">Enter the recipient wallet address and their WhatsApp number. A 6-digit code will be sent via WhatsApp.</p>
+  <div class="otp-grid" style="margin-bottom:14px;">
+    <div class="otp-field" style="grid-column:1 / -1;">
+      <label>Wallet Address *</label>
+      <input class="otp-input" id="reqWallet" placeholder="0x... (Ethereum) or T... (TRON)" />
+    </div>
+    <div class="otp-field">
+      <label>WhatsApp Phone Number *</label>
+      <input class="otp-input" id="reqPhone" placeholder="971501234567 (no + or spaces)" />
+    </div>
+    <div class="otp-field">
+      <label>Notes (optional)</label>
+      <input class="otp-input" id="reqNotes" placeholder="e.g. Client: Ahmed — Transfer #TRQ-001" />
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <button class="otp-btn primary" onclick="sendOtp()" id="sendBtn">📲 Send OTP via WhatsApp</button>
+    <span id="sendStatus" style="font-size:12px;color:var(--muted);"></span>
+  </div>
+  <div id="sentBox" style="display:none;margin-top:14px;padding:14px 16px;background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.3);border-radius:8px;">
+    <p style="font-size:12px;font-weight:700;color:#34d399;margin:0 0 6px;">✅ OTP Sent — waiting for recipient to share the code</p>
+    <div style="font-size:11px;color:var(--muted);">OTP ID: <code id="sentOtpId" style="color:#c4b5fd;"></code></div>
+    <div style="font-size:11px;color:var(--muted);">Wallet: <code id="sentWallet" style="color:#c4b5fd;word-break:break-all;"></code></div>
+    <div style="font-size:11px;color:var(--muted);">Expires: <span id="sentExpiry"></span></div>
+  </div>
+</div>
+
+<!-- Step 2: Verify OTP -->
+<div class="otp-card" style="border-color:rgba(5,150,105,.4);background:rgba(5,150,105,.04);">
+  <h3>✅ Step 2 — Enter Verification Code</h3>
+  <p style="font-size:12px;color:var(--muted);margin:0 0 16px;">Once the recipient shares the 6-digit code, enter it below to verify their wallet ownership.</p>
+  <div class="otp-grid" style="margin-bottom:14px;">
+    <div class="otp-field">
+      <label>OTP ID (from Step 1)</label>
+      <input class="otp-input" id="verifyOtpId" placeholder="Paste OTP ID from above" />
+    </div>
+    <div class="otp-field">
+      <label>6-Digit OTP Code *</label>
+      <input class="otp-input" id="verifyCode" placeholder="e.g. 483920" maxlength="6" style="font-size:20px;font-weight:700;letter-spacing:4px;text-align:center;" />
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <button class="otp-btn success" onclick="verifyOtp()" id="verifyBtn">🔓 Verify Wallet</button>
+    <span id="verifyStatus" style="font-size:12px;color:var(--muted);"></span>
+  </div>
+  <div id="verifiedBox" style="display:none;margin-top:14px;padding:16px 18px;background:rgba(5,150,105,.1);border:1px solid rgba(5,150,105,.4);border-radius:8px;">
+    <p style="font-size:14px;font-weight:800;color:#34d399;margin:0 0 8px;">🎉 Wallet Verified Successfully!</p>
+    <div id="verifiedDetails" style="font-size:12px;color:var(--muted);line-height:1.9;"></div>
+  </div>
+</div>
+
+<!-- Verification Log -->
+<div class="otp-card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <h3 style="margin:0;">📋 Verification Log</h3>
+    <div style="display:flex;gap:8px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;">
+        <input type="checkbox" id="verifiedOnly" onchange="loadLog()" /> Verified only
+      </label>
+      <button class="otp-btn ghost" onclick="loadLog()" style="font-size:11px;padding:5px 12px;">🔄 Refresh</button>
+    </div>
+  </div>
+  <div id="otpLog" style="overflow-x:auto;">
+    <div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Loading…</div>
+  </div>
+</div>
+
+<script>
+var _lastOtpId = '';
+
+function _toast(msg, type) {
+  var t = document.createElement('div');
+  t.className = 'otp-toast';
+  t.style.background = type==='ok' ? '#059669' : type==='error' ? '#dc2626' : '#1e293b';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function(){t.remove();}, 4000);
+}
+
+function sendOtp() {
+  var wallet = document.getElementById('reqWallet').value.trim();
+  var phone  = document.getElementById('reqPhone').value.trim();
+  var notes  = document.getElementById('reqNotes').value.trim();
+  if (!wallet || !phone) { _toast('Wallet address and phone number are required', 'error'); return; }
+  var btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  document.getElementById('sendStatus').textContent = 'Sending…';
+  document.getElementById('sentBox').style.display = 'none';
+  api('/api/v1/admin/wallet-otp/request', {
+    method: 'POST',
+    body: JSON.stringify({ wallet_address: wallet, phone_number: phone, notes: notes || null })
+  }).then(function(r) {
+    btn.disabled = false;
+    _lastOtpId = r.otp_id;
+    document.getElementById('sendStatus').textContent = r.whatsapp_sent ? '✅ WhatsApp sent' : '⚠️ Created (WhatsApp failed)';
+    document.getElementById('sentOtpId').textContent = r.otp_id;
+    document.getElementById('sentWallet').textContent = r.wallet_address;
+    document.getElementById('sentExpiry').textContent = new Date(r.expires_at).toLocaleTimeString();
+    document.getElementById('sentBox').style.display = 'block';
+    document.getElementById('verifyOtpId').value = r.otp_id;
+    _toast(r.message, r.whatsapp_sent ? 'ok' : 'warn');
+    loadLog();
+  }).catch(function(e) {
+    btn.disabled = false;
+    document.getElementById('sendStatus').textContent = '❌ Error: ' + e.message;
+    _toast('Error: ' + e.message, 'error');
+  });
+}
+
+function verifyOtp() {
+  var id   = document.getElementById('verifyOtpId').value.trim() || _lastOtpId;
+  var code = document.getElementById('verifyCode').value.trim();
+  if (!id)   { _toast('Enter OTP ID first (from Step 1)', 'error'); return; }
+  if (!code) { _toast('Enter the 6-digit OTP code', 'error'); return; }
+  var btn = document.getElementById('verifyBtn');
+  btn.disabled = true;
+  document.getElementById('verifyStatus').textContent = 'Verifying…';
+  document.getElementById('verifiedBox').style.display = 'none';
+  api('/api/v1/admin/wallet-otp/verify', {
+    method: 'POST',
+    body: JSON.stringify({ otp_id: id, otp_code: code })
+  }).then(function(r) {
+    btn.disabled = false;
+    document.getElementById('verifyStatus').textContent = '✅ Verified!';
+    var d = document.getElementById('verifiedDetails');
+    d.innerHTML = '<strong style="color:#f0f0f0;">Wallet:</strong> <code style="color:#34d399;">' + (r.wallet_address||'') + '</code><br>'
+                + '<strong style="color:#f0f0f0;">Phone:</strong> ' + (r.phone_number||'') + '<br>'
+                + '<strong style="color:#f0f0f0;">Verified at:</strong> ' + (r.verified_at ? new Date(r.verified_at).toLocaleString() : 'Now');
+    document.getElementById('verifiedBox').style.display = 'block';
+    document.getElementById('verifyCode').value = '';
+    _toast('Wallet verified ✅', 'ok');
+    loadLog();
+  }).catch(function(e) {
+    btn.disabled = false;
+    document.getElementById('verifyStatus').textContent = '❌ ' + e.message;
+    _toast('Verification failed: ' + e.message, 'error');
+  });
+}
+
+function loadLog() {
+  var verifiedOnly = document.getElementById('verifiedOnly').checked;
+  var url = '/api/v1/admin/wallet-otp?limit=50' + (verifiedOnly ? '&verified_only=true' : '');
+  api(url).then(function(r) {
+    var rows = r.records || [];
+    if (!rows.length) {
+      document.getElementById('otpLog').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">No records yet</div>';
+      return;
+    }
+    var now = Date.now();
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+      + '<thead><tr style="border-bottom:1px solid var(--border);">'
+      + '<th style="padding:8px 10px;text-align:left;color:var(--muted);">Wallet</th>'
+      + '<th style="padding:8px 10px;text-align:left;color:var(--muted);">Phone</th>'
+      + '<th style="padding:8px 10px;text-align:center;color:var(--muted);">Status</th>'
+      + '<th style="padding:8px 10px;text-align:left;color:var(--muted);">Notes</th>'
+      + '<th style="padding:8px 10px;text-align:left;color:var(--muted);">Created</th>'
+      + '<th style="padding:8px 10px;text-align:center;color:var(--muted);">Action</th>'
+      + '</tr></thead><tbody>';
+    rows.forEach(function(rec) {
+      var badge, label;
+      if (rec.is_verified) { badge = 'verified'; label = '✅ Verified'; }
+      else if (rec.is_expired) { badge = 'expired'; label = '⏱ Expired'; }
+      else if (rec.is_used) { badge = 'failed'; label = '❌ Failed'; }
+      else { badge = 'pending'; label = '⏳ Pending'; }
+      var addr = rec.wallet_address;
+      var shortAddr = addr.length > 18 ? addr.slice(0,10)+'…'+addr.slice(-6) : addr;
+      var dt = new Date(rec.created_at).toLocaleString();
+      html += '<tr style="border-bottom:1px solid rgba(255,255,255,.05);hover:background rgba(255,255,255,.03);">'
+        + '<td style="padding:8px 10px;font-family:monospace;font-size:11px;" title="'+addr+'">'+shortAddr+'</td>'
+        + '<td style="padding:8px 10px;">'+rec.phone_number+'</td>'
+        + '<td style="padding:8px 10px;text-align:center;"><span class="otp-badge '+badge+'">'+label+'</span></td>'
+        + '<td style="padding:8px 10px;color:var(--muted);">'+(rec.notes||'—')+'</td>'
+        + '<td style="padding:8px 10px;color:var(--muted);">'+dt+'</td>'
+        + '<td style="padding:8px 10px;text-align:center;"><button class="otp-btn danger" style="font-size:10px;padding:4px 10px;" onclick="delOtp(\''+rec.id+'\')">🗑</button></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('otpLog').innerHTML = html;
+  }).catch(function(e) {
+    document.getElementById('otpLog').innerHTML = '<div style="color:#f87171;padding:16px;">Error: '+e.message+'</div>';
+  });
+}
+
+function delOtp(id) {
+  if (!confirm('Delete this OTP record?')) return;
+  api('/api/v1/admin/wallet-otp/'+id, { method: 'DELETE' }).then(function() {
+    _toast('Deleted', 'ok');
+    loadLog();
+  }).catch(function(e) { _toast('Error: '+e.message, 'error'); });
+}
+
+document.addEventListener('DOMContentLoaded', function() { loadLog(); });
+</script>
+"""
+
+
+@router.get("/dashboard/wallet-verify", response_class=HTMLResponse)
+async def dashboard_wallet_verify(request: Request):
+    g = _guard(request)
+    if g:
+        return g
+    return HTMLResponse(_page("🔐 Wallet Verify OTP", "/dashboard/wallet-verify", _WALLET_OTP_BODY))
