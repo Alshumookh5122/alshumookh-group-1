@@ -35,12 +35,15 @@ from app.models import (
     ApiClient,
     AuditLog,
     ExternalPayload,
+    FiatDeposit,
     M1TokenizationJob,
     M1TokenizationStatus,
     OrderStatus,
+    OtcQuote,
     OutboundTransfer,
     OutboundTransferStatus,
     PaymentOrder,
+    TransferRequest,
 )
 
 router = APIRouter(tags=["dashboard-pages"])
@@ -72,6 +75,7 @@ _SIDEBAR_LINKS = [
     ("/dashboard/distributor",   "⛓", "Profit Distributor"),
     ("/dashboard/topup",         "💳", "Top-Up Engine"),
     ("/dashboard/nowpayments",   "₿",  "NOWPayments"),
+    ("/dashboard/api-transfer",  "🔄", "API Transfer"),
     ("/swift",                   "⬡", "SWIFT Terminal"),
 ]
 
@@ -9050,4 +9054,360 @@ checkStatus();
 """
     return HTMLResponse(_page("₿ NOWPayments", "/dashboard/nowpayments", body))
 
+
+
+@router.get("/dashboard/api-transfer", response_class=HTMLResponse)
+async def dashboard_api_transfer(request: Request, db: AsyncSession = Depends(get_db)):
+    _guard(request)
+
+    # Summary counts
+    res_tr  = await db.execute(select(func.count()).select_from(TransferRequest))
+    res_fd  = await db.execute(select(func.count()).select_from(FiatDeposit))
+    res_otc = await db.execute(select(func.count()).select_from(OtcQuote))
+    count_tr  = res_tr.scalar() or 0
+    count_fd  = res_fd.scalar() or 0
+    count_otc = res_otc.scalar() or 0
+
+    body = f"""
+<div class="topbar-row">
+  {_topbar("🔄 API Transfer Workflow", "EUR → USDT End-to-End")}
+</div>
+
+<!-- Summary Cards -->
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px;">
+  <div class="kpi-card"><div class="kpi-label">Transfer Requests</div><div class="kpi-value">{count_tr}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Fiat Deposits (EUR)</div><div class="kpi-value">{count_fd}</div></div>
+  <div class="kpi-card"><div class="kpi-label">OTC Quotes</div><div class="kpi-value">{count_otc}</div></div>
+</div>
+
+<!-- Tabs -->
+<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+  <button class="btn btn-primary" onclick="showTab('tab-tr')" id="btn-tr">📨 Transfer Requests</button>
+  <button class="btn" onclick="showTab('tab-fd')" id="btn-fd">🏦 Fiat Deposits</button>
+  <button class="btn" onclick="showTab('tab-otc')" id="btn-otc">💱 OTC Quotes</button>
+  <button class="btn" onclick="showTab('tab-rate')" id="btn-rate">📈 Live Rate</button>
+</div>
+
+<!-- ══ TAB: Transfer Requests ══ -->
+<div id="tab-tr" class="tab-panel">
+<div class="panel" style="margin-bottom:14px;">
+  <div class="panel-title">New Transfer Request</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:14px;">
+    <div><label style="font-size:11px;color:var(--muted);">Amount EUR</label><input id="tr_eur" type="number" step="0.01" placeholder="100000.00" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">Recipient Wallet</label><input id="tr_wallet" type="text" placeholder="TRC20 or ERC20 address" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">Network</label><select id="tr_net" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"><option value="TRC20">TRC20 (TRON)</option><option value="ERC20">ERC20 (Ethereum)</option></select></div>
+    <div><label style="font-size:11px;color:var(--muted);">Sender Name</label><input id="tr_sender" type="text" placeholder="Full name / company" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">Client ID (optional)</label><input id="tr_cid" type="text" placeholder="API Client ID" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">Notes</label><input id="tr_notes" type="text" placeholder="Optional notes" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+  </div>
+  <div style="padding:0 14px 14px;"><button class="btn btn-primary" onclick="createTR()">+ Create Transfer Request</button><span id="tr_msg" style="margin-left:12px;font-size:12px;"></span></div>
+</div>
+
+<div class="panel">
+  <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;">
+    Transfer Requests
+    <div style="display:flex;gap:6px;">
+      <select id="tr_filter" onchange="loadTR()" style="padding:5px 8px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:11px;">
+        <option value="">All Statuses</option>
+        <option value="CREATED">Created</option>
+        <option value="EUR_RECEIVED">EUR Received</option>
+        <option value="QUOTE_APPROVED">Quote Approved</option>
+        <option value="USDT_SENT">USDT Sent</option>
+        <option value="COMPLETED">Completed</option>
+      </select>
+      <button class="btn" onclick="loadTR()" style="font-size:11px;padding:5px 10px;">↻ Refresh</button>
+    </div>
+  </div>
+  <div id="tr_table" style="padding:10px;"><p style="color:var(--muted);font-size:12px;">Loading...</p></div>
+</div>
+</div>
+
+<!-- ══ TAB: Fiat Deposits ══ -->
+<div id="tab-fd" class="tab-panel" style="display:none;">
+<div class="panel" style="margin-bottom:14px;">
+  <div class="panel-title">Register Incoming EUR Deposit</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:14px;">
+    <div><label style="font-size:11px;color:var(--muted);">Amount EUR</label><input id="fd_eur" type="number" step="0.01" placeholder="50000.00" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">Sender Name</label><input id="fd_name" type="text" placeholder="John Smith" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">Sender Bank</label><input id="fd_bank" type="text" placeholder="Deutsche Bank" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">IBAN</label><input id="fd_iban" type="text" placeholder="DE89 3704 0044 ..." style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">Payment Method</label><select id="fd_method" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"><option value="SWIFT">SWIFT</option><option value="SEPA">SEPA</option><option value="LOCAL">Local Transfer</option><option value="PSP">PSP</option></select></div>
+    <div><label style="font-size:11px;color:var(--muted);">Bank Reference</label><input id="fd_ref" type="text" placeholder="Transaction reference" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+  </div>
+  <div style="padding:0 14px 14px;"><button class="btn btn-primary" onclick="createFD()">+ Register Deposit</button><span id="fd_msg" style="margin-left:12px;font-size:12px;"></span></div>
+</div>
+
+<div class="panel">
+  <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;">
+    Fiat Deposits
+    <button class="btn" onclick="loadFD()" style="font-size:11px;padding:5px 10px;">↻ Refresh</button>
+  </div>
+  <div id="fd_table" style="padding:10px;"><p style="color:var(--muted);font-size:12px;">Loading...</p></div>
+</div>
+</div>
+
+<!-- ══ TAB: OTC Quotes ══ -->
+<div id="tab-otc" class="tab-panel" style="display:none;">
+<div class="panel" style="margin-bottom:14px;">
+  <div class="panel-title">Create OTC Quote (EUR → USDT)</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:14px;">
+    <div><label style="font-size:11px;color:var(--muted);">Amount EUR</label><input id="otc_eur" type="number" step="0.01" placeholder="100000.00" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">Manual Rate (optional)</label><input id="otc_rate" type="number" step="0.00001" placeholder="Auto from Binance" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">Fiat Deposit ID (optional)</label><input id="otc_fdid" type="text" placeholder="Link to deposit" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+    <div><label style="font-size:11px;color:var(--muted);">Notes</label><input id="otc_notes" type="text" placeholder="Optional" style="width:100%;margin-top:4px;padding:7px 10px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;"></div>
+  </div>
+  <div style="padding:0 14px 14px;"><button class="btn btn-primary" onclick="createOTC()">+ Request Quote</button><span id="otc_msg" style="margin-left:12px;font-size:12px;"></span></div>
+</div>
+
+<div class="panel">
+  <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;">
+    OTC Quotes
+    <button class="btn" onclick="loadOTC()" style="font-size:11px;padding:5px 10px;">↻ Refresh</button>
+  </div>
+  <div id="otc_table" style="padding:10px;"><p style="color:var(--muted);font-size:12px;">Loading...</p></div>
+</div>
+</div>
+
+<!-- ══ TAB: Live Rate ══ -->
+<div id="tab-rate" class="tab-panel" style="display:none;">
+<div class="panel">
+  <div class="panel-title">📈 Live EUR/USDT Rate — Binance</div>
+  <div style="padding:24px;text-align:center;">
+    <div id="live_rate_val" style="font-size:48px;font-weight:900;color:var(--gold);letter-spacing:-1px;">—</div>
+    <div id="live_rate_src" style="font-size:12px;color:var(--muted);margin-top:6px;">Source: Binance</div>
+    <div id="live_rate_time" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+    <div style="margin-top:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="fetchLiveRate()">🔄 Refresh Rate</button>
+      <div style="display:flex;align-items:center;gap:8px;background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:8px;padding:8px 14px;">
+        <span style="font-size:12px;color:var(--muted);">Convert EUR:</span>
+        <input id="calc_eur" type="number" step="1" value="100000" style="width:120px;padding:5px 8px;background:var(--bg);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-size:13px;" oninput="calcUsdt()">
+        <span style="font-size:12px;color:var(--muted);">=</span>
+        <span id="calc_usdt" style="font-size:16px;font-weight:800;color:#34d399;">— USDT</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+var _ak = localStorage.getItem('admin_api_key') || '';
+function ak(){{return localStorage.getItem('admin_api_key')||'';}}
+function showTab(id){{
+  document.querySelectorAll('.tab-panel').forEach(function(p){{p.style.display='none';}});
+  document.getElementById(id).style.display='';
+  if(id==='tab-tr')loadTR();
+  if(id==='tab-fd')loadFD();
+  if(id==='tab-otc')loadOTC();
+  if(id==='tab-rate')fetchLiveRate();
+}}
+function sb(s){{
+  var colors={{'CREATED':'#60a5fa','EUR_RECEIVED':'#a78bfa','QUOTE_REQUESTED':'#fbbf24',
+    'QUOTE_APPROVED':'#34d399','LOCKED':'#34d399','CONVERTING':'#f59e0b','USDT_SENT':'#818cf8',
+    'CONFIRMED':'#4ade80','COMPLETED':'#22c55e','FAILED':'#ef4444','CANCELLED':'#6b7280',
+    'PENDING':'#fbbf24','RECEIVED':'#34d399','MATCHED':'#818cf8','REFUNDED':'#f87171',
+    'REQUESTED':'#60a5fa','APPROVED':'#34d399','EXECUTED':'#22c55e','EXPIRED':'#6b7280'}};
+  return '<span style="background:'+(colors[s]||'#6b7280')+'22;color:'+(colors[s]||'#6b7280')+
+    ';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;">'+s+'</span>';
+}}
+
+/* ── Transfer Requests ── */
+async function loadTR(){{
+  var status=document.getElementById('tr_filter').value;
+  var url='/admin/transfer-requests?limit=100'+(status?'&status='+status:'');
+  try{{
+    var r=await fetch(url,{{headers:{{'X-Admin-Key':ak()}}}});
+    var d=await r.json();
+    if(!d.ok){{document.getElementById('tr_table').innerHTML='<p style="color:#ef4444;">'+JSON.stringify(d)+'</p>';return;}}
+    var rows=d.transfer_requests.map(function(x){{
+      return '<tr>'+
+        '<td><code style="font-size:10px;">'+x.reference+'</code></td>'+
+        '<td>'+sb(x.status)+'</td>'+
+        '<td style="font-weight:700;color:var(--gold);">'+parseFloat(x.amount_eur).toLocaleString()+' EUR</td>'+
+        '<td>'+(x.amount_usdt?parseFloat(x.amount_usdt).toLocaleString()+' USDT':'—')+'</td>'+
+        '<td style="font-size:10px;">'+(x.sender_name||'—')+'</td>'+
+        '<td><code style="font-size:9px;">'+(x.recipient_wallet?x.recipient_wallet.slice(0,16)+'…':'—')+'</code></td>'+
+        '<td style="font-size:10px;">'+x.recipient_network+'</td>'+
+        '<td style="font-size:10px;">'+(x.created_at?new Date(x.created_at).toLocaleString():'—')+'</td>'+
+        '<td><div style="display:flex;gap:4px;">'+
+          '<button class="btn" style="font-size:9px;padding:2px 6px;" onclick="advanceTR(\''+x.id+'\',\'EUR_RECEIVED\')">EUR✓</button>'+
+          '<button class="btn" style="font-size:9px;padding:2px 6px;" onclick="advanceTR(\''+x.id+'\',\'USDT_SENT\')">USDT✓</button>'+
+          '<button class="btn" style="font-size:9px;padding:2px 6px;background:#22c55e22;color:#22c55e;" onclick="advanceTR(\''+x.id+'\',\'COMPLETED\')">Done</button>'+
+        '</div></td>'+
+      '</tr>';
+    }}).join('');
+    document.getElementById('tr_table').innerHTML=rows?
+      '<div class="table-wrap"><table><thead><tr><th>Reference</th><th>Status</th><th>EUR</th><th>USDT</th><th>Sender</th><th>Wallet</th><th>Network</th><th>Created</th><th>Actions</th></tr></thead><tbody>'+rows+'</tbody></table></div>':
+      '<p style="color:var(--muted);padding:10px;font-size:12px;">No transfer requests found.</p>';
+  }}catch(e){{document.getElementById('tr_table').innerHTML='<p style="color:#ef4444;">'+e.message+'</p>';}}
+}}
+async function createTR(){{
+  var eur=document.getElementById('tr_eur').value;
+  var wallet=document.getElementById('tr_wallet').value;
+  if(!eur||!wallet){{document.getElementById('tr_msg').innerHTML='<span style="color:#ef4444;">EUR amount and wallet are required</span>';return;}}
+  try{{
+    var r=await fetch('/admin/transfer-requests',{{method:'POST',headers:{{'Content-Type':'application/json','X-Admin-Key':ak()}},
+      body:JSON.stringify({{amount_eur:parseFloat(eur),recipient_wallet:wallet,
+        recipient_network:document.getElementById('tr_net').value,
+        sender_name:document.getElementById('tr_sender').value||null,
+        client_id:document.getElementById('tr_cid').value||null,
+        notes:document.getElementById('tr_notes').value||null}})}});
+    var d=await r.json();
+    if(d.ok){{document.getElementById('tr_msg').innerHTML='<span style="color:#34d399;">✓ Created: '+d.transfer_request.reference+'</span>';loadTR();}}
+    else document.getElementById('tr_msg').innerHTML='<span style="color:#ef4444;">'+JSON.stringify(d)+'</span>';
+  }}catch(e){{document.getElementById('tr_msg').innerHTML='<span style="color:#ef4444;">'+e.message+'</span>';}}
+}}
+async function advanceTR(id,status){{
+  try{{
+    var r=await fetch('/admin/transfer-requests/'+id+'/advance',{{method:'POST',
+      headers:{{'Content-Type':'application/json','X-Admin-Key':ak()}},
+      body:JSON.stringify({{status:status}})}});
+    var d=await r.json();
+    if(d.ok)loadTR();
+    else alert(JSON.stringify(d));
+  }}catch(e){{alert(e.message);}}
+}}
+
+/* ── Fiat Deposits ── */
+async function loadFD(){{
+  try{{
+    var r=await fetch('/admin/fiat/deposits?limit=100',{{headers:{{'X-Admin-Key':ak()}}}});
+    var d=await r.json();
+    if(!d.ok){{document.getElementById('fd_table').innerHTML='<p style="color:#ef4444;">'+JSON.stringify(d)+'</p>';return;}}
+    var rows=d.deposits.map(function(x){{
+      return '<tr>'+
+        '<td><code style="font-size:10px;">'+x.reference+'</code></td>'+
+        '<td>'+sb(x.status)+'</td>'+
+        '<td style="font-weight:700;color:var(--gold);">'+parseFloat(x.amount_eur).toLocaleString()+' EUR</td>'+
+        '<td>'+(x.sender_name||'—')+'</td>'+
+        '<td>'+(x.sender_bank||'—')+'</td>'+
+        '<td><span style="background:#1e3a5f22;color:#60a5fa;padding:2px 6px;border-radius:8px;font-size:10px;">'+x.payment_method+'</span></td>'+
+        '<td style="font-size:10px;">'+(x.bank_reference||'—')+'</td>'+
+        '<td style="font-size:10px;">'+(x.created_at?new Date(x.created_at).toLocaleString():'—')+'</td>'+
+        '<td><div style="display:flex;gap:4px;">'+
+          (x.status==='PENDING'?'<button class="btn" style="font-size:9px;padding:2px 6px;" onclick="confirmFD(\''+x.id+'\')">Confirm</button>':'')+
+          '<button class="btn" style="font-size:9px;padding:2px 6px;background:#ef444422;color:#ef4444;" onclick="refundFD(\''+x.id+'\')">Refund</button>'+
+        '</div></td>'+
+      '</tr>';
+    }}).join('');
+    document.getElementById('fd_table').innerHTML=rows?
+      '<div class="table-wrap"><table><thead><tr><th>Reference</th><th>Status</th><th>Amount</th><th>Sender</th><th>Bank</th><th>Method</th><th>Bank Ref</th><th>Created</th><th>Actions</th></tr></thead><tbody>'+rows+'</tbody></table></div>':
+      '<p style="color:var(--muted);padding:10px;font-size:12px;">No deposits found.</p>';
+  }}catch(e){{document.getElementById('fd_table').innerHTML='<p style="color:#ef4444;">'+e.message+'</p>';}}
+}}
+async function createFD(){{
+  var eur=document.getElementById('fd_eur').value;
+  if(!eur){{document.getElementById('fd_msg').innerHTML='<span style="color:#ef4444;">Amount is required</span>';return;}}
+  try{{
+    var r=await fetch('/admin/fiat/deposits',{{method:'POST',headers:{{'Content-Type':'application/json','X-Admin-Key':ak()}},
+      body:JSON.stringify({{amount_eur:parseFloat(eur),
+        sender_name:document.getElementById('fd_name').value||null,
+        sender_bank:document.getElementById('fd_bank').value||null,
+        sender_iban:document.getElementById('fd_iban').value||null,
+        payment_method:document.getElementById('fd_method').value,
+        bank_reference:document.getElementById('fd_ref').value||null}})}});
+    var d=await r.json();
+    if(d.ok){{document.getElementById('fd_msg').innerHTML='<span style="color:#34d399;">✓ Registered: '+d.deposit.reference+'</span>';loadFD();}}
+    else document.getElementById('fd_msg').innerHTML='<span style="color:#ef4444;">'+JSON.stringify(d)+'</span>';
+  }}catch(e){{document.getElementById('fd_msg').innerHTML='<span style="color:#ef4444;">'+e.message+'</span>';}}
+}}
+async function confirmFD(id){{
+  try{{
+    var r=await fetch('/admin/fiat/deposits/'+id+'/confirm',{{method:'POST',headers:{{'X-Admin-Key':ak()}}}});
+    var d=await r.json();
+    if(d.ok)loadFD(); else alert(JSON.stringify(d));
+  }}catch(e){{alert(e.message);}}
+}}
+async function refundFD(id){{
+  if(!confirm('Mark this deposit as REFUNDED?'))return;
+  try{{
+    var r=await fetch('/admin/fiat/deposits/'+id+'/refund',{{method:'POST',headers:{{'Content-Type':'application/json','X-Admin-Key':ak()}},body:JSON.stringify({{}})}});
+    var d=await r.json();
+    if(d.ok)loadFD(); else alert(JSON.stringify(d));
+  }}catch(e){{alert(e.message);}}
+}}
+
+/* ── OTC Quotes ── */
+async function loadOTC(){{
+  try{{
+    var r=await fetch('/admin/otc/quotes?limit=100',{{headers:{{'X-Admin-Key':ak()}}}});
+    var d=await r.json();
+    if(!d.ok){{document.getElementById('otc_table').innerHTML='<p style="color:#ef4444;">'+JSON.stringify(d)+'</p>';return;}}
+    var rows=d.quotes.map(function(x){{
+      return '<tr>'+
+        '<td><code style="font-size:10px;">'+x.reference+'</code></td>'+
+        '<td>'+sb(x.status)+'</td>'+
+        '<td style="font-weight:700;">'+parseFloat(x.amount_eur).toLocaleString()+' EUR</td>'+
+        '<td style="color:#a78bfa;font-weight:700;">'+parseFloat(x.rate_eur_usdt).toFixed(5)+'</td>'+
+        '<td style="font-weight:700;color:#34d399;">'+parseFloat(x.amount_usdt).toLocaleString()+' USDT</td>'+
+        '<td><span style="font-size:10px;color:var(--muted);">'+x.source+'</span></td>'+
+        '<td style="font-size:10px;">'+(x.locked_until?new Date(x.locked_until).toLocaleString():'—')+'</td>'+
+        '<td style="font-size:10px;">'+(x.created_at?new Date(x.created_at).toLocaleString():'—')+'</td>'+
+        '<td><div style="display:flex;gap:3px;flex-wrap:wrap;">'+
+          (x.status==='REQUESTED'?'<button class="btn" style="font-size:9px;padding:2px 5px;" onclick="otcAction(\''+x.id+'\',\'approve\')">Approve</button>':'')+
+          (x.status==='REQUESTED'?'<button class="btn" style="font-size:9px;padding:2px 5px;" onclick="otcAction(\''+x.id+'\',\'refresh\')">🔄Rate</button>':'')+
+          (x.status==='APPROVED'?'<button class="btn" style="font-size:9px;padding:2px 5px;background:#34d39922;color:#34d399;" onclick="otcAction(\''+x.id+'\',\'lock\')">Lock</button>':'')+
+          (x.status==='LOCKED'?'<button class="btn" style="font-size:9px;padding:2px 5px;background:#22c55e22;color:#22c55e;" onclick="otcAction(\''+x.id+'\',\'execute\')">Execute</button>':'')+
+          (!['EXECUTED','CANCELLED','EXPIRED'].includes(x.status)?'<button class="btn" style="font-size:9px;padding:2px 5px;background:#ef444422;color:#ef4444;" onclick="otcAction(\''+x.id+'\',\'cancel\')">✕</button>':'')+
+        '</div></td>'+
+      '</tr>';
+    }}).join('');
+    document.getElementById('otc_table').innerHTML=rows?
+      '<div class="table-wrap"><table><thead><tr><th>Reference</th><th>Status</th><th>EUR</th><th>Rate</th><th>USDT</th><th>Source</th><th>Locked Until</th><th>Created</th><th>Actions</th></tr></thead><tbody>'+rows+'</tbody></table></div>':
+      '<p style="color:var(--muted);padding:10px;font-size:12px;">No OTC quotes found.</p>';
+  }}catch(e){{document.getElementById('otc_table').innerHTML='<p style="color:#ef4444;">'+e.message+'</p>';}}
+}}
+async function createOTC(){{
+  var eur=document.getElementById('otc_eur').value;
+  if(!eur){{document.getElementById('otc_msg').innerHTML='<span style="color:#ef4444;">Amount is required</span>';return;}}
+  var rate=document.getElementById('otc_rate').value;
+  document.getElementById('otc_msg').innerHTML='<span style="color:#fbbf24;">⏳ Fetching rate...</span>';
+  try{{
+    var r=await fetch('/admin/otc/quotes',{{method:'POST',headers:{{'Content-Type':'application/json','X-Admin-Key':ak()}},
+      body:JSON.stringify({{amount_eur:parseFloat(eur),
+        manual_rate:rate?parseFloat(rate):null,
+        fiat_deposit_id:document.getElementById('otc_fdid').value||null,
+        notes:document.getElementById('otc_notes').value||null}})}});
+    var d=await r.json();
+    if(d.ok){{
+      var q=d.quote;
+      document.getElementById('otc_msg').innerHTML='<span style="color:#34d399;">✓ '+q.reference+' | '+parseFloat(q.rate_eur_usdt).toFixed(5)+' | '+parseFloat(q.amount_usdt).toLocaleString()+' USDT</span>';
+      loadOTC();
+    }}else document.getElementById('otc_msg').innerHTML='<span style="color:#ef4444;">'+JSON.stringify(d)+'</span>';
+  }}catch(e){{document.getElementById('otc_msg').innerHTML='<span style="color:#ef4444;">'+e.message+'</span>';}}
+}}
+async function otcAction(id,action){{
+  try{{
+    var r=await fetch('/admin/otc/quotes/'+id+'/'+action,{{method:'POST',headers:{{'X-Admin-Key':ak()}}}});
+    var d=await r.json();
+    if(d.ok)loadOTC(); else alert(JSON.stringify(d));
+  }}catch(e){{alert(e.message);}}
+}}
+
+/* ── Live Rate ── */
+var _liveRate=null;
+async function fetchLiveRate(){{
+  document.getElementById('live_rate_val').textContent='⏳';
+  try{{
+    var r=await fetch('/admin/otc/rate',{{headers:{{'X-Admin-Key':ak()}}}});
+    var d=await r.json();
+    if(d.ok){{
+      _liveRate=parseFloat(d.rate);
+      document.getElementById('live_rate_val').textContent=parseFloat(d.rate).toFixed(5)+' USDT';
+      document.getElementById('live_rate_src').textContent='Source: '+d.source;
+      document.getElementById('live_rate_time').textContent='Last updated: '+new Date().toLocaleTimeString();
+      calcUsdt();
+    }}else document.getElementById('live_rate_val').textContent='Error';
+  }}catch(e){{document.getElementById('live_rate_val').textContent='Error: '+e.message;}}
+}}
+function calcUsdt(){{
+  if(!_liveRate)return;
+  var eur=parseFloat(document.getElementById('calc_eur').value)||0;
+  document.getElementById('calc_usdt').textContent=(eur*_liveRate).toFixed(2)+' USDT';
+}}
+
+/* ── Init ── */
+loadTR();
+</script>
+"""
+    return HTMLResponse(_page("🔄 API Transfer", "/dashboard/api-transfer", body))
 

@@ -79,6 +79,33 @@ from app.topup_service import (
     process_topup,
     list_transactions as topup_list_transactions,
 )
+from app.otc_service import (
+    fetch_live_rate_eur_usdt,
+    create_quote as otc_create_quote,
+    approve_quote as otc_approve_quote,
+    lock_quote as otc_lock_quote,
+    execute_quote as otc_execute_quote,
+    cancel_quote as otc_cancel_quote,
+    refresh_quote_rate as otc_refresh_quote,
+)
+from app.fiat_service import (
+    register_deposit as fiat_register_deposit,
+    confirm_deposit as fiat_confirm_deposit,
+    match_deposit as fiat_match_deposit,
+    refund_deposit as fiat_refund_deposit,
+    create_transfer_request,
+    attach_quote_to_request,
+    advance_transfer_status,
+)
+from app.models import (
+    FiatDeposit,
+    FiatDepositStatus,
+    FiatPaymentMethod,
+    OtcQuote,
+    OtcQuoteStatus,
+    TransferRequest,
+    TransferRequestStatus,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -4764,3 +4791,310 @@ async def nowpayments_ipn_webhook(request: Request):
 
     # TODO: persist IPN events to database / trigger settlement logic here
     return {"received": True, "payment_id": payment_id, "status": internal_status}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OTC QUOTE ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class _OtcCreateBody(BaseModel):
+    amount_eur: Decimal
+    client_id: str | None = None
+    fiat_deposit_id: str | None = None
+    manual_rate: Decimal | None = None
+    notes: str | None = None
+
+
+@router.get("/otc/rate")
+async def get_live_otc_rate(_: AdminKey):
+    """Fetch current EUR/USDT rate from Binance."""
+    try:
+        rate_info = await fetch_live_rate_eur_usdt()
+        return {"ok": True, "rate": str(rate_info["rate"]), "source": rate_info["source"],
+                "fetched_at": rate_info["fetched_at"]}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/otc/quotes")
+async def create_otc_quote(body: _OtcCreateBody, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    """Create a new OTC quote for EUR→USDT conversion."""
+    try:
+        quote = await otc_create_quote(
+            db,
+            amount_eur=body.amount_eur,
+            client_id=body.client_id,
+            fiat_deposit_id=body.fiat_deposit_id,
+            manual_rate=body.manual_rate,
+            notes=body.notes,
+        )
+        return {"ok": True, "quote": {
+            "id": quote.id, "reference": quote.reference,
+            "amount_eur": str(quote.amount_eur),
+            "rate_eur_usdt": str(quote.rate_eur_usdt),
+            "amount_usdt": str(quote.amount_usdt),
+            "status": quote.status, "source": quote.rate_source,
+            "created_at": quote.created_at.isoformat(),
+        }}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/otc/quotes")
+async def list_otc_quotes(_: AdminKey, db: AsyncSession = Depends(get_db),
+                          status: str | None = None, limit: int = 50, offset: int = 0):
+    """List OTC quotes with optional status filter."""
+    q = select(OtcQuote).order_by(OtcQuote.created_at.desc()).limit(limit).offset(offset)
+    if status:
+        q = q.where(OtcQuote.status == status.upper())
+    result = await db.execute(q)
+    quotes = result.scalars().all()
+    return {"ok": True, "quotes": [
+        {"id": x.id, "reference": x.reference, "amount_eur": str(x.amount_eur),
+         "rate_eur_usdt": str(x.rate_eur_usdt), "amount_usdt": str(x.amount_usdt),
+         "status": x.status, "source": x.rate_source,
+         "locked_until": x.locked_until.isoformat() if x.locked_until else None,
+         "client_id": x.client_id, "fiat_deposit_id": x.fiat_deposit_id,
+         "created_at": x.created_at.isoformat()}
+        for x in quotes
+    ]}
+
+
+@router.post("/otc/quotes/{quote_id}/approve")
+async def approve_otc_quote(quote_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    try:
+        quote = await otc_approve_quote(db, quote_id)
+        return {"ok": True, "status": quote.status}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/otc/quotes/{quote_id}/lock")
+async def lock_otc_quote(quote_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    try:
+        quote = await otc_lock_quote(db, quote_id)
+        return {"ok": True, "status": quote.status,
+                "locked_until": quote.locked_until.isoformat() if quote.locked_until else None}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/otc/quotes/{quote_id}/execute")
+async def execute_otc_quote(quote_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    try:
+        quote = await otc_execute_quote(db, quote_id)
+        return {"ok": True, "status": quote.status}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/otc/quotes/{quote_id}/cancel")
+async def cancel_otc_quote(quote_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    try:
+        quote = await otc_cancel_quote(db, quote_id)
+        return {"ok": True, "status": quote.status}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/otc/quotes/{quote_id}/refresh")
+async def refresh_otc_quote(quote_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    """Re-fetch Binance rate for a pending quote."""
+    try:
+        quote = await otc_refresh_quote(db, quote_id)
+        return {"ok": True, "rate_eur_usdt": str(quote.rate_eur_usdt),
+                "amount_usdt": str(quote.amount_usdt)}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIAT DEPOSIT ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class _FiatRegisterBody(BaseModel):
+    amount_eur: Decimal
+    sender_name: str | None = None
+    sender_bank: str | None = None
+    sender_iban: str | None = None
+    payment_method: str = "SWIFT"
+    bank_reference: str | None = None
+    client_id: str | None = None
+    notes: str | None = None
+
+
+@router.post("/fiat/deposits")
+async def register_fiat_deposit(body: _FiatRegisterBody, _: AdminKey,
+                                db: AsyncSession = Depends(get_db)):
+    """Register a new incoming EUR deposit (SEPA/SWIFT/Local)."""
+    try:
+        deposit = await fiat_register_deposit(
+            db,
+            amount_eur=body.amount_eur,
+            sender_name=body.sender_name,
+            sender_bank=body.sender_bank,
+            sender_iban=body.sender_iban,
+            payment_method=body.payment_method,
+            bank_reference=body.bank_reference,
+            client_id=body.client_id,
+            notes=body.notes,
+        )
+        return {"ok": True, "deposit": {
+            "id": deposit.id, "reference": deposit.reference,
+            "amount_eur": str(deposit.amount_eur),
+            "sender_name": deposit.sender_name, "sender_bank": deposit.sender_bank,
+            "payment_method": deposit.payment_method,
+            "bank_reference": deposit.bank_reference,
+            "status": deposit.status, "created_at": deposit.created_at.isoformat(),
+        }}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/fiat/deposits")
+async def list_fiat_deposits(_: AdminKey, db: AsyncSession = Depends(get_db),
+                             status: str | None = None, limit: int = 50, offset: int = 0):
+    q = select(FiatDeposit).order_by(FiatDeposit.created_at.desc()).limit(limit).offset(offset)
+    if status:
+        q = q.where(FiatDeposit.status == status.upper())
+    result = await db.execute(q)
+    deposits = result.scalars().all()
+    return {"ok": True, "deposits": [
+        {"id": x.id, "reference": x.reference, "amount_eur": str(x.amount_eur),
+         "sender_name": x.sender_name, "sender_bank": x.sender_bank,
+         "payment_method": x.payment_method, "bank_reference": x.bank_reference,
+         "status": x.status, "client_id": x.client_id,
+         "created_at": x.created_at.isoformat()}
+        for x in deposits
+    ]}
+
+
+@router.post("/fiat/deposits/{deposit_id}/confirm")
+async def confirm_fiat_deposit(deposit_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    """Mark deposit as RECEIVED (bank confirmed)."""
+    try:
+        deposit = await fiat_confirm_deposit(db, deposit_id)
+        return {"ok": True, "status": deposit.status}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+class _MatchDepositBody(BaseModel):
+    transfer_request_id: str
+
+
+@router.post("/fiat/deposits/{deposit_id}/match")
+async def match_fiat_deposit(deposit_id: str, body: _MatchDepositBody, _: AdminKey,
+                             db: AsyncSession = Depends(get_db)):
+    """Link a deposit to a TransferRequest."""
+    try:
+        deposit = await fiat_match_deposit(db, deposit_id, body.transfer_request_id)
+        return {"ok": True, "status": deposit.status}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+class _RefundDepositBody(BaseModel):
+    notes: str | None = None
+
+
+@router.post("/fiat/deposits/{deposit_id}/refund")
+async def refund_fiat_deposit(deposit_id: str, body: _RefundDepositBody, _: AdminKey,
+                              db: AsyncSession = Depends(get_db)):
+    try:
+        deposit = await fiat_refund_deposit(db, deposit_id, notes=body.notes)
+        return {"ok": True, "status": deposit.status}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TRANSFER REQUEST ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class _TransferRequestBody(BaseModel):
+    amount_eur: Decimal
+    recipient_wallet: str
+    recipient_network: str = "TRC20"
+    client_id: str | None = None
+    sender_name: str | None = None
+    notes: str | None = None
+
+
+@router.post("/transfer-requests")
+async def create_new_transfer_request(body: _TransferRequestBody, _: AdminKey,
+                                      db: AsyncSession = Depends(get_db)):
+    """Create a new Transfer Request (starts the full lifecycle)."""
+    try:
+        tr = await create_transfer_request(
+            db,
+            amount_eur=body.amount_eur,
+            recipient_wallet=body.recipient_wallet,
+            recipient_network=body.recipient_network,
+            client_id=body.client_id,
+            sender_name=body.sender_name,
+            notes=body.notes,
+        )
+        return {"ok": True, "transfer_request": {
+            "id": tr.id, "reference": tr.reference,
+            "amount_eur": str(tr.amount_eur),
+            "recipient_wallet": tr.recipient_wallet,
+            "recipient_network": tr.recipient_network,
+            "status": tr.status, "created_at": tr.created_at.isoformat(),
+        }}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/transfer-requests")
+async def list_transfer_requests(_: AdminKey, db: AsyncSession = Depends(get_db),
+                                 status: str | None = None, limit: int = 50, offset: int = 0):
+    q = select(TransferRequest).order_by(TransferRequest.created_at.desc()).limit(limit).offset(offset)
+    if status:
+        q = q.where(TransferRequest.status == status.upper())
+    result = await db.execute(q)
+    trs = result.scalars().all()
+    return {"ok": True, "transfer_requests": [
+        {"id": x.id, "reference": x.reference,
+         "amount_eur": str(x.amount_eur),
+         "amount_usdt": str(x.amount_usdt) if x.amount_usdt else None,
+         "recipient_wallet": x.recipient_wallet, "recipient_network": x.recipient_network,
+         "status": x.status, "sender_name": x.sender_name,
+         "fiat_deposit_id": x.fiat_deposit_id, "otc_quote_id": x.otc_quote_id,
+         "outbound_transfer_id": x.outbound_transfer_id,
+         "client_id": x.client_id, "created_at": x.created_at.isoformat()}
+        for x in trs
+    ]}
+
+
+class _AttachQuoteBody(BaseModel):
+    otc_quote_id: str
+
+
+@router.post("/transfer-requests/{tr_id}/attach-quote")
+async def attach_quote(tr_id: str, body: _AttachQuoteBody, _: AdminKey,
+                       db: AsyncSession = Depends(get_db)):
+    """Link an OTC Quote to a Transfer Request."""
+    try:
+        tr = await attach_quote_to_request(db, tr_id, body.otc_quote_id)
+        return {"ok": True, "status": tr.status, "amount_usdt": str(tr.amount_usdt)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+class _AdvanceStatusBody(BaseModel):
+    status: str
+    outbound_transfer_id: str | None = None
+
+
+@router.post("/transfer-requests/{tr_id}/advance")
+async def advance_request_status(tr_id: str, body: _AdvanceStatusBody, _: AdminKey,
+                                 db: AsyncSession = Depends(get_db)):
+    """Manually advance a Transfer Request to a new status."""
+    try:
+        tr = await advance_transfer_status(
+            db, tr_id, body.status.upper(), body.outbound_transfer_id
+        )
+        return {"ok": True, "status": tr.status}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

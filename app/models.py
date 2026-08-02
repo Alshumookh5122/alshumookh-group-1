@@ -1201,3 +1201,173 @@ class TopUpTransaction(Base):
     )
 
     card: Mapped["TopUpCard"] = relationship(back_populates="transactions")
+
+
+# ─── OTC & Fiat Receiving Enums ───────────────────────────────────────────────
+
+class FiatDepositStatus(str, enum.Enum):
+    PENDING   = "PENDING"    # Registered, awaiting confirmation
+    RECEIVED  = "RECEIVED"   # Bank confirmed receipt
+    MATCHED   = "MATCHED"    # Linked to a TransferRequest
+    REFUNDED  = "REFUNDED"   # Returned to sender
+    CANCELLED = "CANCELLED"
+
+class FiatPaymentMethod(str, enum.Enum):
+    SEPA  = "SEPA"
+    SWIFT = "SWIFT"
+    LOCAL = "LOCAL"
+    PSP   = "PSP"
+
+class OtcQuoteStatus(str, enum.Enum):
+    REQUESTED = "REQUESTED"  # Rate fetched, awaiting admin approval
+    APPROVED  = "APPROVED"   # Admin approved
+    LOCKED    = "LOCKED"     # Rate locked for execution
+    EXECUTED  = "EXECUTED"   # Conversion done
+    EXPIRED   = "EXPIRED"    # Lock time elapsed
+    CANCELLED = "CANCELLED"
+
+class OtcRateSource(str, enum.Enum):
+    BINANCE = "BINANCE"
+    MANUAL  = "MANUAL"
+
+class TransferRequestStatus(str, enum.Enum):
+    CREATED        = "CREATED"
+    EUR_RECEIVED   = "EUR_RECEIVED"
+    QUOTE_REQUESTED= "QUOTE_REQUESTED"
+    QUOTE_APPROVED = "QUOTE_APPROVED"
+    CONVERTING     = "CONVERTING"
+    USDT_SENT      = "USDT_SENT"
+    CONFIRMED      = "CONFIRMED"
+    COMPLETED      = "COMPLETED"
+    FAILED         = "FAILED"
+    CANCELLED      = "CANCELLED"
+
+
+# ─── FiatDeposit ──────────────────────────────────────────────────────────────
+
+class FiatDeposit(Base):
+    """Records incoming EUR payments via SEPA/SWIFT/Local before conversion."""
+    __tablename__ = "fiat_deposits"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    reference: Mapped[str] = mapped_column(
+        String(32), unique=True, nullable=False, index=True,
+        default=lambda: f"FIAT-{str(uuid.uuid4())[:8].upper()}"
+    )
+    client_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("api_clients.id"), nullable=True, index=True
+    )
+    amount_eur: Mapped[Decimal] = mapped_column(Numeric(30, 6), nullable=False)
+    sender_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    sender_bank: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    sender_iban: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    payment_method: Mapped[str] = mapped_column(
+        String(16), default=FiatPaymentMethod.SWIFT.value, nullable=False
+    )
+    bank_reference: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(
+        String(16), default=FiatDepositStatus.PENDING.value, nullable=False, index=True
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    client: Mapped["ApiClient | None"] = relationship("ApiClient", foreign_keys=[client_id])
+    otc_quotes: Mapped[list["OtcQuote"]] = relationship(back_populates="fiat_deposit")
+    transfer_requests: Mapped[list["TransferRequest"]] = relationship(back_populates="fiat_deposit")
+
+
+# ─── OtcQuote ─────────────────────────────────────────────────────────────────
+
+class OtcQuote(Base):
+    """Live EUR→USDT OTC quote fetched from Binance and managed by admin."""
+    __tablename__ = "otc_quotes"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    reference: Mapped[str] = mapped_column(
+        String(32), unique=True, nullable=False, index=True,
+        default=lambda: f"OTC-{str(uuid.uuid4())[:8].upper()}"
+    )
+    client_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("api_clients.id"), nullable=True, index=True
+    )
+    fiat_deposit_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("fiat_deposits.id"), nullable=True, index=True
+    )
+    amount_eur: Mapped[Decimal] = mapped_column(Numeric(30, 6), nullable=False)
+    rate_eur_usdt: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    amount_usdt: Mapped[Decimal] = mapped_column(Numeric(30, 6), nullable=False)
+    rate_source: Mapped[str] = mapped_column(
+        String(16), default=OtcRateSource.BINANCE.value, nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(16), default=OtcQuoteStatus.REQUESTED.value, nullable=False, index=True
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    raw_rate_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    client: Mapped["ApiClient | None"] = relationship("ApiClient", foreign_keys=[client_id])
+    fiat_deposit: Mapped["FiatDeposit | None"] = relationship(back_populates="otc_quotes")
+    transfer_requests: Mapped[list["TransferRequest"]] = relationship(back_populates="otc_quote")
+
+
+# ─── TransferRequest ──────────────────────────────────────────────────────────
+
+class TransferRequest(Base):
+    """Full lifecycle: EUR deposit → OTC conversion → USDT transfer."""
+    __tablename__ = "transfer_requests"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    reference: Mapped[str] = mapped_column(
+        String(32), unique=True, nullable=False, index=True,
+        default=lambda: f"TRQ-{str(uuid.uuid4())[:8].upper()}"
+    )
+    client_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("api_clients.id"), nullable=True, index=True
+    )
+    fiat_deposit_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("fiat_deposits.id"), nullable=True, index=True
+    )
+    otc_quote_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("otc_quotes.id"), nullable=True, index=True
+    )
+    outbound_transfer_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("outbound_transfers.id"), nullable=True, index=True
+    )
+    recipient_wallet: Mapped[str] = mapped_column(String(256), nullable=False)
+    recipient_network: Mapped[str] = mapped_column(String(16), default="TRC20", nullable=False)
+    amount_eur: Mapped[Decimal] = mapped_column(Numeric(30, 6), nullable=False)
+    amount_usdt: Mapped[Decimal | None] = mapped_column(Numeric(30, 6), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(24), default=TransferRequestStatus.CREATED.value, nullable=False, index=True
+    )
+    sender_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    client: Mapped["ApiClient | None"] = relationship("ApiClient", foreign_keys=[client_id])
+    fiat_deposit: Mapped["FiatDeposit | None"] = relationship(back_populates="transfer_requests")
+    otc_quote: Mapped["OtcQuote | None"] = relationship(back_populates="transfer_requests")
+    outbound_transfer: Mapped["OutboundTransfer | None"] = relationship("OutboundTransfer", foreign_keys=[outbound_transfer_id])
