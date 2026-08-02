@@ -1,6 +1,6 @@
 """
 OTC Service — Live EUR/USDT rate fetching and quote management.
-Primary source: Binance. Fallback sources: CoinGecko → Kraken.
+Uses Binance public API (no auth required for price data).
 """
 from __future__ import annotations
 
@@ -17,8 +17,6 @@ from app.models import OtcQuote, OtcQuoteStatus, OtcRateSource
 logger = logging.getLogger(__name__)
 
 BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/price"
-COINGECKO_PRICE_URL = "https://api.coingecko.com/api/v3/simple/price"
-KRAKEN_TICKER_URL = "https://api.kraken.com/0/public/Ticker"
 # EUR/USDT pair on Binance
 EUR_USDT_SYMBOL = "EURUSDT"
 # How many minutes to lock a rate after approval
@@ -27,82 +25,27 @@ RATE_LOCK_MINUTES = 30
 
 # ─── Rate Fetching ────────────────────────────────────────────────────────────
 
-async def _fetch_from_binance() -> dict:
-    """Fetch EUR/USDT rate from Binance public API."""
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        resp = await client.get(BINANCE_TICKER_URL, params={"symbol": EUR_USDT_SYMBOL})
-        resp.raise_for_status()
-        data = resp.json()
-        rate = Decimal(str(data["price"]))
-        return {
-            "symbol": EUR_USDT_SYMBOL,
-            "rate": rate,
-            "source": OtcRateSource.BINANCE.value,
-            "raw": data,
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-
-async def _fetch_from_coingecko() -> dict:
-    """Fallback: CoinGecko EUR/USDT rate.
-    Returns tether price in EUR → invert to get EUR/USDT."""
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        resp = await client.get(
-            COINGECKO_PRICE_URL,
-            params={"ids": "tether", "vs_currencies": "eur"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        eur_per_usdt = Decimal(str(data["tether"]["eur"]))
-        # EUR/USDT = how many USDT per 1 EUR = 1 / (EUR per USDT)
-        rate = (Decimal("1") / eur_per_usdt).quantize(Decimal("0.00000001"))
-        return {
-            "symbol": EUR_USDT_SYMBOL,
-            "rate": rate,
-            "source": "COINGECKO",
-            "raw": data,
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-
-async def _fetch_from_kraken() -> dict:
-    """Second fallback: Kraken EUR/USDT rate."""
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        resp = await client.get(KRAKEN_TICKER_URL, params={"pair": "EURUSDT"})
-        resp.raise_for_status()
-        data = resp.json()
-        # data["result"] has one key (the pair name), "c" is [last_trade_price, lot_volume]
-        result = data.get("result", {})
-        pair_data = next(iter(result.values()))
-        rate = Decimal(str(pair_data["c"][0]))
-        return {
-            "symbol": EUR_USDT_SYMBOL,
-            "rate": rate,
-            "source": "KRAKEN",
-            "raw": data,
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-
 async def fetch_live_rate_eur_usdt() -> dict:
-    """Fetch current EUR/USDT rate. Tries Binance → CoinGecko → Kraken in order."""
-    errors: list[str] = []
-
-    for label, fetcher in [
-        ("Binance", _fetch_from_binance),
-        ("CoinGecko", _fetch_from_coingecko),
-        ("Kraken", _fetch_from_kraken),
-    ]:
+    """Fetch current EUR/USDT rate from Binance. Returns dict with rate info."""
+    async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            result = await fetcher()
-            if errors:
-                logger.info("Rate fetched from %s (fallback, previous errors: %s)", label, "; ".join(errors))
-            return result
+            resp = await client.get(
+                BINANCE_TICKER_URL,
+                params={"symbol": EUR_USDT_SYMBOL},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            rate = Decimal(str(data["price"]))
+            return {
+                "symbol": EUR_USDT_SYMBOL,
+                "rate": rate,
+                "source": OtcRateSource.BINANCE.value,
+                "raw": data,
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+            }
         except Exception as exc:
-            logger.warning("%s rate fetch failed: %s", label, exc)
-            errors.append(f"{label}: {exc}")
-
-    raise RuntimeError(f"All rate sources failed — {'; '.join(errors)}")
+            logger.error("Binance rate fetch failed: %s", exc)
+            raise RuntimeError(f"Failed to fetch EUR/USDT rate from Binance: {exc}") from exc
 
 
 # ─── Quote Management ─────────────────────────────────────────────────────────

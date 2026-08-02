@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Master Wallet to Master Wallet Technical Workflow</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm;
+    }
+
+    :root {
+      --ink: #111827;
+      --muted: #667085;
+      --line: #d8e0ea;
+      --navy: #0e1621;
+      --blue: #1f5fd0;
+      --gold: #c79a45;
+      --soft: #f6f8fb;
+      --ok: #0f8a5f;
+      --bad: #b83232;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12.5px;
+      line-height: 1.55;
+      background: white;
+    }
+
+    .cover {
+      min-height: 250mm;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: 10mm 0 0;
+      page-break-after: always;
+    }
+
+    .brand-row {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      padding-bottom: 18px;
+      border-bottom: 2px solid var(--line);
+    }
+
+    .logo {
+      width: 108px;
+      height: 78px;
+      object-fit: contain;
+      padding: 7px;
+      border-radius: 8px;
+      background: #05070a;
+      border: 1px solid rgba(199, 154, 69, 0.55);
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--gold);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .brand-name {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.25;
+      color: var(--navy);
+      font-weight: 900;
+    }
+
+    .cover-main {
+      display: grid;
+      align-content: center;
+      padding: 28mm 0;
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 36px;
+      line-height: 1.05;
+      color: var(--navy);
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      width: 86%;
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .meta {
+      min-height: 70px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+    }
+
+    .meta span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .meta strong {
+      display: block;
+      margin-top: 7px;
+      font-size: 13px;
+      color: var(--navy);
+    }
+
+    .cover-footer {
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .section {
+      page-break-inside: avoid;
+      margin: 0 0 18px;
+    }
+
+    h2 {
+      margin: 0 0 9px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid var(--line);
+      color: var(--navy);
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 14px 0 7px;
+      color: var(--navy);
+      font-size: 14px;
+    }
+
+    p {
+      margin: 0 0 9px;
+    }
+
+    ul,
+    ol {
+      margin: 6px 0 0;
+      padding-left: 20px;
+    }
+
+    li {
+      margin: 4px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      page-break-inside: avoid;
+    }
+
+    th,
+    td {
+      padding: 8px 9px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--navy);
+      background: #eef3fb;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .callout {
+      padding: 12px 14px;
+      border-left: 4px solid var(--gold);
+      border-radius: 8px;
+      background: #fff8e8;
+      page-break-inside: avoid;
+    }
+
+    .success {
+      border-left-color: var(--ok);
+      background: #edf9f3;
+    }
+
+    .danger {
+      border-left-color: var(--bad);
+      background: #fff0f0;
+    }
+
+    code,
+    pre {
+      font-family: Menlo, Consolas, Monaco, monospace;
+      direction: ltr;
+      text-align: left;
+    }
+
+    code {
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: #f1f5f9;
+      color: #26364a;
+    }
+
+    pre {
+      margin: 10px 0 0;
+      padding: 13px;
+      overflow-wrap: break-word;
+      white-space: pre-wrap;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0f172a;
+      color: #e5edf7;
+      font-size: 10.5px;
+      line-height: 1.45;
+      page-break-inside: avoid;
+    }
+
+    .footer-note {
+      margin-top: 20px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="brand-row">
+      <img class="logo" src="../app/static/company-logo.png" alt="ALSHUMOOKH Logo">
+      <div>
+        <p class="eyebrow">ALSHUMOOKH GLOBAL</p>
+        <p class="brand-name">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</p>
+      </div>
+    </div>
+
+    <div class="cover-main">
+      <h1>Master Wallet to Master Wallet<br>Technical Workflow</h1>
+      <p class="subtitle">
+        Official technical submission guide for senders preparing JSON transfer files for master-wallet-to-master-wallet settlement with ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT.
+      </p>
+
+      <div class="meta-grid">
+        <div class="meta">
+          <span>Document Type</span>
+          <strong>Technical Integration Workflow</strong>
+        </div>
+        <div class="meta">
+          <span>Transfer Type</span>
+          <strong>MASTER_WALLET_TO_MASTER_WALLET</strong>
+        </div>
+        <div class="meta">
+          <span>Environment</span>
+          <strong>Production</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="cover-footer">
+      This document describes the required JSON file structure, upload workflow, validation rules, supported assets, and final confirmation requirements.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>1. Purpose</h2>
+    <p>
+      This workflow is used when the sender prepares a batch transfer file in JSON format and uploads it to ALSHUMOOKH system for validation, operational review, and settlement tracking.
+    </p>
+    <div class="callout">
+      Transfer type must be exactly: <code>MASTER_WALLET_TO_MASTER_WALLET</code>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>2. File Requirements</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Requirement</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>File Type</td>
+          <td><code>.json</code></td>
+        </tr>
+        <tr>
+          <td>Encoding</td>
+          <td><code>UTF-8</code></td>
+        </tr>
+        <tr>
+          <td>One File Per Batch</td>
+          <td>Each JSON file must represent one transfer batch only.</td>
+        </tr>
+        <tr>
+          <td>Duplicate Batch ID</td>
+          <td>Duplicate <code>batch_id</code> values may be rejected.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>3. Required JSON Structure</h2>
+    <pre>{
+  "batch_id": "MW-20260507-0001",
+  "transfer_type": "MASTER_WALLET_TO_MASTER_WALLET",
+  "environment": "production",
+  "sender": {
+    "company_name": "Sender Company Name",
+    "sender_id": "SENDER-001",
+    "contact_email": "operations@example.com",
+    "contact_phone": "+971500000000"
+  },
+  "source_master_wallet": {
+    "wallet_label": "Sender Master Wallet",
+    "network": "ethereum",
+    "wallet_address": "0xSenderMasterWalletAddress",
+    "wallet_type": "master_wallet"
+  },
+  "destination_master_wallet": {
+    "company_name": "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT",
+    "wallet_label": "ALSHUMOOKH Treasury Master Wallet",
+    "network": "ethereum",
+    "wallet_address": "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+    "wallet_type": "master_wallet"
+  },
+  "transfer": {
+    "asset": "USDT",
+    "amount": "1000.00",
+    "network": "ethereum",
+    "token_standard": "ERC20",
+    "expected_settlement_currency": "USDT",
+    "payment_reference": "MW-REF-20260507-0001",
+    "purpose": "Master wallet settlement"
+  },
+  "transaction": {
+    "tx_hash": null,
+    "status": "PENDING",
+    "submitted_at": "2026-05-07T12:00:00Z"
+  },
+  "compliance": {
+    "sender_declaration": true,
+    "funds_source": "Business settlement",
+    "beneficiary_name": "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT",
+    "notes": "Sender confirms wallet ownership and transfer purpose."
+  }
+}</pre>
+  </section>
+
+  <section class="section">
+    <h2>4. Mandatory Fields</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>batch_id</code></td><td>Unique sender batch reference.</td></tr>
+        <tr><td><code>transfer_type</code></td><td>Must equal <code>MASTER_WALLET_TO_MASTER_WALLET</code>.</td></tr>
+        <tr><td><code>sender.company_name</code></td><td>Legal or operating sender name.</td></tr>
+        <tr><td><code>sender.sender_id</code></td><td>Sender internal ID or approved partner ID.</td></tr>
+        <tr><td><code>source_master_wallet.network</code></td><td>Network used by sender wallet.</td></tr>
+        <tr><td><code>source_master_wallet.wallet_address</code></td><td>Sender master wallet address.</td></tr>
+        <tr><td><code>destination_master_wallet.wallet_address</code></td><td>ALSHUMOOKH destination master wallet.</td></tr>
+        <tr><td><code>transfer.asset</code></td><td>Token or native asset symbol.</td></tr>
+        <tr><td><code>transfer.amount</code></td><td>Settlement amount as a string.</td></tr>
+        <tr><td><code>transfer.payment_reference</code></td><td>Reference used to match the payment internally.</td></tr>
+        <tr><td><code>compliance.sender_declaration</code></td><td>Must be <code>true</code>.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>5. Supported Assets and Network</h2>
+    <p>For Ethereum/ERC20 settlement, the supported assets are:</p>
+    <ul>
+      <li><code>ETH</code></li>
+      <li><code>USDT</code></li>
+      <li><code>USDC</code></li>
+    </ul>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Asset</th>
+          <th>Official Ethereum Contract</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>USDT</td>
+          <td><code>0xdAC17F958D2ee523a2206206994597C13D831ec7</code></td>
+        </tr>
+        <tr>
+          <td>USDC</td>
+          <td><code>0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      Fake tokens, wrong token contracts, unsupported assets, and wrong-network transfers may be rejected or may not be recognized automatically.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>6. Destination Master Wallet</h2>
+    <p>For Ethereum/ERC20 settlement, the destination master wallet is:</p>
+    <pre>0xBD682cfD8382a90adfDd6745780D3D7959c4d939</pre>
+    <p>The sender must verify the network, token, amount, and payment reference before initiating transfer.</p>
+  </section>
+
+  <section class="section">
+    <h2>7. Upload and Processing Workflow</h2>
+    <ol>
+      <li>Prepare the JSON file according to the structure in this document.</li>
+      <li>Validate the JSON syntax before upload.</li>
+      <li>Upload the JSON file to ALSHUMOOKH system.</li>
+      <li>Wait for file validation and operational review.</li>
+      <li>If accepted, proceed with blockchain transfer.</li>
+      <li>Submit or update the transaction hash after sending funds.</li>
+      <li>ALSHUMOOKH confirms after wallet, token, amount, and transaction hash verification.</li>
+    </ol>
+  </section>
+
+  <section class="section">
+    <h2>8. Status Flow</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>UPLOADED</code></td><td>File has been uploaded to the system.</td></tr>
+        <tr><td><code>VALIDATION_PENDING</code></td><td>File is waiting for validation.</td></tr>
+        <tr><td><code>VALIDATED</code></td><td>File passed required validation checks.</td></tr>
+        <tr><td><code>REJECTED</code></td><td>File failed validation or operational review.</td></tr>
+        <tr><td><code>PENDING_TRANSFER</code></td><td>Sender is expected to initiate transfer.</td></tr>
+        <tr><td><code>TRANSFER_SUBMITTED</code></td><td>Sender submitted transaction hash.</td></tr>
+        <tr><td><code>CONFIRMED</code></td><td>Blockchain transaction has been matched.</td></tr>
+        <tr><td><code>COMPLETED</code></td><td>Final settlement is accepted by ALSHUMOOKH.</td></tr>
+        <tr><td><code>FAILED</code></td><td>Transfer failed, mismatched, or cannot be accepted.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout success">
+      Final settlement is valid only when ALSHUMOOKH marks the transfer status as <code>COMPLETED</code>.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>9. Rejection Reasons</h2>
+    <ul>
+      <li>Invalid JSON format.</li>
+      <li>Missing required fields.</li>
+      <li>Wrong destination wallet address.</li>
+      <li>Wrong network.</li>
+      <li>Unsupported token or fake token contract.</li>
+      <li>Amount mismatch.</li>
+      <li>Duplicate batch ID.</li>
+      <li>Missing sender declaration.</li>
+      <li>Invalid or unmatched transaction hash.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2>10. Transaction Hash Submission</h2>
+    <pre>{
+  "batch_id": "MW-20260507-0001",
+  "payment_reference": "MW-REF-20260507-0001",
+  "tx_hash": "0xTransactionHashHere",
+  "network": "ethereum",
+  "asset": "USDT",
+  "amount": "1000.00"
+}</pre>
+  </section>
+
+  <section class="section">
+    <h2>11. Security Rules</h2>
+    <p>The sender must not request or receive:</p>
+    <ul>
+      <li>Admin API Key</li>
+      <li>Private keys</li>
+      <li>Database credentials</li>
+      <li>Webhook secrets</li>
+      <li>Treasury wallet private keys</li>
+    </ul>
+    <p>Only public wallet addresses, payment references, and transaction hashes may be shared for operational matching.</p>
+  </section>
+
+  <section class="section">
+    <h2>12. Final Confirmation Criteria</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Required Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Network</td><td>Matched</td></tr>
+        <tr><td>Destination Wallet</td><td>Matched</td></tr>
+        <tr><td>Token / Contract</td><td>Matched</td></tr>
+        <tr><td>Amount</td><td>Matched</td></tr>
+        <tr><td>Transaction Hash</td><td>Confirmed</td></tr>
+        <tr><td>Final Status</td><td><code>COMPLETED</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="footer-note">
+      Prepared for external sender integration with ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT payment and settlement operations.
+    </div>
+  </section>
+</body>
+</html>

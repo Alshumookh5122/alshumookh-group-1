@@ -1,5 +1,4 @@
 import base64
-import hmac
 import time
 import uuid
 from datetime import datetime, timezone
@@ -67,7 +66,6 @@ from app.tokenization_service import (
 from app.notification_service import (
     notify_transfer_failed,
     notify_m1_job_ready,
-    send_whatsapp_to,
 )
 from app.topup_service import (
     create_wallet as topup_create_wallet,
@@ -107,7 +105,6 @@ from app.models import (
     OtcQuoteStatus,
     TransferRequest,
     TransferRequestStatus,
-    WalletOTP,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -5101,162 +5098,3 @@ async def advance_request_status(tr_id: str, body: _AdvanceStatusBody, _: AdminK
         return {"ok": True, "status": tr.status}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-
-
-# ─── Wallet OTP Verification ──────────────────────────────────────────────────
-
-import hashlib as _hashlib
-import random as _random
-from datetime import timedelta as _timedelta
-
-
-def _generate_otp() -> tuple[str, str]:
-    """Generate 6-digit OTP. Returns (otp_plain, otp_hash)."""
-    otp = str(_random.randint(100000, 999999))
-    otp_hash = _hashlib.sha256(otp.encode()).hexdigest()
-    return otp, otp_hash
-
-
-class _WalletOTPRequestBody(BaseModel):
-    wallet_address: str
-    phone_number:   str   # recipient WhatsApp number e.g. 971501234567
-    notes:          str | None = None
-
-
-class _WalletOTPVerifyBody(BaseModel):
-    otp_id:    str
-    otp_code:  str
-
-
-@router.post("/wallet-otp/request", tags=["wallet-otp"])
-async def wallet_otp_request(
-    body: _WalletOTPRequestBody,
-    request: Request,
-    _: AdminKey,
-    db: AsyncSession = Depends(get_db),
-):
-    """Generate & send a 6-digit OTP to the recipient's WhatsApp to verify their wallet."""
-    otp_plain, otp_hash = _generate_otp()
-    expires_at = datetime.now(timezone.utc) + _timedelta(minutes=15)
-
-    record = WalletOTP(
-        wallet_address=body.wallet_address.strip(),
-        phone_number=body.phone_number.strip(),
-        otp_hash=otp_hash,
-        expires_at=expires_at,
-        notes=body.notes,
-        created_by=get_client_ip(request),
-    )
-    db.add(record)
-    await db.commit()
-    await db.refresh(record)
-
-    msg = (
-        f"🔐 ALSHUMOOKH — Wallet Verification\n\n"
-        f"Your verification code: *{otp_plain}*\n\n"
-        f"Wallet: {body.wallet_address[:12]}...{body.wallet_address[-6:]}\n"
-        f"Valid for 15 minutes.\n\n"
-        f"Do NOT share this code with anyone."
-    )
-    sent = await send_whatsapp_to(body.phone_number, msg)
-
-    return {
-        "ok": True,
-        "otp_id": record.id,
-        "wallet_address": record.wallet_address,
-        "phone_number": record.phone_number,
-        "expires_at": record.expires_at.isoformat(),
-        "whatsapp_sent": sent,
-        "message": "OTP sent via WhatsApp" if sent else "OTP created (WhatsApp delivery failed — check Twilio config)",
-    }
-
-
-@router.post("/wallet-otp/verify", tags=["wallet-otp"])
-async def wallet_otp_verify(
-    body: _WalletOTPVerifyBody,
-    _: AdminKey,
-    db: AsyncSession = Depends(get_db),
-):
-    """Verify the OTP code entered by the admin (received from recipient)."""
-    result = await db.execute(select(WalletOTP).where(WalletOTP.id == body.otp_id))
-    record = result.scalar_one_or_none()
-    if not record:
-        raise HTTPException(status_code=404, detail="OTP record not found")
-
-    if record.is_verified:
-        return {"ok": True, "already_verified": True, "wallet_address": record.wallet_address}
-
-    if record.is_used:
-        raise HTTPException(status_code=400, detail="OTP already used — request a new one")
-
-    now = datetime.now(timezone.utc)
-    if now > record.expires_at:
-        raise HTTPException(status_code=400, detail="OTP expired — please request a new one")
-
-    entered_hash = _hashlib.sha256(body.otp_code.strip().encode()).hexdigest()
-    if not hmac.compare_digest(entered_hash, record.otp_hash):
-        record.is_used = True  # invalidate on wrong attempt
-        await db.commit()
-        raise HTTPException(status_code=400, detail="Invalid OTP code")
-
-    record.is_verified = True
-    record.is_used = True
-    record.verified_at = now
-    await db.commit()
-    await db.refresh(record)
-
-    return {
-        "ok": True,
-        "verified": True,
-        "wallet_address": record.wallet_address,
-        "phone_number": record.phone_number,
-        "verified_at": record.verified_at.isoformat(),
-    }
-
-
-@router.get("/wallet-otp", tags=["wallet-otp"])
-async def wallet_otp_list(
-    _: AdminKey,
-    db: AsyncSession = Depends(get_db),
-    limit: int = 100,
-    verified_only: bool = False,
-):
-    """List wallet OTP records (most recent first)."""
-    from sqlalchemy import desc as _desc
-    q = select(WalletOTP).order_by(_desc(WalletOTP.created_at)).limit(limit)
-    if verified_only:
-        q = q.where(WalletOTP.is_verified == True)
-    res = await db.execute(q)
-    rows = res.scalars().all()
-    now = datetime.now(timezone.utc)
-    return {
-        "ok": True,
-        "count": len(rows),
-        "records": [
-            {
-                "id": r.id,
-                "wallet_address": r.wallet_address,
-                "phone_number": r.phone_number,
-                "is_verified": r.is_verified,
-                "is_used": r.is_used,
-                "is_expired": now > r.expires_at and not r.is_verified,
-                "expires_at": r.expires_at.isoformat(),
-                "verified_at": r.verified_at.isoformat() if r.verified_at else None,
-                "notes": r.notes,
-                "created_at": r.created_at.isoformat(),
-            }
-            for r in rows
-        ],
-    }
-
-
-@router.delete("/wallet-otp/{otp_id}", tags=["wallet-otp"])
-async def wallet_otp_delete(otp_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
-    """Delete a wallet OTP record."""
-    result = await db.execute(select(WalletOTP).where(WalletOTP.id == otp_id))
-    record = result.scalar_one_or_none()
-    if not record:
-        raise HTTPException(status_code=404, detail="Not found")
-    await db.delete(record)
-    await db.commit()
-    return {"ok": True, "deleted": otp_id}

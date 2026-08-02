@@ -1,0 +1,427 @@
+{
+  "_meta": {
+    "document_title": "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT — Full Technical Specifications",
+    "document_version": "1.0",
+    "classification": "CONFIDENTIAL — FOR AUTHORIZED TECHNICAL INTEGRATION ONLY",
+    "prepared_by": "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT",
+    "authorized_signatory": "Ahmed Mohamed — Chief Executive Officer",
+    "prepared_date": "2026-05-19",
+    "document_reference": "ALSH-TECH-SPEC-20260519",
+    "email": "ceo@alshumookhgroup.ae",
+    "platform": "https://api.alshumookh-pay.com",
+    "api_base_url": "https://api.alshumookh-pay.com/api/v1"
+  },
+
+  "system_overview": {
+    "system_name": "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT — Core Banking API Platform",
+    "version": "v2.0 Production",
+    "framework": "FastAPI (Python) — Async REST API",
+    "database": "PostgreSQL (async SQLAlchemy ORM)",
+    "protocol": "HTTPS — TLS 1.3",
+    "api_prefix": "/api/v1",
+    "public_base_url": "https://api.alshumookh-pay.com",
+    "supported_formats": ["JSON", "XML (on request)", "binary .dat", ".fin"],
+    "encoding": "UTF-8",
+    "timezone": "UTC (ISO-8601 timestamps throughout)"
+  },
+
+  "security_architecture": {
+    "transport": {
+      "protocol": "HTTPS — TLS 1.3 enforced",
+      "http_redirect": "All HTTP requests automatically redirected to HTTPS"
+    },
+    "authentication_methods": {
+      "API_KEY": {
+        "header": "X-API-Key",
+        "description": "Client API key generated from ALSHUMOOKH Client Dashboard",
+        "how_to_obtain": "Login to https://api.alshumookh-pay.com/client → My Account → API Keys → Generate New Key",
+        "rotation": "Client can rotate key independently at any time — no admin required"
+      },
+      "OAUTH2_BEARER": {
+        "header": "Authorization: Bearer <token>",
+        "token_endpoint": "POST /api/v1/oauth/token",
+        "description": "OAuth 2.0 Client Credentials flow — for clients requiring enhanced security",
+        "token_lifetime": "Configurable per client"
+      },
+      "HMAC_SHA256": {
+        "header": "X-Signature",
+        "format": "HMAC-SHA256 over: X-Timestamp + '.' + exact request body",
+        "companion_header": "X-Timestamp (Unix timestamp in seconds)",
+        "description": "Optional — enabled per client for payload integrity verification"
+      },
+      "JWS_SIGNATURE": {
+        "header": "X-JWS-Signature",
+        "description": "Detached compact JWS containing payload_hash = SHA-256 of plaintext body",
+        "use_case": "High-security institutional clients"
+      },
+      "mTLS": {
+        "header": "X-Client-Cert-Fingerprint",
+        "description": "Mutual TLS — SHA-256 certificate fingerprint forwarded by proxy",
+        "use_case": "Enterprise-grade bilateral authentication"
+      }
+    },
+    "security_levels": {
+      "api_key_only": "Standard — API key verification only",
+      "hmac_verified": "Enhanced — API key + HMAC-SHA256 signature",
+      "jws_verified": "High — API key + JWS signature",
+      "mtls_verified": "Maximum — mTLS certificate + API key"
+    },
+    "waf_protection": {
+      "rate_limiting": {
+        "global_window": "60 seconds",
+        "max_requests_per_window": 240,
+        "public_endpoints": "Separate lower limits"
+      },
+      "ip_banning": {
+        "ban_duration_seconds": 900,
+        "probe_threshold": 5,
+        "probe_window_seconds": 600,
+        "silent_blocking": true
+      },
+      "user_agent_filtering": "Suspicious scanners and bots automatically blocked",
+      "path_probing_detection": "Automated scanner path detection with auto-ban",
+      "country_filtering": "Allowed and blocked country lists configurable"
+    }
+  },
+
+  "authentication_quick_reference": {
+    "minimum_required": "X-API-Key header on all protected endpoints",
+    "idempotency": "Idempotency-Key header (UUID) required on all POST inbound endpoints",
+    "admin_endpoints": "Require X-Admin-Api-Key (separate admin key — not client key)",
+    "client_endpoints": "Require X-API-Key from client dashboard"
+  },
+
+  "accepted_codes_and_enumerations": {
+
+    "order_status_codes": {
+      "CREATED":    "Order created — awaiting payment initiation",
+      "PENDING":    "Payment initiated — awaiting confirmation",
+      "PROCESSING": "Payment confirmed — settlement in progress",
+      "COMPLETED":  "Settlement complete — funds credited",
+      "FAILED":     "Payment or settlement failed",
+      "REFUNDED":   "Payment refunded to sender",
+      "EXPIRED":    "Order expired before payment completion"
+    },
+
+    "order_side_codes": {
+      "BUY":  "Client purchasing digital assets",
+      "SELL": "Client selling digital assets"
+    },
+
+    "payload_verification_status_codes": {
+      "RECEIVED":          "Payload received and stored — pending parsing",
+      "PARSED":            "Payload parsed successfully — fields extracted",
+      "AWAITING_TX_HASH":  "Awaiting blockchain transaction hash from sender",
+      "ALCHEMY_PENDING":   "Submitted to Alchemy for on-chain verification",
+      "ALCHEMY_VERIFIED":  "On-chain transaction verified via Alchemy",
+      "ON_CHAIN_CONFIRMED":"Transaction confirmed on blockchain",
+      "RECONCILED":        "Payload reconciled with internal ledger",
+      "FAILED":            "Verification or processing failed",
+      "MANUAL_REVIEW":     "Flagged for manual compliance review"
+    },
+
+    "m1_fund_status_codes": {
+      "RECEIVED":   "M1 Fund payload received and queued",
+      "APPROVED":   "Approved by ALSHUMOOKH — cleared for tokenization",
+      "REJECTED":   "Rejected by ALSHUMOOKH compliance team",
+      "ALREADY_RECEIVED": "Duplicate submission — Idempotency-Key already processed"
+    },
+
+    "review_decision_codes": {
+      "APPROVED":    "Payload approved for settlement",
+      "REJECTED":    "Payload rejected",
+      "HOLD":        "Payload placed on compliance hold",
+      "ESCALATED":   "Escalated to senior compliance",
+      "RECONCILED":  "Reconciled with ledger",
+      "NOTED":       "Reviewed and noted — no action required"
+    },
+
+    "review_priority_codes": {
+      "LOW":      "Standard processing",
+      "NORMAL":   "Default priority",
+      "HIGH":     "Priority review required — used for M1 Fund inbound",
+      "CRITICAL": "Immediate review required"
+    },
+
+    "settlement_type_codes": {
+      "wallet_to_wallet":   "Crypto wallet-to-wallet transfer",
+      "M1_FUND_INBOUND":    "M1-grouped financial data fund transfer",
+      "CREDIT_TRANSFER":    "Standard SWIFT credit transfer",
+      "WIRE_TRANSFER":      "Bank wire transfer",
+      "DIRECT_PAYMENT":     "Direct payment via payment provider",
+      "ONRAMP":             "Fiat-to-crypto on-ramp",
+      "LEDGER_SETTLEMENT":  "Internal ledger settlement"
+    },
+
+    "supported_networks": {
+      "ethereum": "Ethereum Mainnet — primary network for USDT ERC-20",
+      "base":     "Base (Coinbase L2) — supported for USDC",
+      "tron":     "TRON network — USDT TRC-20 (legacy)"
+    },
+
+    "supported_assets": {
+      "USDT": {
+        "standard": "ERC-20",
+        "network": "Ethereum Mainnet",
+        "contract": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        "decimals": 6
+      },
+      "USDC": {
+        "standard": "ERC-20",
+        "network": "Base / Ethereum",
+        "decimals": 6
+      },
+      "EUR": "Fiat — accepted via SWIFT wire to Emirates NBD",
+      "USD": "Fiat — accepted via wire transfer"
+    },
+
+    "swift_message_types": {
+      "MT103": "Customer Credit Transfer — individual payments",
+      "MT202": "Financial Institution Transfer — bank-to-bank",
+      "MT202COV": "Cover payment for MT103"
+    },
+
+    "iso_20022_message_types": {
+      "pacs.008.001.08": "FI to FI Customer Credit Transfer — primary CBPR+ message",
+      "pain.001.001.03": "Customer Credit Transfer Initiation",
+      "pacs.009":        "Financial Institution Credit Transfer"
+    },
+
+    "provider_codes": {
+      "coinbase":  "Coinbase Commerce / CDP",
+      "moonpay":   "MoonPay on-ramp",
+      "circle":    "Circle USDC payments",
+      "ledger":    "Internal ledger settlement",
+      "manual":    "Manual bank transfer"
+    },
+
+    "http_status_codes": {
+      "200": "Success",
+      "201": "Created",
+      "202": "Accepted — async processing",
+      "400": "Bad Request — invalid JSON or missing fields",
+      "401": "Unauthorized — missing or invalid API key",
+      "403": "Forbidden — IP not allowed or insufficient permissions",
+      "404": "Not Found — resource does not exist",
+      "405": "Method Not Allowed — use POST not GET on API endpoints",
+      "409": "Conflict — duplicate idempotency key",
+      "422": "Unprocessable Entity — validation error",
+      "429": "Too Many Requests — rate limit exceeded",
+      "500": "Internal Server Error — contact ceo@alshumookhgroup.ae",
+      "502": "Bad Gateway — upstream connection error",
+      "504": "Gateway Timeout — upstream timeout"
+    },
+
+    "charge_codes_swift": {
+      "OUR": "All charges paid by sender — recommended",
+      "SHA": "Charges shared between sender and receiver",
+      "BEN": "All charges paid by beneficiary"
+    },
+
+    "liquidity_class_codes": {
+      "M0": "Central bank monetary base — cash and reserves",
+      "M1": "Narrow money — M0 plus demand deposits (accepted by ALSHUMOOKH)",
+      "M2": "Broad money — M1 plus savings and short-term deposits"
+    }
+  },
+
+  "api_endpoints": {
+
+    "inbound_public": {
+      "base_path": "/api/v1/payloads",
+      "endpoints": {
+        "POST_m1_fund": {
+          "path": "POST /api/v1/payloads/m1-fund",
+          "description": "Receive M1-grouped financial data from authorized senders",
+          "auth": "X-API-Key (from client dashboard)",
+          "required_headers": ["X-API-Key", "Content-Type: application/json", "Idempotency-Key"],
+          "optional_headers": ["X-Sender-ID"],
+          "body": "M1 Fund JSON payload (Model 3)",
+          "returns": "Receipt with ALSH-M1 reference, receiver IBAN, wallet, and next steps"
+        },
+        "POST_ingest": {
+          "path": "POST /api/v1/payloads/ingest",
+          "description": "General settlement payload ingest — crypto wallet-to-wallet",
+          "auth": "X-API-Key or OAuth2 Bearer",
+          "required_headers": ["X-API-Key or Authorization: Bearer", "Idempotency-Key"],
+          "optional_headers": ["X-Timestamp", "X-Signature", "X-JWS-Signature", "X-Client-Cert-Fingerprint"],
+          "body": "Settlement JSON payload",
+          "returns": "Payload receipt with verification status"
+        },
+        "GET_schema": {
+          "path": "GET /api/v1/payloads/schema",
+          "description": "Returns full JSON schema for settlement payload",
+          "auth": "None required",
+          "returns": "Schema definition and field aliases"
+        }
+      }
+    },
+
+    "client_portal": {
+      "base_path": "/api/v1/client",
+      "endpoints": {
+        "POST_register": {
+          "path": "POST /api/v1/client/register",
+          "description": "Self-register as a new client",
+          "auth": "None — public"
+        },
+        "POST_login": {
+          "path": "POST /api/v1/client/login",
+          "description": "Client login — returns session cookie",
+          "auth": "Client credentials"
+        },
+        "GET_me": {
+          "path": "GET /api/v1/client/me",
+          "description": "Get current client profile and account details",
+          "auth": "X-API-Key"
+        },
+        "GET_api_key": {
+          "path": "GET /api/v1/client/apikey",
+          "description": "View current API key",
+          "auth": "Session cookie"
+        },
+        "POST_rotate_apikey": {
+          "path": "POST /api/v1/client/rotate-apikey",
+          "description": "Generate a new API key — invalidates old key",
+          "auth": "X-API-Key"
+        },
+        "GET_orders": {
+          "path": "GET /api/v1/client/orders",
+          "description": "List client's payment orders",
+          "auth": "X-API-Key"
+        },
+        "POST_direct_payment": {
+          "path": "POST /api/v1/client/direct-payment",
+          "description": "Initiate a direct payment",
+          "auth": "X-API-Key"
+        }
+      }
+    },
+
+    "oauth": {
+      "base_path": "/api/v1/oauth",
+      "endpoints": {
+        "POST_token": {
+          "path": "POST /api/v1/oauth/token",
+          "description": "Obtain OAuth 2.0 Bearer token — Client Credentials grant",
+          "auth": "client_id + client_secret in body",
+          "body": "grant_type=client_credentials&client_id=...&client_secret=...",
+          "returns": "access_token, token_type, expires_in"
+        }
+      }
+    },
+
+    "admin_m1_funds": {
+      "base_path": "/api/v1/admin/m1-funds",
+      "auth": "X-Admin-Api-Key",
+      "endpoints": {
+        "GET_list": {
+          "path": "GET /api/v1/admin/m1-funds",
+          "description": "List all received M1 Fund payloads — newest first",
+          "query_params": ["limit (default 50)", "offset (default 0)"]
+        },
+        "GET_detail": {
+          "path": "GET /api/v1/admin/m1-funds/{fund_id}",
+          "description": "Full detail of M1 Fund — includes parsed payload and attached files"
+        },
+        "POST_approve": {
+          "path": "POST /api/v1/admin/m1-funds/{fund_id}/approve",
+          "description": "Approve M1 Fund for tokenization",
+          "body_optional": "{ \"note\": \"approval note\" }"
+        },
+        "POST_reject": {
+          "path": "POST /api/v1/admin/m1-funds/{fund_id}/reject",
+          "description": "Reject M1 Fund with reason",
+          "body_optional": "{ \"reason\": \"rejection reason\" }"
+        }
+      }
+    },
+
+    "admin_swift": {
+      "base_path": "/api/v1/admin/swift",
+      "auth": "X-Admin-Api-Key",
+      "endpoints": {
+        "POST_transmit": {
+          "path": "POST /api/v1/admin/swift/transmit",
+          "description": "Send SWIFT envelope to external API endpoint",
+          "supported_message_types": ["MT103", "MT202"],
+          "supported_auth_types": ["none", "bearer", "apikey", "basic", "custom"]
+        },
+        "GET_lookup": {
+          "path": "GET /api/v1/admin/swift/lookup",
+          "description": "Search SWIFT records"
+        },
+        "POST_import": {
+          "path": "POST /api/v1/admin/swift/import",
+          "description": "Import SWIFT file into the system"
+        }
+      }
+    },
+
+    "admin_payloads": {
+      "base_path": "/api/v1/admin/payloads",
+      "auth": "X-Admin-Api-Key",
+      "endpoints": {
+        "GET_list":   "GET  /api/v1/admin/payloads",
+        "GET_detail": "GET  /api/v1/admin/payloads/{payload_id}",
+        "POST_verify":"POST /api/v1/admin/payloads/{payload_id}/verify",
+        "POST_review":"POST /api/v1/admin/payloads/{payload_id}/review"
+      }
+    },
+
+    "system_health": {
+      "endpoints": {
+        "GET_health":  "GET /health — system health check",
+        "GET_ready":   "GET /ready — readiness probe",
+        "GET_root":    "GET / — API info"
+      }
+    }
+  },
+
+  "receiver_details": {
+    "entity": "Alshumookh Alraeda Investment LLC",
+    "trade_name": "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT",
+    "license": "887065",
+    "address": "API World Tower, Office No. 2103/2104, Sheikh Zayed Road, Dubai, UAE",
+    "signatory": "Ahmed Mohamed — CEO",
+    "email": "ceo@alshumookhgroup.ae",
+    "bank": {
+      "account_name": "Alshumookh Alraeda Investment LLC",
+      "account_number": "1015754367301",
+      "iban": "AE960260001015754367301",
+      "bank": "Emirates NBD",
+      "branch": "Sheikh Zayed Road, Dubai, UAE",
+      "bic_swift": "EBILAEADXXX",
+      "currency": "EUR"
+    },
+    "crypto_wallet": {
+      "network": "Ethereum Mainnet",
+      "token": "USDT ERC-20",
+      "address": "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+      "usdt_contract": "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+    }
+  },
+
+  "integration_flow": {
+    "step_1": "Client self-registers at https://api.alshumookh-pay.com/client",
+    "step_2": "Client generates API Key from dashboard — My Account → API Keys → Generate New Key",
+    "step_3_option_A": "Submit M1 Fund JSON via POST /api/v1/payloads/m1-fund with X-API-Key header",
+    "step_3_option_B": "Initiate Master-to-Master SWIFT wire to IBAN AE960260001015754367301 at Emirates NBD BIC EBILAEADXXX",
+    "step_4": "System returns ALSH-M1 reference number and SHA-256 payload hash as receipt",
+    "step_5": "ALSHUMOOKH compliance team reviews within 1 business day",
+    "step_6": "Upon approval — tokenization initiated: EUR → USD → USDT ERC-20",
+    "step_7": "USDT transferred on-chain to agreed beneficiary wallet — gas fees paid by ALSHUMOOKH",
+    "step_8": "Full audit trail and settlement confirmation provided"
+  },
+
+  "compliance_and_standards": {
+    "kyc_aml": "Full KYC/AML verification required for all clients",
+    "iso_27001": "ISO/IEC 27001:2022 — Information Security Management",
+    "swift_cbpr_plus": "SWIFT CBPR+ compliant — pacs.008.001.08 validated",
+    "iso_20022": "Native ISO 20022 message generation supported",
+    "audit_trail": "Full immutable audit log for all transactions",
+    "data_encryption": "AES-256-GCM for sensitive data at rest",
+    "signature_verification": "SHA-256 integrity verification on all payloads",
+    "tls": "TLS 1.3 — all communications encrypted in transit"
+  }
+}
