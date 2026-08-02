@@ -1,0 +1,248 @@
+{
+  "_alshumookh_template": {
+    "document_title":   "ALSHUMOOKH — Official Settlement Payload Template",
+    "template_ref":     "ALSH-TPL-W2W-001",
+    "version":          "1.0",
+    "issued":           "2026-06-29",
+    "platform":         "https://api.alshumookh-pay.com",
+    "support":          "ceo@alshumookhgroup.ae",
+    "prepared_for":     "Lebenswerk Bau und Boden Brensbach GmbH",
+    "note":             "Fields marked [FILL] must be completed after on-chain transfer is executed. GREEN fields are fixed by ALSHUMOOKH and must not be changed."
+  },
+
+  "_alshumookh_submission": {
+    "endpoint":       "POST https://api.alshumookh-pay.com/api/v1/payloads/ingest",
+    "method":         "POST",
+    "content_type":   "application/json",
+    "schema_ref":     "https://api.alshumookh-pay.com/api/v1/payloads/schema",
+    "required_headers": {
+      "Content-Type":   "application/json",
+      "X-API-Key":      "[FILL] API key issued by ALSHUMOOKH admin dashboard",
+      "Idempotency-Key":"[FILL] Unique ID per submission — e.g. LBBG-ALSH-20260629-001"
+    },
+    "optional_headers": {
+      "X-Timestamp":    "Unix timestamp in seconds",
+      "X-Signature":    "HMAC-SHA256 over X-Timestamp.raw_body"
+    }
+  },
+
+  "transaction_payload": {
+    "transaction_reference": "[FILL] Your unique reference — e.g. LBBG-ALSH-20260629-001",
+    "tx_hash":               "[FILL] Real Ethereum TX hash from Etherscan after transfer — 0x...",
+    "sender_wallet":         "0xAf7DFBCc4C28f0d23cb4ddefD8C40CC0b07bE68D",
+    "receiver_wallet":       "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+    "amount":                "[FILL] USDT amount transferred on-chain — e.g. 1000000000.00",
+    "asset":                 "USDT",
+    "network":               "ethereum",
+    "token_contract":        "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "timestamp":             "[FILL] ISO 8601 — e.g. 2026-06-29T00:00:00Z",
+    "settlement_type":       "wallet_to_wallet",
+    "authorization_code":    "SND-ACK-20260622-1422"
+  },
+
+  "alshumookh_receiver": {
+    "entity":          "Alshumookh Alraeda Investment LLC",
+    "master_wallet":   "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+    "network":         "Ethereum Mainnet — ERC-20 USDT",
+    "token_contract":  "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "chain_id":        1,
+    "platform":        "https://api.alshumookh-pay.com",
+    "support":         "ceo@alshumookhgroup.ae"
+  },
+
+  "sender_details": {
+    "company_name":      "Lebenswerk Bau und Boden Brensbach GmbH",
+    "address":           "Ludwigsplatz 1, 67059 Ludwigshafen am Rhein, Germany",
+    "represented_by":    "Alexander Richter, Geschaftsfuhrer",
+    "bank":              "Deutsche Bank AG",
+    "sender_bic":        "DEUTDEDB545",
+    "account_id":        "DEUT09388040213595",
+    "wallet_address":    "0xAf7DFBCc4C28f0d23cb4ddefD8C40CC0b07bE68D",
+    "wallet_type":       "EOA",
+    "keystore_id":       "f4c3e0c8-4e72-4e6e-bf12-7d8f94a3c5b1",
+    "keystore_version":  3
+  },
+
+  "transaction_summary": {
+    "original_currency":        "EUR",
+    "original_amount_eur":      "1000000000.00",
+    "settlement_currency":      "USDT",
+    "settlement_amount_usdt":   "[FILL] Final USDT amount after conversion",
+    "conversion_from":          "WETH",
+    "conversion_to":            "USDT-ERC20",
+    "from_contract":            "0xAf7DFBCc4C28f0d23cb4ddefD8C40CC0b07bE68D",
+    "to_contract":              "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "conversion_rate_applied":  "[FILL] EUR to USDT rate — e.g. 1.09",
+    "conversion_date":          "[FILL] Date of conversion",
+    "etherscan_tx_url":         "[FILL] https://etherscan.io/tx/YOUR_TX_HASH",
+    "release_code":             "694.E9584",
+    "fhn_code":                 "2440",
+    "alliance_stabilization_ref": "0725523445"
+  },
+
+  "swift_details": {
+    "message_type":              "cashtransfer_converted",
+    "sender_bic":                "DEUTDEDB545",
+    "swift_message_reference":   "20260622MT10365491003919291",
+    "swift_reference_converted": "20260622cashtransfer_converted65491003919291",
+    "value_date":                "2026-06-25",
+    "base_currency":             "EUR",
+    "output_currency":           "USDT",
+    "exchange_rate_applied":     "1.09",
+    "currency_conversion_details": {
+      "converted_from_currency": "EUR",
+      "converted_to_currency":   "USDT",
+      "conversion_date":         "2026-06-25",
+      "conversion_rate":         "1.09"
+    },
+    "beneficiary_customer": {
+      "name":    "Lebenswerk Bau und Boden Brensbach GmbH",
+      "address": "Ludwigsplatz 1, 67059 Ludwigshafen am Rhein, Germany"
+    }
+  },
+
+  "s2s_communication": {
+    "version":     "1.0",
+    "date":        "2026-06-25",
+    "protocol":    "HTTPS/TLS 1.3",
+
+    "otp_confirmation": {
+      "from":       "Recipient Server (DEUT893884021395)",
+      "to":         "Sender Server",
+      "timestamp":  "2026-06-25 12:54:09 CET",
+      "transfer":   "Transfer Confirmation - Resources Transmitted",
+      "status":     "Confirmed / Transmitted / Complete / Done",
+      "server_convert": "Swift Convert Access - Initialization Sequence Executed",
+      "as15769":    "100%",
+      "amount_eur": "1000000000.00 EUR",
+      "recipient_signature": {
+        "company":                 "Lebenswerk Bau und Boden Brensbach GmbH",
+        "address":                 "Ludwigsplatz 1, 67059 Ludwigshafen am Rhein",
+        "represented_by":          "Alexander Richter, Geschaftsfuhrer",
+        "fhn_code":                "2440",
+        "alliance_stabilization_ref": "0725523445",
+        "authorization_token":     "2bfbd1f0cdb5d4c67a75c8c70b6d90ba",
+        "server_id":               "DEUT893884021395",
+        "reference_id":            "237898429557418"
+      }
+    },
+
+    "sender_acknowledgment": {
+      "from":       "Sender Server",
+      "to":         "Recipient Server (DEUT893884021395)",
+      "timestamp":  "2026-06-25 18:46:17 CET",
+      "transfer":   "Acknowledgment - Transfer Confirmation Received and Verified",
+      "status":     "Acknowledged / Verified / Complete / Finalized",
+      "server_convert": "Swift Convert Access - Acknowledgment Sequence Executed",
+      "as15769":    "100%",
+      "amount_eur": "1000000000.00 EUR",
+      "sender_signature": {
+        "auth_code":    "SND-ACK-20260622-1422",
+        "reference":    "0xAf7DFBCc4C28f0d23cb4ddefD8C40CC0b07bE68D"
+      }
+    },
+
+    "final_confirmation": {
+      "from":       "Recipient Server (DEUT893884021395)",
+      "to":         "Sender Server",
+      "timestamp":  "2026-06-25 18:47:42 CET",
+      "transfer":   "Final Confirmation - Transfer Acknowledgment Received and Locked",
+      "status":     "Finalized / Locked / Complete / Archived",
+      "server_convert": "Swift Convert Access - Finalization Sequence Executed",
+      "as15769":    "100%",
+      "amount_eur": "1000000000.00 EUR",
+      "final_ref":  "FINAL-ACK-20260622-1425",
+      "recipient_signature": {
+        "company":                 "Lebenswerk Bau und Boden Brensbach GmbH",
+        "fhn_code":                "2440",
+        "final_ref":               "FINAL-ACK-20260622-1425",
+        "alliance_stabilization_ref": "0725523445"
+      },
+      "verification_summary": {
+        "ack_status": "Received and Processed",
+        "timestamp":  "2026-06-25 18:47:42 CET"
+      }
+    },
+
+    "workflow": [
+      "1. Recipient sends Confirmation Message to Sender.",
+      "2. Sender sends Acknowledgment to Recipient.",
+      "3. Recipient processes acknowledgment and sends Final Confirmation to Sender."
+    ],
+
+    "security_requirements": [
+      "All messages must use HTTPS/TLS 1.3.",
+      "Signatures must include timestamped hashes.",
+      "Transactions immutable after Final Confirmation."
+    ]
+  },
+
+  "blockchain_details": {
+    "network":         "ethereum-mainnet",
+    "chain_id":        1,
+    "etherscan": {
+      "api_endpoint":  "https://api.etherscan.io/api",
+      "explorer_url":  "https://etherscan.io",
+      "wallet_url":    "https://etherscan.io/address/0xAf7DFBCc4C28f0d23cb4ddefD8C40CC0b07bE68D",
+      "usdt_token_url":"https://etherscan.io/token/0xdac17f958d2ee523a2206206994597c13d831ec7?a=0xAf7DFBCc4C28f0d23cb4ddefD8C40CC0b07bE68D",
+      "connection_status": "active"
+    },
+    "smart_contracts": {
+      "usdt": {
+        "address":   "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "name":      "Tether USD",
+        "symbol":    "USDT",
+        "decimals":  6
+      },
+      "weth": {
+        "address":   "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "name":      "Wrapped Ether",
+        "symbol":    "WETH",
+        "decimals":  18
+      }
+    },
+    "gas_settings": {
+      "gas_limit":         21000,
+      "max_priority_fee":  "2 gwei",
+      "max_fee":           "50 gwei"
+    },
+    "transaction_settings": {
+      "nonce_management":      "automatic",
+      "confirmation_blocks":   12,
+      "timeout_seconds":       300
+    },
+    "node": {
+      "client":    "Geth/v1.10.3-stable",
+      "location":  "Frankfurt, Germany",
+      "network_id": 1
+    },
+    "security": {
+      "encryption_algorithm":   "RSA-2048",
+      "signature_algorithm":    "ECDSA",
+      "hash_function":          "SHA-256"
+    }
+  },
+
+  "client_verification": {
+    "server_id":               "DEUT893884021395",
+    "reference_id":            "237898429557418",
+    "verification_hash":       "FF65D978A10E0A51",
+    "release_code":            "694.E9584",
+    "authorization_token":     "2bfbd1f0cdb5d4c67a75c8c70b6d90ba",
+    "auto_authorization_token":"AUTH-DEUT-2440-0725523445",
+    "final_confirmation_ref":  "FINAL-ACK-20260622-1425",
+    "signature_timestamp":     "2026-06-25 18:47:42 CET",
+    "upload_timestamp":        "2026-06-25 18:48:20+0100",
+    "prepared_by":             "swift.global.server",
+    "validated_by":            "swift.validation.server",
+    "convert_note":            "funds m1 converted to crypto"
+  },
+
+  "_alshumookh_verification_flow": {
+    "step_1": "RECEIVED          — Payload ingested, payload_id returned immediately",
+    "step_2": "ALCHEMY_PENDING   — TX hash verified on Ethereum RPC",
+    "step_3": "ON_CHAIN_CONFIRMED — Receiver = ALSHUMOOKH master wallet, asset = USDT confirmed",
+    "step_4": "MANUAL_REVIEW     — Triggered if any check fails",
+    "step_5": "RECONCILED        — Settlement complete"
+  }
+}

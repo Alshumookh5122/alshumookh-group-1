@@ -1,0 +1,15 @@
+{
+  "transaction_reference": "20260612MT10365491003919291",
+  "tx_hash": null,
+
+  "sender_wallet":   "0xF3d5391839BB5a1Bba15dF173230FFe86FEc6eff",
+  "receiver_wallet": "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+
+  "amount":          "4154000000.00",
+  "asset":           "USDT",
+  "network":         "ethereum",
+  "token_contract":  "0xdac17f958d2ee523a2206206994597c13d831ec7",
+
+  "timestamp":       "2026-07-25T00:00:00Z",
+  "settlement_type": "wallet_to_wallet"
+}

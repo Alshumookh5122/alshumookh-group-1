@@ -1,0 +1,117 @@
+{
+  "__instructions": {
+    "title": "ALSHUMOOKH GROUP — Settlement Ingest Package",
+    "subtitle": "Master Wallet → Master Wallet | USDT ERC-20 | Ethereum Mainnet",
+    "issued_by": "Alshumookh Global Banking Financing And Credit",
+    "issued_date": "2026-07-25",
+    "swift_reference": "20260612MT10365491003919291",
+
+    "HOW_TO_USE": [
+      "1. Execute the on-chain USDT transfer from SENDER wallet → RECEIVER wallet (see transaction_details below).",
+      "2. Once confirmed on Etherscan, copy the transaction hash (tx_hash).",
+      "3. In the section 'payload_body', replace the value of 'tx_hash' with your actual transaction hash.",
+      "4. Send the HTTP POST request exactly as described in 'http_request' (headers + body).",
+      "5. A successful response will return { status: 'payload_received', verification_status: 'ALCHEMY_PENDING' }.",
+      "6. The ALSHUMOOKH system will auto-verify the transaction on Ethereum Mainnet and confirm settlement."
+    ]
+  },
+
+  "transaction_details": {
+    "type":                  "Master Wallet → Master Wallet",
+    "asset":                 "USDT (ERC-20)",
+    "network":               "Ethereum Mainnet",
+    "chain_id":              1,
+    "amount":                "4,154,000,000.00 USDT",
+    "swift_reference":       "20260612MT10365491003919291",
+    "settlement_finality":   "On-chain confirmation — final and irreversible",
+    "usdt_contract_address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "usdt_contract_link":    "https://etherscan.io/token/0xdac17f958d2ee523a2206206994597c13d831ec7",
+
+    "sender_wallet":         "0xF3d5391839BB5a1Bba15dF173230FFe86FEc6eff",
+    "sender_etherscan":      "https://etherscan.io/address/0xF3d5391839BB5a1Bba15dF173230FFe86FEc6eff",
+
+    "receiver_wallet":       "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+    "receiver_etherscan":    "https://etherscan.io/address/0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+    "receiver_company":      "Alshumookh Global Banking Financing And Credit",
+    "receiver_license":      "887065",
+    "receiver_address":      "API World Tower, Office No. 2103/2104, Shaikh Zayed Road, Dubai, UAE"
+  },
+
+  "http_request": {
+    "method":   "POST",
+    "url":      "https://api.alshumookh-pay.com/api/v1/payloads/ingest",
+    "protocol": "HTTPS — TLS 1.3",
+
+    "headers": {
+      "Content-Type":    "application/json",
+      "X-API-Key":       "asgbfc_qT-1ly400jnMk_8Tr5JM4drHVM40gU1UQtmS7S3tWqU",
+      "Idempotency-Key": "20260612MT10365491003919291-2026-07-25"
+    },
+
+    "body": {
+      "transaction_reference": "20260612MT10365491003919291",
+      "tx_hash":               "⬅ INSERT YOUR TRANSACTION HASH HERE AFTER ON-CHAIN BROADCAST",
+
+      "sender_wallet":         "0xF3d5391839BB5a1Bba15dF173230FFe86FEc6eff",
+      "receiver_wallet":       "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+
+      "amount":                "4154000000.00",
+      "asset":                 "USDT",
+      "network":               "ethereum",
+      "token_contract":        "0xdac17f958d2ee523a2206206994597c13d831ec7",
+
+      "timestamp":             "2026-07-25T00:00:00Z",
+      "settlement_type":       "wallet_to_wallet"
+    }
+  },
+
+  "curl_example": {
+    "note": "Replace TX_HASH_HERE with your real transaction hash, then run this command.",
+    "command": "curl -X POST https://api.alshumookh-pay.com/api/v1/payloads/ingest -H \"Content-Type: application/json\" -H \"X-API-Key: asgbfc_qT-1ly400jnMk_8Tr5JM4drHVM40gU1UQtmS7S3tWqU\" -H \"Idempotency-Key: 20260612MT10365491003919291-2026-07-25\" -d \"{\\\"transaction_reference\\\":\\\"20260612MT10365491003919291\\\",\\\"tx_hash\\\":\\\"TX_HASH_HERE\\\",\\\"sender_wallet\\\":\\\"0xF3d5391839BB5a1Bba15dF173230FFe86FEc6eff\\\",\\\"receiver_wallet\\\":\\\"0xBD682cfD8382a90adfDd6745780D3D7959c4d939\\\",\\\"amount\\\":\\\"4154000000.00\\\",\\\"asset\\\":\\\"USDT\\\",\\\"network\\\":\\\"ethereum\\\",\\\"token_contract\\\":\\\"0xdac17f958d2ee523a2206206994597c13d831ec7\\\",\\\"timestamp\\\":\\\"2026-07-25T00:00:00Z\\\",\\\"settlement_type\\\":\\\"wallet_to_wallet\\\"}\""
+  },
+
+  "expected_responses": {
+    "success": {
+      "http_status": 200,
+      "body": {
+        "status": "payload_received",
+        "payload_id": "<UUID>",
+        "transaction_reference": "20260612MT10365491003919291",
+        "parsed": true,
+        "verification_status": "ALCHEMY_PENDING"
+      }
+    },
+    "error_missing_api_key": {
+      "http_status": 401,
+      "body": { "error": "unauthorized", "message": "X-API-Key or OAuth2 Bearer token is required" }
+    },
+    "error_missing_idempotency": {
+      "http_status": 422,
+      "body": { "error": "missing_idempotency_key", "message": "Idempotency-Key header is required" }
+    },
+    "error_duplicate": {
+      "http_status": 200,
+      "body": { "status": "duplicate", "message": "Duplicate Idempotency-Key — returning original response" }
+    }
+  },
+
+  "credentials": {
+    "api_key":            "asgbfc_qT-1ly400jnMk_8Tr5JM4drHVM40gU1UQtmS7S3tWqU",
+    "client_id":          "b1325621-2bd9-48ae-913e-11033d2d3861",
+    "oauth_client_id":    "asg_oauth_sdN6jqx7v2GGEa48yptX2hNu6vYizSaj",
+    "oauth_client_secret":"asg_secret_zy5flSOrOxFEyllwfGDHLdJCDchtmkQtvdgfZH-qCm65KRkT2K0ICg",
+    "WARNING": "Keep these credentials confidential. Do not share outside the authorized technical team."
+  },
+
+  "compliance": {
+    "aml_ctf_status":    "Confirmed",
+    "sanctions_status":  "Completed",
+    "source_of_funds":   "Received",
+    "internal_approval": "Granted",
+    "document_sha256":   "0x34a6cca8b1fc1f89502369aef45eed8b3fe3536383637b4d749683ad06b73ed3"
+  },
+
+  "support": {
+    "api_portal": "https://api.alshumookh-pay.com"
+  }
+}

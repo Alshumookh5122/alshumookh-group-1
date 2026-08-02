@@ -1,0 +1,89 @@
+{
+  "integration_guide": {
+    "title": "ALSHUMOOKH GROUP — Sender Integration Package",
+    "description": "Master Wallet to Master Wallet — USDT ERC-20 Settlement",
+    "issued_to": "Sender / Counterparty",
+    "issued_by": "ALSHUMOOKH Global Banking Financing And Credit",
+    "date": "2026-07-25",
+    "version": "1.0",
+
+    "step_by_step": [
+      "STEP 1: Execute the on-chain USDT transfer from your sender wallet to the ALSHUMOOKH receiver wallet listed below.",
+      "STEP 2: Copy the transaction hash (tx_hash) generated on Etherscan after broadcast.",
+      "STEP 3: Insert the tx_hash into the payload body under the field 'tx_hash'.",
+      "STEP 4: Send the HTTP POST request to the endpoint below with the exact headers and body provided.",
+      "STEP 5: The system will automatically verify the transaction on-chain via Ethereum Mainnet and confirm settlement."
+    ]
+  },
+
+  "api_request": {
+    "method": "POST",
+    "endpoint": "https://api.alshumookh-pay.com/api/v1/payloads/ingest",
+    "protocol": "HTTPS — TLS 1.3",
+    "content_type": "application/json",
+
+    "required_headers": {
+      "Content-Type": "application/json",
+      "X-API-Key": "asgbfc_qT-1ly400jnMk_8Tr5JM4drHVM40gU1UQtmS7S3tWqU",
+      "Idempotency-Key": "20260612MT10365491003919291-2026-07-25"
+    },
+
+    "body": {
+      "transaction_reference": "20260612MT10365491003919291",
+      "tx_hash": "PASTE_YOUR_TRANSACTION_HASH_HERE_AFTER_ON_CHAIN_BROADCAST",
+
+      "sender_wallet":   "0xF3d5391839BB5a1Bba15dF173230FFe86FEc6eff",
+      "receiver_wallet": "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+
+      "amount":          "4154000000.00",
+      "asset":           "USDT",
+      "network":         "ethereum",
+      "token_contract":  "0xdac17f958d2ee523a2206206994597c13d831ec7",
+
+      "timestamp":       "2026-07-25T00:00:00Z",
+      "settlement_type": "wallet_to_wallet"
+    }
+  },
+
+  "transaction_details": {
+    "swift_reference":          "20260612MT10365491003919291",
+    "total_amount_usdt":        "4,154,000,000.00 USDT",
+    "asset":                    "Tether USD (USDT) — ERC-20",
+    "network":                  "Ethereum Mainnet",
+    "chain_id":                 1,
+    "usdt_smart_contract":      "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "etherscan_contract":       "https://etherscan.io/token/0xdac17f958d2ee523a2206206994597c13d831ec7",
+
+    "sender_wallet":            "0xF3d5391839BB5a1Bba15dF173230FFe86FEc6eff",
+    "sender_etherscan":         "https://etherscan.io/address/0xF3d5391839BB5a1Bba15dF173230FFe86FEc6eff",
+
+    "receiver_wallet":          "0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+    "receiver_etherscan":       "https://etherscan.io/address/0xBD682cfD8382a90adfDd6745780D3D7959c4d939",
+    "receiver_company":         "Alshumookh Global Banking Financing And Credit",
+    "receiver_address":         "API World Tower, Office No. 2103/2104, Shaikh Zayed Road, Dubai, UAE",
+    "receiver_license":         "887065"
+  },
+
+  "compliance": {
+    "aml_ctf_status":    "Confirmed",
+    "sanctions_status":  "Completed",
+    "source_of_funds":   "Received",
+    "internal_approval": "Granted"
+  },
+
+  "example_curl_command": "curl -X POST https://api.alshumookh-pay.com/api/v1/payloads/ingest -H 'Content-Type: application/json' -H 'X-API-Key: asgbfc_qT-1ly400jnMk_8Tr5JM4drHVM40gU1UQtmS7S3tWqU' -H 'Idempotency-Key: 20260612MT10365491003919291-2026-07-25' -d '{\"transaction_reference\":\"20260612MT10365491003919291\",\"tx_hash\":\"YOUR_TX_HASH\",\"sender_wallet\":\"0xF3d5391839BB5a1Bba15dF173230FFe86FEc6eff\",\"receiver_wallet\":\"0xBD682cfD8382a90adfDd6745780D3D7959c4d939\",\"amount\":\"4154000000.00\",\"asset\":\"USDT\",\"network\":\"ethereum\",\"token_contract\":\"0xdac17f958d2ee523a2206206994597c13d831ec7\",\"timestamp\":\"2026-07-25T00:00:00Z\",\"settlement_type\":\"wallet_to_wallet\"}'",
+
+  "expected_success_response": {
+    "status": "payload_received",
+    "payload_id": "<UUID assigned by system>",
+    "transaction_reference": "20260612MT10365491003919291",
+    "parsed": true,
+    "verification_status": "ALCHEMY_PENDING"
+  },
+
+  "support": {
+    "api_portal":  "https://api.alshumookh-pay.com",
+    "contact":     "ceo@alshumookhgroup.ae",
+    "issued_date": "2026-07-25"
+  }
+}

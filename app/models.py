@@ -1064,6 +1064,23 @@ class WalletVerification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
 
+class WalletOTP(Base):
+    """OTP-based wallet address verification — sent via WhatsApp."""
+    __tablename__ = "wallet_otps"
+
+    id:             Mapped[str]           = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    wallet_address: Mapped[str]           = mapped_column(String(128), nullable=False, index=True)
+    phone_number:   Mapped[str]           = mapped_column(String(50), nullable=False)
+    otp_hash:       Mapped[str]           = mapped_column(String(64), nullable=False)   # SHA-256 of 6-digit OTP
+    is_verified:    Mapped[bool]          = mapped_column(Boolean, default=False, nullable=False, index=True)
+    is_used:        Mapped[bool]          = mapped_column(Boolean, default=False, nullable=False)
+    expires_at:     Mapped[datetime]      = mapped_column(DateTime(timezone=True), nullable=False)
+    verified_at:    Mapped[datetime|None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notes:          Mapped[str|None]      = mapped_column(Text, nullable=True)
+    created_by:     Mapped[str|None]      = mapped_column(String(64), nullable=True)   # admin IP
+    created_at:     Mapped[datetime]      = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
 class ApiSignature(Base):
     __tablename__ = "api_signatures"
 
