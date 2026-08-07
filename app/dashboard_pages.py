@@ -9796,7 +9796,7 @@ function exportCSV() {
     return [r.swift_reference,r.sender_name,r.sender_bank,r.amount_eur,r.amount_usdc,r.fx_rate,r.status,r.settlement_wallet,r.settlement_tx_hash,r.created_at]
       .map(function(v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }).join(',');
   });
-  var blob = new Blob([[hdr.join(',')].concat(rows).join('\n')], { type: 'text/csv' });
+  var blob = new Blob([[hdr.join(',')].concat(rows).join('\\n')], { type: 'text/csv' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'circle_wires_' + new Date().toISOString().slice(0,10) + '.csv';
