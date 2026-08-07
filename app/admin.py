@@ -120,6 +120,11 @@ from app.circle_service import (
     list_wire_deposits as circle_list_wire_deposits,
     get_wire_deposit as circle_get_wire_deposit,
     get_circle_summary,
+    get_fx_rate as circle_get_fx_rate,
+    bulk_settle_deposits as circle_bulk_settle,
+    manual_match_deposit as circle_manual_match,
+    get_analytics_data as circle_get_analytics,
+    get_webhook_log as circle_get_webhook_log,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -5429,3 +5434,82 @@ async def circle_cancel_deposit(
     """Cancel a pending Circle wire deposit."""
     result = await circle_cancel_wire_deposit(db, deposit_id, notes=notes)
     return {"ok": "error" not in result, **result}
+
+
+@router.get("/circle/fx-rate", tags=["circle"])
+async def circle_fx_rate(_: AdminKey):
+    """Fetch live EUR/USDC exchange rate for the FX calculator."""
+    return await circle_get_fx_rate()
+
+
+@router.post("/circle/wire-deposits/bulk-settle", tags=["circle"])
+async def circle_bulk_settle_deposits(
+    _: AdminKey,
+    body: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Settle multiple Circle wire deposits at once."""
+    deposit_ids = body.get("deposit_ids", [])
+    if not deposit_ids:
+        raise HTTPException(status_code=400, detail="No deposit IDs provided")
+    result = await circle_bulk_settle(db, deposit_ids)
+    return {"ok": True, **result}
+
+
+@router.post("/circle/wire-deposits/{deposit_id}/manual-match", tags=["circle"])
+async def circle_manual_match_deposit(
+    deposit_id: str,
+    _: AdminKey,
+    body: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually link a Circle payment ID to an existing wire deposit."""
+    circle_payment_id = body.get("circle_payment_id", "").strip()
+    if not circle_payment_id:
+        raise HTTPException(status_code=400, detail="circle_payment_id is required")
+    raw_usdc = body.get("amount_usdc")
+    amount_usdc = Decimal(str(raw_usdc)) if raw_usdc else None
+    result = await circle_manual_match(db, deposit_id, circle_payment_id, amount_usdc)
+    return {"ok": "error" not in result, **result}
+
+
+@router.post("/circle/wire-deposits/{deposit_id}/retry-settle", tags=["circle"])
+async def circle_retry_settle_deposit(
+    deposit_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retry settlement for a failed or pending Circle wire deposit."""
+    result_q = await db.execute(
+        select(CircleWireDeposit).where(CircleWireDeposit.id == deposit_id)
+    )
+    deposit = result_q.scalar_one_or_none()
+    if not deposit:
+        raise HTTPException(status_code=404, detail="Deposit not found")
+    if deposit.status not in ("FAILED", "RECEIVED", "PENDING"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot retry deposit in status: {deposit.status}",
+        )
+    # Reset to RECEIVED so settle_wire_deposit will process it
+    deposit.status = CircleWireDepositStatus.RECEIVED.value
+    await db.commit()
+    result = await circle_settle_wire_deposit(db, deposit_id)
+    return {"ok": "error" not in result, **result}
+
+
+@router.get("/circle/analytics", tags=["circle"])
+async def circle_analytics_data(_: AdminKey, db: AsyncSession = Depends(get_db)):
+    """Return daily volume analytics for Circle wire deposits."""
+    return await circle_get_analytics(db)
+
+
+@router.get("/circle/webhook-log", tags=["circle"])
+async def circle_webhook_log_endpoint(
+    _: AdminKey,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return recent Circle webhook events recorded in wire deposit records."""
+    logs = await circle_get_webhook_log(db, limit=limit)
+    return {"logs": logs}

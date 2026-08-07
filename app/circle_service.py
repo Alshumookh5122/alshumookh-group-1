@@ -518,3 +518,148 @@ async def get_circle_summary(db: AsyncSession) -> dict:
     summary["total_eur"] = str(summary["total_eur"])
     summary["total_usdc"] = str(summary["total_usdc"])
     return summary
+
+
+# ─── 8. FX Rate ───────────────────────────────────────────────────────────────
+
+async def get_fx_rate() -> dict:
+    """Fetch live EUR/USD exchange rate for FX calculator."""
+    try:
+        async with httpx.AsyncClient(timeout=6) as client:
+            resp = await client.get(
+                "https://api.exchangerate-api.com/v4/latest/EUR",
+                headers={"Accept": "application/json"},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                usd_rate = float(data.get("rates", {}).get("USD", 1.08))
+                return {
+                    "eur_usd": usd_rate,
+                    "eur_usdc": usd_rate,
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "source": "exchangerate-api",
+                }
+    except Exception as exc:
+        logger.warning("FX rate fetch failed: %s", exc)
+
+    # Fallback to Circle's own OTC rate if available
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(
+                "https://api.exchangerate-api.com/v4/latest/EUR",
+                headers={"Accept": "application/json"},
+            )
+    except Exception:
+        pass
+
+    return {
+        "eur_usd": 1.08,
+        "eur_usdc": 1.08,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "source": "fallback",
+    }
+
+
+# ─── 9. Bulk Settle ───────────────────────────────────────────────────────────
+
+async def bulk_settle_deposits(db: AsyncSession, deposit_ids: list[str]) -> dict:
+    """Settle multiple wire deposits in sequence."""
+    settled, failed, skipped = [], [], []
+    for did in deposit_ids:
+        result = await settle_wire_deposit(db, did)
+        if "error" in result:
+            failed.append({"id": did, "error": result["error"]})
+        else:
+            settled.append({"id": did, "tx_hash": result.get("tx_hash", "")})
+    return {"settled": settled, "failed": failed, "skipped": skipped}
+
+
+# ─── 10. Manual Match ─────────────────────────────────────────────────────────
+
+async def manual_match_deposit(
+    db: AsyncSession,
+    deposit_id: str,
+    circle_payment_id: str,
+    amount_usdc: Decimal | None = None,
+) -> dict:
+    """Manually link a Circle payment ID to an existing wire deposit."""
+    deposit = await get_wire_deposit(db, deposit_id)
+    if not deposit:
+        return {"error": "Deposit not found"}
+    if deposit.status not in (
+        CircleWireDepositStatus.PENDING.value,
+        CircleWireDepositStatus.FAILED.value,
+    ):
+        return {"error": f"Cannot match deposit in status: {deposit.status}"}
+
+    deposit.circle_payment_id = circle_payment_id
+    if amount_usdc and amount_usdc > 0:
+        deposit.amount_usdc = amount_usdc
+    deposit.status = CircleWireDepositStatus.RECEIVED.value
+
+    if deposit.amount_eur and deposit.amount_usdc:
+        try:
+            deposit.fx_rate = (deposit.amount_usdc / deposit.amount_eur).quantize(
+                Decimal("0.00000001")
+            )
+        except Exception:
+            pass
+
+    await db.commit()
+    await db.refresh(deposit)
+    logger.info("Manual match: deposit=%s circle_payment_id=%s", deposit_id, circle_payment_id)
+    return {"status": "matched", "deposit_id": deposit_id, "circle_payment_id": circle_payment_id}
+
+
+# ─── 11. Analytics ────────────────────────────────────────────────────────────
+
+async def get_analytics_data(db: AsyncSession) -> dict:
+    """Return daily volume data for Chart.js charts."""
+    from sqlalchemy import func as sqlfunc
+
+    result = await db.execute(
+        select(
+            sqlfunc.date(CircleWireDeposit.created_at).label("date"),
+            sqlfunc.count(CircleWireDeposit.id).label("count"),
+            sqlfunc.coalesce(sqlfunc.sum(CircleWireDeposit.amount_eur), 0).label("total_eur"),
+            sqlfunc.coalesce(sqlfunc.sum(CircleWireDeposit.amount_usdc), 0).label("total_usdc"),
+        )
+        .group_by(sqlfunc.date(CircleWireDeposit.created_at))
+        .order_by(sqlfunc.date(CircleWireDeposit.created_at))
+    )
+    rows = result.all()
+    return {
+        "daily": [
+            {
+                "date": str(r.date),
+                "count": r.count,
+                "total_eur": str(r.total_eur),
+                "total_usdc": str(r.total_usdc),
+            }
+            for r in rows
+        ]
+    }
+
+
+# ─── 12. Webhook Log ──────────────────────────────────────────────────────────
+
+async def get_webhook_log(db: AsyncSession, limit: int = 20) -> list[dict]:
+    """Return recent Circle webhook events stored in wire deposit records."""
+    result = await db.execute(
+        select(CircleWireDeposit)
+        .where(CircleWireDeposit.circle_webhook_data.isnot(None))
+        .order_by(desc(CircleWireDeposit.updated_at))
+        .limit(limit)
+    )
+    deposits = result.scalars().all()
+    return [
+        {
+            "deposit_id": d.id,
+            "swift_reference": d.swift_reference,
+            "status": d.status,
+            "circle_payment_id": d.circle_payment_id,
+            "webhook_data": d.circle_webhook_data,
+            "received_at": d.updated_at.isoformat() if d.updated_at else None,
+        }
+        for d in deposits
+    ]

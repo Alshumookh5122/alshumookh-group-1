@@ -9177,39 +9177,102 @@ _CIRCLE_BODY = """
 <div class="page-body">
 
 <!-- ── Stats Row ──────────────────────────────────────────────────────────── -->
-<div class="stat-grid" id="circleStats">
+<div class="stat-grid">
   <div class="stat-card">
     <div class="label">USDC Balance (Circle)</div>
-    <div class="value" id="cBalUsdc">—</div>
+    <div class="value" id="cBalUsdc">&#8212;</div>
     <div class="sub">Live from Circle API</div>
   </div>
   <div class="stat-card">
     <div class="label">Pending Wires</div>
-    <div class="value" id="cCntPending">—</div>
+    <div class="value" id="cCntPending">&#8212;</div>
     <div class="sub">Awaiting receipt</div>
   </div>
   <div class="stat-card">
     <div class="label">Received</div>
-    <div class="value" id="cCntReceived">—</div>
+    <div class="value" id="cCntReceived">&#8212;</div>
     <div class="sub">USDC credited by Circle</div>
   </div>
   <div class="stat-card">
     <div class="label">Settled</div>
-    <div class="value" id="cCntSettled">—</div>
+    <div class="value" id="cCntSettled">&#8212;</div>
     <div class="sub">Transferred to Master Wallet</div>
   </div>
   <div class="stat-card">
     <div class="label">Total EUR Expected</div>
-    <div class="value" id="cTotalEur">—</div>
+    <div class="value" id="cTotalEur">&#8212;</div>
     <div class="sub">All wire deposits</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Live EUR / USDC</div>
+    <div class="value" id="cFxRate">&#8212;</div>
+    <div class="sub" id="cFxSrc">Loading rate...</div>
+  </div>
+</div>
+
+<!-- ── FX Rate Calculator ─────────────────────────────────────────────────── -->
+<div class="panel">
+  <div class="panel-head">
+    <h3>&#x1F4B1; FX Rate Calculator</h3>
+    <button class="btn btn-ghost" onclick="loadFxRate()" style="font-size:11px;">&#x1F504; Refresh Rate</button>
+  </div>
+  <div style="padding:16px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+      <div class="form-field">
+        <label>Amount EUR</label>
+        <input type="number" id="fxAmtEur" placeholder="e.g. 500000" oninput="calcFx()" step="0.01" min="0">
+      </div>
+      <div class="form-field">
+        <label>EUR / USDC Rate</label>
+        <input type="number" id="fxRateInput" placeholder="e.g. 1.08" oninput="calcFx()" step="0.0001">
+      </div>
+      <div class="form-field">
+        <label>Fee % (optional)</label>
+        <input type="number" id="fxFee" placeholder="0.5" oninput="calcFx()" step="0.01" min="0" value="0">
+      </div>
+    </div>
+    <div id="fxResult" style="display:none;margin-top:14px;padding:14px;background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.25);border-radius:10px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:12px;text-align:center;">
+        <div>
+          <div style="color:var(--muted);margin-bottom:4px;">Gross USDC</div>
+          <div style="font-size:20px;font-weight:800;color:#34d399;" id="fxGross">0</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);margin-bottom:4px;">Fee Deduction</div>
+          <div style="font-size:20px;font-weight:800;color:#f87171;" id="fxFeeAmt">0</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);margin-bottom:4px;">Net USDC to Client</div>
+          <div style="font-size:20px;font-weight:800;color:var(--gold);" id="fxNet">0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Analytics Charts ───────────────────────────────────────────────────── -->
+<div class="panel">
+  <div class="panel-head">
+    <h3>&#x1F4C8; Analytics</h3>
+    <button class="btn btn-ghost" onclick="loadAnalytics()" style="font-size:11px;">&#x1F504; Refresh</button>
+  </div>
+  <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;">Daily EUR Volume</div>
+      <canvas id="chartEur" height="160"></canvas>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;">Daily Deposit Count</div>
+      <canvas id="chartCount" height="160"></canvas>
+    </div>
   </div>
 </div>
 
 <!-- ── Wire Instructions ──────────────────────────────────────────────────── -->
 <div class="panel">
   <div class="panel-head">
-    <h3>🏦 Circle Wire Deposit Instructions (SWIFT MT103)</h3>
-    <button class="btn btn-ghost" onclick="loadWireInstructions()" style="font-size:11px;">🔄 Refresh</button>
+    <h3>&#x1F3E6; Circle Wire Deposit Instructions (SWIFT MT103)</h3>
+    <button class="btn btn-ghost" onclick="loadWireInstructions()" style="font-size:11px;">&#x1F504; Refresh</button>
   </div>
   <div id="wireInstructions" style="padding:16px;">
     <div style="color:var(--muted);font-size:12px;">Loading banking instructions from Circle...</div>
@@ -9219,7 +9282,7 @@ _CIRCLE_BODY = """
 <!-- ── Create New Wire Deposit ────────────────────────────────────────────── -->
 <div class="panel">
   <div class="panel-head">
-    <h3>➕ Create New Wire Deposit (Generate SWIFT Reference)</h3>
+    <h3>&#x2795; Create New Wire Deposit (Generate SWIFT Reference)</h3>
   </div>
   <div style="padding:16px;">
     <div class="form-grid">
@@ -9259,18 +9322,28 @@ _CIRCLE_BODY = """
         <textarea id="cNotes" placeholder="Optional internal notes"></textarea>
       </div>
     </div>
-    <div style="margin-top:12px;display:flex;gap:10px;">
+    <div style="margin-top:12px;">
       <button class="btn btn-primary" onclick="createWireDeposit()">Generate SWIFT Reference</button>
     </div>
     <!-- Result box -->
     <div id="cCreateResult" style="display:none;margin-top:16px;padding:16px;background:rgba(5,150,105,.1);border:1px solid rgba(5,150,105,.3);border-radius:10px;">
-      <div style="font-size:13px;font-weight:700;color:#34d399;margin-bottom:10px;">✅ Wire Deposit Created</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">
-        Send this reference to the client — they MUST include it in the MT103 Payment Details field:
+      <div style="font-size:13px;font-weight:700;color:#34d399;margin-bottom:10px;">&#x2705; Wire Deposit Created</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
+        Client MUST include this reference in MT103 Field 70 (Payment Details):
       </div>
-      <div id="cRefCode" style="font-size:20px;font-weight:800;color:var(--gold);letter-spacing:2px;font-family:monospace;padding:10px;background:rgba(0,0,0,.2);border-radius:8px;display:inline-block;"></div>
-      <button class="btn btn-ghost" onclick="copyText(document.getElementById('cRefCode').textContent)" style="margin-left:12px;font-size:11px;">📋 Copy</button>
-      <div id="cRefDetails" style="margin-top:10px;font-size:11px;color:var(--muted);"></div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+        <div id="cRefCode" style="font-size:22px;font-weight:800;color:var(--gold);letter-spacing:3px;font-family:monospace;padding:12px 18px;background:rgba(0,0,0,.25);border-radius:8px;"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost" onclick="copyText(document.getElementById('cRefCode').textContent)" style="font-size:11px;">&#x1F4CB; Copy</button>
+          <button class="btn btn-ghost" onclick="showQR()" style="font-size:11px;">&#x1F4F1; QR Code</button>
+          <button class="btn btn-ghost" onclick="printClientPackage()" style="font-size:11px;">&#x1F5A8; Print Package</button>
+        </div>
+      </div>
+      <div id="cRefDetails" style="font-size:11px;color:var(--muted);"></div>
+      <div id="cQrWrap" style="display:none;margin-top:14px;padding:14px;background:#fff;border-radius:10px;display:inline-block;">
+        <div id="cQrCode"></div>
+        <div style="font-size:10px;color:#333;text-align:center;margin-top:6px;" id="cQrLabel"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -9278,8 +9351,8 @@ _CIRCLE_BODY = """
 <!-- ── Wire Deposits Table ────────────────────────────────────────────────── -->
 <div class="panel">
   <div class="panel-head">
-    <h3>📋 Wire Deposits</h3>
-    <div class="filter-bar">
+    <h3>&#x1F4CB; Wire Deposits</h3>
+    <div class="filter-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <select id="cFilterStatus" onchange="loadDeposits()" style="background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:6px;padding:6px 10px;color:var(--ink);font-size:12px;">
         <option value="">All Statuses</option>
         <option value="PENDING">Pending</option>
@@ -9288,27 +9361,54 @@ _CIRCLE_BODY = """
         <option value="FAILED">Failed</option>
         <option value="CANCELLED">Cancelled</option>
       </select>
-      <button class="btn btn-ghost" onclick="loadDeposits()" style="font-size:11px;">🔄 Refresh</button>
+      <button class="btn btn-ghost" onclick="loadDeposits()" style="font-size:11px;">&#x1F504; Refresh</button>
+      <button class="btn btn-ghost" onclick="exportCSV()" style="font-size:11px;">&#x1F4E5; Export CSV</button>
+      <button class="btn btn-primary" id="bulkBtn" onclick="bulkSettle()" style="font-size:11px;display:none;">&#x26A1; Settle Selected (0)</button>
     </div>
   </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
+          <th style="width:32px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" title="Select all RECEIVED"></th>
           <th>SWIFT Reference</th>
           <th>Sender</th>
-          <th>Amount EUR</th>
-          <th>USDC Received</th>
+          <th>EUR</th>
+          <th>USDC</th>
           <th>FX Rate</th>
           <th>Status</th>
-          <th>Settlement Wallet</th>
+          <th>Wallet</th>
           <th>TX Hash</th>
           <th>Created</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody id="cDepositsBody">
-        <tr><td colspan="10" class="empty-state"><div class="icon">🔵</div>Loading...</td></tr>
+        <tr><td colspan="11" class="empty-state"><div class="icon">&#x1F535;</div>Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Webhook Event Log ──────────────────────────────────────────────────── -->
+<div class="panel">
+  <div class="panel-head">
+    <h3>&#x1F514; Webhook Event Log</h3>
+    <button class="btn btn-ghost" onclick="loadWebhookLog()" style="font-size:11px;">&#x1F504; Refresh</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Received At</th>
+          <th>SWIFT Reference</th>
+          <th>Circle Payment ID</th>
+          <th>Status</th>
+          <th>Webhook Data Preview</th>
+        </tr>
+      </thead>
+      <tbody id="webhookLogBody">
+        <tr><td colspan="5" class="empty-state"><div class="icon">&#x1F514;</div>Loading...</td></tr>
       </tbody>
     </table>
   </div>
@@ -9316,75 +9416,155 @@ _CIRCLE_BODY = """
 
 </div>
 
+<!-- ── Manual Match Modal ─────────────────────────────────────────────────── -->
+<div id="mmModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--panel-solid);border:1px solid var(--line);border-radius:14px;padding:28px;width:440px;max-width:92vw;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:18px;">&#x1F517; Manual Match Deposit</div>
+    <input type="hidden" id="mmDepositId">
+    <div class="form-field" style="margin-bottom:12px;">
+      <label style="font-size:11px;">Circle Payment ID</label>
+      <input type="text" id="mmPaymentId" placeholder="e.g. pay_xxxxxxxxxxxxxxxx">
+    </div>
+    <div class="form-field" style="margin-bottom:18px;">
+      <label style="font-size:11px;">Amount USDC Received</label>
+      <input type="number" id="mmAmtUsdc" placeholder="e.g. 1080000.00" step="0.01" min="0">
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="submitManualMatch()">Match &amp; Mark Received</button>
+      <button class="btn btn-ghost" onclick="closeModal('mmModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Timeline Modal ────────────────────────────────────────────────────── -->
+<div id="tlModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--panel-solid);border:1px solid var(--line);border-radius:14px;padding:28px;width:500px;max-width:92vw;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:18px;">&#x1F4C5; Deposit Timeline</div>
+    <div id="tlContent" style="font-size:12px;"></div>
+    <button class="btn btn-ghost" onclick="closeModal('tlModal')" style="margin-top:18px;">Close</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
 <script>
-// ── Load Summary ──────────────────────────────────────────────────────────────
+var _fxRate = 1.08;
+var _selIds = new Set();
+var _deposits = [];
+var _chartEur = null;
+var _chartCnt = null;
+var _lastRef = '';
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  loadAll();
+  setInterval(loadCircleBalance, 30000);
+  setInterval(loadDeposits, 60000);
+  setInterval(loadWebhookLog, 90000);
+});
+
+function loadAll() {
+  loadCircleBalance();
+  loadCircleSummary();
+  loadFxRate();
+  loadWireInstructions();
+  loadDeposits();
+  loadAnalytics();
+  loadWebhookLog();
+}
+
+// ── Summary ───────────────────────────────────────────────────────────────────
 function loadCircleSummary() {
   api('/api/v1/admin/circle/summary').then(function(d) {
-    var by = d.by_status || {};
-    var pending = (by['PENDING'] || {});
-    var received = (by['RECEIVED'] || {});
-    var settled = (by['SETTLED'] || {});
-    document.getElementById('cCntPending').textContent = pending.count || '0';
-    document.getElementById('cCntReceived').textContent = received.count || '0';
-    document.getElementById('cCntSettled').textContent = settled.count || '0';
+    var b = d.by_status || {};
+    document.getElementById('cCntPending').textContent = (b['PENDING'] || {}).count || '0';
+    document.getElementById('cCntReceived').textContent = (b['RECEIVED'] || {}).count || '0';
+    document.getElementById('cCntSettled').textContent = (b['SETTLED'] || {}).count || '0';
     document.getElementById('cTotalEur').textContent = fmtNum(d.total_eur, 2) + ' EUR';
-  }).catch(function(e) { console.warn('Summary error:', e); });
+  }).catch(function() {});
 }
 
-// ── Load Circle Balance ───────────────────────────────────────────────────────
+// ── Balance ───────────────────────────────────────────────────────────────────
 function loadCircleBalance() {
   api('/api/v1/admin/circle/balance').then(function(d) {
-    if (d.error) {
-      document.getElementById('cBalUsdc').textContent = 'Error';
-    } else {
-      document.getElementById('cBalUsdc').textContent = fmtNum(d.usdc_balance, 2) + ' USDC';
-    }
-  }).catch(function() {
-    document.getElementById('cBalUsdc').textContent = 'N/A';
-  });
+    document.getElementById('cBalUsdc').textContent = d.error ? 'Error' : fmtNum(d.usdc_balance, 2) + ' USDC';
+  }).catch(function() { document.getElementById('cBalUsdc').textContent = 'N/A'; });
 }
 
-// ── Load Wire Instructions ────────────────────────────────────────────────────
+// ── FX Rate ───────────────────────────────────────────────────────────────────
+function loadFxRate() {
+  api('/api/v1/admin/circle/fx-rate').then(function(d) {
+    _fxRate = parseFloat(d.eur_usdc) || 1.08;
+    document.getElementById('cFxRate').textContent = _fxRate.toFixed(4);
+    document.getElementById('cFxSrc').textContent = 'Source: ' + (d.source || 'live');
+    document.getElementById('fxRateInput').value = _fxRate.toFixed(4);
+    calcFx();
+  }).catch(function() { document.getElementById('cFxRate').textContent = '1.08 (fallback)'; });
+}
+
+function calcFx() {
+  var eur = parseFloat(document.getElementById('fxAmtEur').value) || 0;
+  var rate = parseFloat(document.getElementById('fxRateInput').value) || _fxRate;
+  var fee = parseFloat(document.getElementById('fxFee').value) || 0;
+  var el = document.getElementById('fxResult');
+  if (!eur) { el.style.display = 'none'; return; }
+  var gross = eur * rate;
+  var feeAmt = gross * fee / 100;
+  var net = gross - feeAmt;
+  document.getElementById('fxGross').textContent = fmtNum(gross, 2) + ' USDC';
+  document.getElementById('fxFeeAmt').textContent = fmtNum(feeAmt, 2) + ' USDC';
+  document.getElementById('fxNet').textContent = fmtNum(net, 2) + ' USDC';
+  el.style.display = 'block';
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+function loadAnalytics() {
+  api('/api/v1/admin/circle/analytics').then(function(d) {
+    var daily = d.daily || [];
+    var labels = daily.map(function(r) { return r.date; });
+    var eurV = daily.map(function(r) { return parseFloat(r.total_eur) || 0; });
+    var cntV = daily.map(function(r) { return r.count || 0; });
+    if (_chartEur) _chartEur.destroy();
+    if (_chartCnt) _chartCnt.destroy();
+    var cfgBase = { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#9ca3af', font: { size: 9 } } }, x: { ticks: { color: '#9ca3af', font: { size: 9 } } } } };
+    _chartEur = new Chart(document.getElementById('chartEur').getContext('2d'), {
+      type: 'bar', data: { labels: labels, datasets: [{ data: eurV, backgroundColor: 'rgba(245,158,11,.6)', borderColor: '#f59e0b', borderWidth: 1 }] }, options: cfgBase
+    });
+    _chartCnt = new Chart(document.getElementById('chartCount').getContext('2d'), {
+      type: 'bar', data: { labels: labels, datasets: [{ data: cntV, backgroundColor: 'rgba(96,165,250,.6)', borderColor: '#60a5fa', borderWidth: 1 }] }, options: cfgBase
+    });
+  }).catch(function() {});
+}
+
+// ── Wire Instructions ─────────────────────────────────────────────────────────
 function loadWireInstructions() {
   var el = document.getElementById('wireInstructions');
   el.innerHTML = '<div style="color:var(--muted);font-size:12px;">Loading...</div>';
   api('/api/v1/admin/circle/wire-instructions').then(function(d) {
-    if (d.error) {
-      el.innerHTML = '<div style="color:#f87171;font-size:12px;">⚠️ ' + esc(d.error) + '</div>';
-      return;
-    }
-    var instructions = d.instructions || [];
-    if (!instructions.length) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:12px;">No wire instructions available from Circle. Ensure your Circle account has wire deposit enabled.</div>';
-      return;
-    }
+    if (d.error) { el.innerHTML = '<div style="color:#f87171;font-size:12px;">&#9888; ' + esc(d.error) + '</div>'; return; }
+    var list = d.instructions || [];
+    if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px;">No instructions yet. Contact Circle to enable wire deposits on your account.</div>'; return; }
     var html = '';
-    instructions.forEach(function(inst) {
-      var bank = inst.bankAddress || {};
-      var beneficiary = inst.beneficiary || {};
-      var beneficiaryBank = inst.beneficiaryBank || {};
+    list.forEach(function(inst) {
+      var ben = inst.beneficiary || {};
+      var bk = inst.beneficiaryBank || {};
       html += '<div style="background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;">';
-      html += '<div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:10px;">🏦 Wire Deposit Account</div>';
+      html += '<div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:10px;">&#x1F3E6; Wire Deposit Account</div>';
       html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">';
-      if (beneficiaryBank.swiftCode) html += '<div><span style="color:var(--muted);">SWIFT BIC:</span> <strong>' + esc(beneficiaryBank.swiftCode) + '</strong></div>';
-      if (inst.trackingRef) html += '<div><span style="color:var(--muted);">Tracking Ref:</span> <strong>' + esc(inst.trackingRef) + '</strong></div>';
-      if (beneficiary.name) html += '<div><span style="color:var(--muted);">Beneficiary:</span> ' + esc(beneficiary.name) + '</div>';
-      if (beneficiary.address1) html += '<div><span style="color:var(--muted);">Address:</span> ' + esc(beneficiary.address1) + '</div>';
-      if (inst.accountNumber) html += '<div><span style="color:var(--muted);">Account No.:</span> <strong>' + esc(inst.accountNumber) + '</strong></div>';
-      if (inst.routingNumber) html += '<div><span style="color:var(--muted);">Routing No.:</span> <strong>' + esc(inst.routingNumber) + '</strong></div>';
+      if (bk.swiftCode) html += '<div><span style="color:var(--muted);">SWIFT BIC: </span><strong>' + esc(bk.swiftCode) + '</strong></div>';
+      if (inst.trackingRef) html += '<div><span style="color:var(--muted);">Tracking Ref: </span><strong>' + esc(inst.trackingRef) + '</strong></div>';
+      if (ben.name) html += '<div><span style="color:var(--muted);">Beneficiary: </span>' + esc(ben.name) + '</div>';
+      if (inst.accountNumber) html += '<div><span style="color:var(--muted);">Account No.: </span><strong>' + esc(inst.accountNumber) + '</strong></div>';
+      if (inst.routingNumber) html += '<div><span style="color:var(--muted);">Routing No.: </span><strong>' + esc(inst.routingNumber) + '</strong></div>';
       html += '</div>';
-      html += '<div style="margin-top:10px;padding:8px 12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;font-size:11px;color:#fbbf24;">';
-      html += '⚠️ Client MUST include the generated SWIFT Reference in MT103 Field 70 (Payment Details)';
-      html += '</div>';
+      html += '<div style="margin-top:10px;padding:8px 12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;font-size:11px;color:#fbbf24;">&#9888; Client MUST include the SWIFT Reference in MT103 Field 70</div>';
       html += '</div>';
     });
     el.innerHTML = html;
-  }).catch(function(e) {
-    el.innerHTML = '<div style="color:#f87171;font-size:12px;">⚠️ ' + esc(e.message) + '</div>';
-  });
+  }).catch(function(e) { el.innerHTML = '<div style="color:#f87171;font-size:12px;">&#9888; ' + esc(e.message) + '</div>'; });
 }
 
-// ── Create Wire Deposit ───────────────────────────────────────────────────────
+// ── Create Wire Deposit ────────────────────────────────────────────────────────
 function createWireDeposit() {
   var amt = parseFloat(document.getElementById('cAmtEur').value);
   if (!amt || amt <= 0) { showToast('Enter a valid EUR amount', 'warn'); return; }
@@ -9396,84 +9576,155 @@ function createWireDeposit() {
     sender_swift_bic: document.getElementById('cSenderBic').value.trim() || null,
     settlement_network: document.getElementById('cNetwork').value,
     settlement_wallet: document.getElementById('cSettleWallet').value.trim() || null,
-    notes: document.getElementById('cNotes').value.trim() || null,
+    notes: document.getElementById('cNotes').value.trim() || null
   };
-  api('/api/v1/admin/circle/wire-deposits', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  }).then(function(d) {
+  api('/api/v1/admin/circle/wire-deposits', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
     if (!d.ok) { showToast('Error: ' + (d.detail || 'Failed'), 'error'); return; }
-    var res = document.getElementById('cCreateResult');
+    _lastRef = d.swift_reference;
     document.getElementById('cRefCode').textContent = d.swift_reference;
     document.getElementById('cRefDetails').innerHTML =
-      'Deposit ID: ' + esc(d.id) + ' &nbsp;|&nbsp; Amount: ' + fmtNum(d.amount_eur, 2) + ' EUR' +
-      ' &nbsp;|&nbsp; Settlement: ' + esc(d.settlement_network || 'ethereum') +
-      '<br>' + esc(d.message || '');
-    res.style.display = 'block';
-    showToast('Wire deposit created: ' + d.swift_reference, 'ok');
-    loadDeposits();
-    loadCircleSummary();
+      'ID: ' + esc(d.id) + ' &nbsp;|&nbsp; Amount: ' + fmtNum(d.amount_eur, 2) + ' EUR' +
+      ' &nbsp;|&nbsp; Network: ' + esc(d.settlement_network || 'ethereum');
+    document.getElementById('cCreateResult').style.display = 'block';
+    document.getElementById('cQrWrap').style.display = 'none';
+    showToast('Created: ' + d.swift_reference, 'ok');
+    loadDeposits(); loadCircleSummary();
   }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
 }
 
-// ── Load Deposits Table ───────────────────────────────────────────────────────
+// ── QR Code ───────────────────────────────────────────────────────────────────
+function showQR() {
+  var ref = _lastRef || document.getElementById('cRefCode').textContent;
+  if (!ref) { showToast('No reference code', 'warn'); return; }
+  var wrap = document.getElementById('cQrWrap');
+  var qrDiv = document.getElementById('cQrCode');
+  qrDiv.innerHTML = '';
+  document.getElementById('cQrLabel').textContent = ref;
+  wrap.style.display = 'inline-block';
+  try {
+    new QRCode(qrDiv, { text: ref, width: 160, height: 160, colorDark: '#000000', colorLight: '#ffffff' });
+  } catch(e) { qrDiv.innerHTML = '<div style="color:#333;font-size:11px;">QR library not available</div>'; }
+}
+
+// ── Print Client Package ──────────────────────────────────────────────────────
+function printClientPackage() {
+  var ref = _lastRef || document.getElementById('cRefCode').textContent;
+  var details = document.getElementById('cRefDetails').innerHTML;
+  var w = window.open('', '_blank', 'width=720,height=900');
+  w.document.write('<html><head><title>Wire Instructions - ' + ref + '</title>');
+  w.document.write('<style>body{font-family:Arial,sans-serif;padding:48px;color:#111;max-width:680px;margin:0 auto;}');
+  w.document.write('h1{color:#1e3a5f;border-bottom:3px solid #c9a84c;padding-bottom:12px;font-size:20px;}');
+  w.document.write('.ref{font-size:30px;font-weight:900;color:#c9a84c;letter-spacing:4px;background:#f8f4e8;padding:14px 22px;border-radius:10px;display:inline-block;font-family:monospace;margin:16px 0;}');
+  w.document.write('.warn{background:#fff8e1;border:2px solid #f59e0b;padding:14px;border-radius:8px;font-size:13px;color:#92400e;margin-top:18px;}');
+  w.document.write('.box{background:#f0f9ff;border:1px solid #bae6fd;padding:14px;border-radius:8px;font-size:12px;color:#0369a1;margin-top:14px;}');
+  w.document.write('footer{margin-top:48px;border-top:1px solid #e5e7eb;padding-top:12px;font-size:10px;color:#9ca3af;}');
+  w.document.write('</style></head><body>');
+  w.document.write('<h1>ALSHUMOOKH GROUP &mdash; Wire Transfer Instructions</h1>');
+  w.document.write('<p style="font-size:12px;color:#6b7280;">Issued: ' + new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'long',year:'numeric'}) + '</p>');
+  w.document.write('<h3 style="margin-bottom:4px;">Your Unique SWIFT Reference</h3>');
+  w.document.write('<p style="font-size:12px;color:#6b7280;margin:0 0 8px;">Include this EXACTLY in your MT103 Payment Details (Field 70)</p>');
+  w.document.write('<div class="ref">' + ref + '</div>');
+  w.document.write('<div class="warn"><strong>&#9888; IMPORTANT:</strong> You MUST write this reference code in <strong>Field 70 (Payment Details / Remittance Information)</strong> of your SWIFT MT103 transfer. Transfers without this reference code cannot be automatically processed.</div>');
+  w.document.write('<div class="box"><strong>Transaction Details:</strong><br>' + details + '</div>');
+  w.document.write('<h3 style="margin-top:24px;">Next Steps</h3>');
+  w.document.write('<ol style="font-size:13px;line-height:1.8;"><li>Contact your bank and initiate a SWIFT MT103 wire transfer</li><li>In Field 70 (Payment Details), type the reference code above</li><li>Send to the Circle beneficiary account details provided separately</li><li>Notify ALSHUMOOKH GROUP once the transfer is initiated</li></ol>');
+  w.document.write('<footer>ALSHUMOOKH GLOBAL BANKING FINANCING &mdash; Strictly Confidential &mdash; For Authorised Recipients Only</footer>');
+  w.document.write('</body></html>');
+  w.document.close();
+  setTimeout(function() { w.print(); }, 400);
+}
+
+// ── Load Deposits ─────────────────────────────────────────────────────────────
 function loadDeposits() {
   var status = document.getElementById('cFilterStatus').value;
   var url = '/api/v1/admin/circle/wire-deposits' + (status ? '?status=' + status : '');
   api(url).then(function(d) {
-    var tbody = document.getElementById('cDepositsBody');
-    var rows = d.deposits || [];
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><div class="icon">🔵</div>No wire deposits found.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = rows.map(function(r) {
-      var rid = esc(r.id);
-      var ref = esc(r.swift_reference || '');
-      var txLink = r.settlement_tx_hash
-        ? '<a href="https://etherscan.io/tx/' + esc(r.settlement_tx_hash) + '" target="_blank" style="color:#60a5fa;font-size:10px;">' + esc(r.settlement_tx_hash).slice(0,10) + '...</a>'
-        : '&mdash;';
-      var actions = '';
-      if (r.status === 'RECEIVED') {
-        actions += '<button class="btn btn-success" data-cid="' + rid + '" onclick="settleDeposit(this.dataset.cid)" style="font-size:10px;padding:4px 10px;">Settle</button> ';
-      }
-      if (r.status === 'PENDING') {
-        actions += '<button class="btn btn-danger" data-cid="' + rid + '" onclick="cancelDeposit(this.dataset.cid)" style="font-size:10px;padding:4px 10px;">Cancel</button>';
-      }
-      return '<tr>'
-        + '<td><code style="font-size:10px;color:var(--gold);">' + ref + '</code>'
-        + '<button data-ref="' + ref + '" onclick="copyText(this.dataset.ref)" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;margin-left:4px;">&#128203;</button></td>'
-        + '<td style="font-size:11px;">' + esc(r.sender_name || '&mdash;') + '<br><span style="color:var(--muted);font-size:10px;">' + esc(r.sender_bank || '') + '</span></td>'
-        + '<td style="font-weight:700;">' + fmtNum(r.amount_eur, 2) + ' EUR</td>'
-        + '<td style="color:#34d399;">' + (r.amount_usdc ? fmtNum(r.amount_usdc, 2) + ' USDC' : '&mdash;') + '</td>'
-        + '<td>' + (r.fx_rate ? fmtNum(r.fx_rate, 4) : '&mdash;') + '</td>'
-        + '<td>' + badge(r.status) + '</td>'
-        + '<td style="font-size:10px;font-family:monospace;">' + (r.settlement_wallet ? esc(r.settlement_wallet).slice(0,12) + '...' : '&mdash;') + '</td>'
-        + '<td>' + txLink + '</td>'
-        + '<td style="font-size:11px;">' + fmtDate(r.created_at) + '</td>'
-        + '<td style="white-space:nowrap;">' + (actions || '&mdash;') + '</td>'
-        + '</tr>';
-    }).join('');
+    _deposits = d.deposits || [];
+    _selIds.clear();
+    updateBulkUI();
+    renderDeposits(_deposits);
   }).catch(function(e) {
     document.getElementById('cDepositsBody').innerHTML =
-      '<tr><td colspan="10" style="text-align:center;color:#f87171;padding:20px;">Error: ' + esc(e.message) + '</td></tr>';
+      '<tr><td colspan="11" style="text-align:center;color:#f87171;padding:20px;">Error: ' + esc(e.message) + '</td></tr>';
   });
 }
 
-// ── Settle Deposit ────────────────────────────────────────────────────────────
-function settleDeposit(id) {
-  if (!confirm('Settle this wire deposit to Master Wallet now?')) return;
-  api('/api/v1/admin/circle/wire-deposits/' + id + '/settle', { method: 'POST' }).then(function(d) {
-    if (d.ok || d.status === 'settled') {
-      showToast('Settlement initiated! TX: ' + (d.tx_hash || 'pending'), 'ok');
-    } else {
-      showToast('Settlement error: ' + (d.error || JSON.stringify(d)), 'error');
+function renderDeposits(rows) {
+  var tbody = document.getElementById('cDepositsBody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-state"><div class="icon">&#x1F535;</div>No wire deposits found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(function(r) {
+    var rid = esc(r.id);
+    var ref = esc(r.swift_reference || '');
+    var txLink = r.settlement_tx_hash
+      ? '<a href="https://etherscan.io/tx/' + esc(r.settlement_tx_hash) + '" target="_blank" style="color:#60a5fa;font-size:10px;">' + esc(r.settlement_tx_hash).slice(0,10) + '...</a>'
+      : '&mdash;';
+    var chk = (r.status === 'RECEIVED')
+      ? '<input type="checkbox" class="rowChk" data-cid="' + rid + '" onchange="onRowCheck(this)">'
+      : '';
+    var acts = '';
+    if (r.status === 'RECEIVED') acts += '<button class="btn btn-success" data-cid="' + rid + '" onclick="settleDeposit(this.dataset.cid)" style="font-size:10px;padding:3px 8px;">Settle</button> ';
+    if (r.status === 'FAILED' || r.status === 'PENDING') acts += '<button class="btn btn-ghost" data-cid="' + rid + '" onclick="retrySettle(this.dataset.cid)" style="font-size:10px;padding:3px 8px;">&#8635; Retry</button> ';
+    if (r.status === 'PENDING') {
+      acts += '<button class="btn btn-ghost" data-cid="' + rid + '" onclick="openMatch(this.dataset.cid)" style="font-size:10px;padding:3px 8px;">&#x1F517; Match</button> ';
+      acts += '<button class="btn btn-danger" data-cid="' + rid + '" onclick="cancelDeposit(this.dataset.cid)" style="font-size:10px;padding:3px 8px;">Cancel</button> ';
     }
+    acts += '<button class="btn btn-ghost" data-cid="' + rid + '" onclick="showTimeline(this.dataset.cid)" style="font-size:10px;padding:3px 8px;">&#x1F4C5;</button>';
+    return '<tr>'
+      + '<td>' + chk + '</td>'
+      + '<td><code style="font-size:10px;color:var(--gold);">' + ref + '</code>'
+      + '<button data-ref="' + ref + '" onclick="copyText(this.dataset.ref)" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:10px;margin-left:4px;">&#128203;</button></td>'
+      + '<td style="font-size:11px;">' + esc(r.sender_name || '&mdash;') + '<br><span style="color:var(--muted);font-size:10px;">' + esc(r.sender_bank || '') + '</span></td>'
+      + '<td style="font-weight:700;">' + fmtNum(r.amount_eur, 2) + '</td>'
+      + '<td style="color:#34d399;">' + (r.amount_usdc ? fmtNum(r.amount_usdc, 2) : '&mdash;') + '</td>'
+      + '<td>' + (r.fx_rate ? fmtNum(r.fx_rate, 4) : '&mdash;') + '</td>'
+      + '<td>' + badge(r.status) + '</td>'
+      + '<td style="font-size:10px;font-family:monospace;">' + (r.settlement_wallet ? esc(r.settlement_wallet).slice(0,14) + '...' : '&mdash;') + '</td>'
+      + '<td>' + txLink + '</td>'
+      + '<td style="font-size:11px;">' + fmtDate(r.created_at) + '</td>'
+      + '<td style="white-space:nowrap;">' + acts + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+// ── Checkboxes & Bulk Settle ──────────────────────────────────────────────────
+function onRowCheck(chk) {
+  if (chk.checked) _selIds.add(chk.dataset.cid); else _selIds.delete(chk.dataset.cid);
+  updateBulkUI();
+}
+function toggleSelectAll(chk) {
+  document.querySelectorAll('.rowChk').forEach(function(c) { c.checked = chk.checked; onRowCheck(c); });
+}
+function updateBulkUI() {
+  var n = _selIds.size;
+  var btn = document.getElementById('bulkBtn');
+  btn.style.display = n > 0 ? '' : 'none';
+  btn.textContent = '&#x26A1; Settle Selected (' + n + ')';
+}
+function bulkSettle() {
+  var ids = Array.from(_selIds);
+  if (!ids.length) return;
+  if (!confirm('Settle ' + ids.length + ' deposit(s) to Master Wallet?')) return;
+  api('/api/v1/admin/circle/wire-deposits/bulk-settle', {
+    method: 'POST', body: JSON.stringify({ deposit_ids: ids })
+  }).then(function(d) {
+    var ok = (d.settled || []).length;
+    var fail = (d.failed || []).length;
+    showToast('Settled: ' + ok + ' | Failed: ' + fail, ok > 0 ? 'ok' : 'error');
     loadDeposits(); loadCircleSummary(); loadCircleBalance();
   }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
 }
 
-// ── Cancel Deposit ────────────────────────────────────────────────────────────
+// ── Single Actions ────────────────────────────────────────────────────────────
+function settleDeposit(id) {
+  if (!confirm('Settle this deposit to Master Wallet?')) return;
+  api('/api/v1/admin/circle/wire-deposits/' + id + '/settle', { method: 'POST' }).then(function(d) {
+    showToast(d.ok || d.status === 'settled' ? 'Settled! TX: ' + (d.tx_hash || 'pending') : 'Error: ' + (d.error || ''), (d.ok || d.status === 'settled') ? 'ok' : 'error');
+    loadDeposits(); loadCircleSummary(); loadCircleBalance();
+  }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
 function cancelDeposit(id) {
   if (!confirm('Cancel this wire deposit?')) return;
   api('/api/v1/admin/circle/wire-deposits/' + id + '/cancel', { method: 'POST' }).then(function(d) {
@@ -9481,16 +9732,104 @@ function cancelDeposit(id) {
     loadDeposits(); loadCircleSummary();
   }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
 }
+function retrySettle(id) {
+  if (!confirm('Retry settlement for this deposit?')) return;
+  api('/api/v1/admin/circle/wire-deposits/' + id + '/retry-settle', { method: 'POST' }).then(function(d) {
+    showToast(d.ok ? 'Retry initiated! TX: ' + (d.tx_hash || 'pending') : 'Error: ' + (d.error || ''), d.ok ? 'ok' : 'error');
+    loadDeposits(); loadCircleSummary(); loadCircleBalance();
+  }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function() {
-  loadCircleBalance();
-  loadCircleSummary();
-  loadWireInstructions();
-  loadDeposits();
-  setInterval(loadCircleBalance, 30000);
-  setInterval(loadDeposits, 60000);
-});
+// ── Manual Match ──────────────────────────────────────────────────────────────
+function openMatch(id) {
+  document.getElementById('mmDepositId').value = id;
+  document.getElementById('mmPaymentId').value = '';
+  document.getElementById('mmAmtUsdc').value = '';
+  document.getElementById('mmModal').style.display = 'flex';
+}
+function submitManualMatch() {
+  var id = document.getElementById('mmDepositId').value;
+  var pid = document.getElementById('mmPaymentId').value.trim();
+  var usdc = document.getElementById('mmAmtUsdc').value;
+  if (!pid) { showToast('Enter Circle Payment ID', 'warn'); return; }
+  api('/api/v1/admin/circle/wire-deposits/' + id + '/manual-match', {
+    method: 'POST',
+    body: JSON.stringify({ circle_payment_id: pid, amount_usdc: usdc ? parseFloat(usdc) : null })
+  }).then(function(d) {
+    showToast(d.ok ? 'Matched! Marked as Received.' : (d.error || 'Error'), d.ok ? 'ok' : 'error');
+    closeModal('mmModal');
+    loadDeposits();
+  }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
+
+// ── Timeline ──────────────────────────────────────────────────────────────────
+function showTimeline(id) {
+  api('/api/v1/admin/circle/wire-deposits/' + id).then(function(d) {
+    var steps = [
+      { label: 'Deposit Created', done: true, color: '#34d399' },
+      { label: 'Wire Received by Circle', done: ['RECEIVED','SETTLED','FAILED'].indexOf(d.status) >= 0, color: '#60a5fa' },
+      { label: 'USDC Settled to Master Wallet', done: d.status === 'SETTLED', color: '#a78bfa' }
+    ];
+    var html = '<div style="color:var(--muted);margin-bottom:14px;font-size:11px;">Deposit ID: ' + esc(d.id) + '</div>';
+    html += '<div style="position:relative;">';
+    steps.forEach(function(s) {
+      var c = s.done ? s.color : 'var(--muted)';
+      html += '<div style="display:flex;gap:12px;margin-bottom:18px;align-items:flex-start;">';
+      html += '<div style="width:14px;height:14px;border-radius:50%;background:' + c + ';flex-shrink:0;margin-top:1px;"></div>';
+      html += '<div><div style="font-weight:700;color:' + c + ';font-size:12px;">' + s.label + '</div>';
+      html += '<div style="font-size:11px;color:var(--muted);">' + (s.done ? '&#10003; Complete' : 'Pending') + '</div></div></div>';
+    });
+    html += '</div>';
+    if (d.settlement_tx_hash) html += '<div style="font-size:11px;margin-top:4px;"><span style="color:var(--muted);">TX: </span><a href="https://etherscan.io/tx/' + esc(d.settlement_tx_hash) + '" target="_blank" style="color:#60a5fa;">' + esc(d.settlement_tx_hash).slice(0,22) + '...</a></div>';
+    if (d.circle_payment_id) html += '<div style="font-size:11px;margin-top:4px;"><span style="color:var(--muted);">Circle Payment ID: </span>' + esc(d.circle_payment_id) + '</div>';
+    if (d.notes) html += '<div style="font-size:11px;margin-top:8px;color:var(--muted);">Notes: ' + esc(d.notes) + '</div>';
+    document.getElementById('tlContent').innerHTML = html;
+    document.getElementById('tlModal').style.display = 'flex';
+  }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
+
+// ── Export CSV ────────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!_deposits.length) { showToast('No data to export', 'warn'); return; }
+  var hdr = ['SWIFT Reference','Sender Name','Sender Bank','Amount EUR','Amount USDC','FX Rate','Status','Settlement Wallet','TX Hash','Created'];
+  var rows = _deposits.map(function(r) {
+    return [r.swift_reference,r.sender_name,r.sender_bank,r.amount_eur,r.amount_usdc,r.fx_rate,r.status,r.settlement_wallet,r.settlement_tx_hash,r.created_at]
+      .map(function(v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }).join(',');
+  });
+  var blob = new Blob([[hdr.join(',')].concat(rows).join('\n')], { type: 'text/csv' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'circle_wires_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  showToast('CSV exported', 'ok');
+}
+
+// ── Webhook Log ───────────────────────────────────────────────────────────────
+function loadWebhookLog() {
+  api('/api/v1/admin/circle/webhook-log').then(function(d) {
+    var logs = d.logs || [];
+    var tbody = document.getElementById('webhookLogBody');
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="icon">&#x1F514;</div>No webhook events yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = logs.map(function(l) {
+      var preview = JSON.stringify(l.webhook_data || {}).slice(0,80) + '...';
+      return '<tr>'
+        + '<td style="font-size:11px;">' + fmtDate(l.received_at) + '</td>'
+        + '<td><code style="font-size:10px;color:var(--gold);">' + esc(l.swift_reference || '&mdash;') + '</code></td>'
+        + '<td style="font-size:11px;font-family:monospace;">' + esc(l.circle_payment_id || '&mdash;') + '</td>'
+        + '<td>' + badge(l.status) + '</td>'
+        + '<td style="font-size:10px;color:var(--muted);font-family:monospace;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(preview) + '</td>'
+        + '</tr>';
+    }).join('');
+  }).catch(function() {
+    document.getElementById('webhookLogBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:#f87171;padding:20px;">Error loading webhook log</td></tr>';
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 </script>
 """
 
