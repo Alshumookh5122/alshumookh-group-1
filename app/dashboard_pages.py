@@ -9428,28 +9428,30 @@ function loadDeposits() {
       return;
     }
     tbody.innerHTML = rows.map(function(r) {
+      var rid = esc(r.id);
+      var ref = esc(r.swift_reference || '');
       var txLink = r.settlement_tx_hash
-        ? '<a href="https://etherscan.io/tx/' + esc(r.settlement_tx_hash) + '" target="_blank" style="color:#60a5fa;font-size:10px;">' + r.settlement_tx_hash.slice(0,10) + '...</a>'
-        : '—';
+        ? '<a href="https://etherscan.io/tx/' + esc(r.settlement_tx_hash) + '" target="_blank" style="color:#60a5fa;font-size:10px;">' + esc(r.settlement_tx_hash).slice(0,10) + '...</a>'
+        : '&mdash;';
       var actions = '';
       if (r.status === 'RECEIVED') {
-        actions += '<button class="btn btn-success" onclick="settleDeposit(\'' + r.id + '\')" style="font-size:10px;padding:4px 10px;">Settle</button> ';
+        actions += '<button class="btn btn-success" data-cid="' + rid + '" onclick="settleDeposit(this.dataset.cid)" style="font-size:10px;padding:4px 10px;">Settle</button> ';
       }
       if (r.status === 'PENDING') {
-        actions += '<button class="btn btn-danger" onclick="cancelDeposit(\'' + r.id + '\')" style="font-size:10px;padding:4px 10px;">Cancel</button>';
+        actions += '<button class="btn btn-danger" data-cid="' + rid + '" onclick="cancelDeposit(this.dataset.cid)" style="font-size:10px;padding:4px 10px;">Cancel</button>';
       }
       return '<tr>'
-        + '<td><code style="font-size:10px;color:var(--gold);">' + esc(r.swift_reference) + '</code>'
-        + '<button onclick="copyText(\'' + esc(r.swift_reference) + '\')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;margin-left:4px;">📋</button></td>'
-        + '<td style="font-size:11px;">' + esc(r.sender_name || '—') + '<br><span style="color:var(--muted);font-size:10px;">' + esc(r.sender_bank || '') + '</span></td>'
+        + '<td><code style="font-size:10px;color:var(--gold);">' + ref + '</code>'
+        + '<button data-ref="' + ref + '" onclick="copyText(this.dataset.ref)" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;margin-left:4px;">&#128203;</button></td>'
+        + '<td style="font-size:11px;">' + esc(r.sender_name || '&mdash;') + '<br><span style="color:var(--muted);font-size:10px;">' + esc(r.sender_bank || '') + '</span></td>'
         + '<td style="font-weight:700;">' + fmtNum(r.amount_eur, 2) + ' EUR</td>'
-        + '<td style="color:#34d399;">' + (r.amount_usdc ? fmtNum(r.amount_usdc, 2) + ' USDC' : '—') + '</td>'
-        + '<td>' + (r.fx_rate ? fmtNum(r.fx_rate, 4) : '—') + '</td>'
+        + '<td style="color:#34d399;">' + (r.amount_usdc ? fmtNum(r.amount_usdc, 2) + ' USDC' : '&mdash;') + '</td>'
+        + '<td>' + (r.fx_rate ? fmtNum(r.fx_rate, 4) : '&mdash;') + '</td>'
         + '<td>' + badge(r.status) + '</td>'
-        + '<td style="font-size:10px;font-family:monospace;">' + (r.settlement_wallet ? r.settlement_wallet.slice(0,12) + '...' : '—') + '</td>'
+        + '<td style="font-size:10px;font-family:monospace;">' + (r.settlement_wallet ? esc(r.settlement_wallet).slice(0,12) + '...' : '&mdash;') + '</td>'
         + '<td>' + txLink + '</td>'
         + '<td style="font-size:11px;">' + fmtDate(r.created_at) + '</td>'
-        + '<td style="white-space:nowrap;">' + (actions || '—') + '</td>'
+        + '<td style="white-space:nowrap;">' + (actions || '&mdash;') + '</td>'
         + '</tr>';
     }).join('');
   }).catch(function(e) {
