@@ -1388,3 +1388,79 @@ class TransferRequest(Base):
     fiat_deposit: Mapped["FiatDeposit | None"] = relationship(back_populates="transfer_requests")
     otc_quote: Mapped["OtcQuote | None"] = relationship(back_populates="transfer_requests")
     outbound_transfer: Mapped["OutboundTransfer | None"] = relationship("OutboundTransfer", foreign_keys=[outbound_transfer_id])
+
+
+# ─── Circle Wire Deposit ───────────────────────────────────────────────────────
+
+class CircleWireDepositStatus(str, enum.Enum):
+    PENDING     = "PENDING"      # Reference generated, waiting for client to send wire
+    RECEIVED    = "RECEIVED"     # Circle confirmed wire received
+    SETTLED     = "SETTLED"      # USDC transferred to master wallet
+    FAILED      = "FAILED"       # Wire failed or rejected
+    CANCELLED   = "CANCELLED"    # Cancelled before receipt
+
+
+class CircleWireDeposit(Base):
+    """
+    Tracks inbound wire deposits (SWIFT MT103) sent to Circle by clients.
+    Circle converts the wire to USDC and credits our Circle wallet.
+    Each deposit has a unique SWIFT reference for automatic matching.
+    """
+    __tablename__ = "circle_wire_deposits"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    # Unique reference code client must include in their MT103 wire transfer
+    swift_reference: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True,
+        default=lambda: f"ALSH-CW-{str(uuid.uuid4())[:8].upper()}"
+    )
+    # Linked API client (sender)
+    client_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("api_clients.id"), nullable=True, index=True
+    )
+    # Sender details
+    sender_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    sender_bank: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    sender_iban: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sender_swift_bic: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    # Expected amount in EUR
+    amount_eur: Mapped[Decimal] = mapped_column(Numeric(30, 6), nullable=False)
+    # Actual USDC received (set when Circle confirms)
+    amount_usdc: Mapped[Decimal | None] = mapped_column(Numeric(30, 6), nullable=True)
+    # EUR/USD conversion rate used by Circle
+    fx_rate: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
+
+    # Circle internal IDs
+    circle_payment_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    circle_wire_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    # Settlement — where USDC was sent after receipt
+    settlement_tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    settlement_wallet: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    settlement_network: Mapped[str] = mapped_column(String(16), default="ethereum", nullable=False)
+
+    # Status
+    status: Mapped[str] = mapped_column(
+        String(16), default=CircleWireDepositStatus.PENDING.value, nullable=False, index=True
+    )
+
+    # Webhook payload from Circle
+    circle_webhook_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Linked fiat deposit record (optional cross-reference)
+    fiat_deposit_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("fiat_deposits.id"), nullable=True
+    )
+
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    client: Mapped["ApiClient | None"] = relationship("ApiClient", foreign_keys=[client_id])

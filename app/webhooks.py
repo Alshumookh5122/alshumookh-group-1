@@ -17,6 +17,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import ExternalPayload, OrderStatus, PaymentOrder, PayloadVerificationStatus, Provider
 from app.schemas import WebhookAck
+from app.circle_service import process_circle_webhook as _process_circle_wire_webhook
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -336,6 +337,26 @@ async def circle_webhook(
                     },
                     order.id,
                 )
+
+    # ── Circle Wire Deposit handling ─────────────────────────────────────────
+    # Handle wire.deposit, payment, and transfer events for CircleWireDeposit records
+    wire_event_types = {
+        "wire_deposit.received", "wire.deposit.received",
+        "businessAccount:wire:deposit:received",
+        "businessAccount:wire:deposit:sent",
+        "payments:payment:paid", "payments:payment.paid",
+    }
+    is_wire_event = (
+        notification_type.lower() in {e.lower() for e in wire_event_types}
+        or "wire" in notification_type.lower()
+        or "deposit" in notification_type.lower()
+    )
+    if is_wire_event:
+        try:
+            wire_result = await _process_circle_wire_webhook(db, payload)
+            await log_event(db, "CIRCLE_WIRE_WEBHOOK", wire_result, None)
+        except Exception as wire_exc:
+            await log_event(db, "CIRCLE_WIRE_WEBHOOK_ERROR", {"error": str(wire_exc)}, None)
 
     return WebhookAck()
 

@@ -108,6 +108,18 @@ from app.models import (
     TransferRequest,
     TransferRequestStatus,
     WalletOTP,
+    CircleWireDeposit,
+    CircleWireDepositStatus,
+)
+from app.circle_service import (
+    get_circle_balance,
+    get_wire_instructions,
+    create_wire_deposit as circle_create_wire_deposit,
+    settle_wire_deposit as circle_settle_wire_deposit,
+    cancel_wire_deposit as circle_cancel_wire_deposit,
+    list_wire_deposits as circle_list_wire_deposits,
+    get_wire_deposit as circle_get_wire_deposit,
+    get_circle_summary,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -5260,3 +5272,160 @@ async def wallet_otp_delete(otp_id: str, _: AdminKey, db: AsyncSession = Depends
     await db.delete(record)
     await db.commit()
     return {"ok": True, "deleted": otp_id}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  CIRCLE WIRE DEPOSITS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/circle/balance", tags=["circle"])
+async def circle_balance(_: AdminKey):
+    """Fetch live USDC balance from Circle account."""
+    return await get_circle_balance()
+
+
+@router.get("/circle/wire-instructions", tags=["circle"])
+async def circle_wire_instructions(_: AdminKey):
+    """Fetch Circle's wire deposit banking instructions (routing, SWIFT BIC, account number)."""
+    return await get_wire_instructions()
+
+
+@router.get("/circle/summary", tags=["circle"])
+async def circle_summary(_: AdminKey, db: AsyncSession = Depends(get_db)):
+    """Dashboard summary: counts and totals by status for CircleWireDeposits."""
+    return await get_circle_summary(db)
+
+
+@router.get("/circle/wire-deposits", tags=["circle"])
+async def circle_list_deposits(
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    status: str | None = None,
+    client_id: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """List all Circle wire deposits with optional filters."""
+    deposits = await circle_list_wire_deposits(db, status=status, client_id=client_id, limit=limit, offset=offset)
+    return {
+        "ok": True,
+        "count": len(deposits),
+        "deposits": [
+            {
+                "id": d.id,
+                "swift_reference": d.swift_reference,
+                "client_id": d.client_id,
+                "sender_name": d.sender_name,
+                "sender_bank": d.sender_bank,
+                "sender_iban": d.sender_iban,
+                "sender_swift_bic": d.sender_swift_bic,
+                "amount_eur": str(d.amount_eur),
+                "amount_usdc": str(d.amount_usdc) if d.amount_usdc else None,
+                "fx_rate": str(d.fx_rate) if d.fx_rate else None,
+                "circle_payment_id": d.circle_payment_id,
+                "settlement_tx_hash": d.settlement_tx_hash,
+                "settlement_wallet": d.settlement_wallet,
+                "settlement_network": d.settlement_network,
+                "status": d.status,
+                "notes": d.notes,
+                "created_at": d.created_at.isoformat(),
+                "updated_at": d.updated_at.isoformat(),
+            }
+            for d in deposits
+        ],
+    }
+
+
+class CircleWireDepositCreate(BaseModel):
+    amount_eur: Decimal
+    sender_name: str | None = None
+    sender_bank: str | None = None
+    sender_iban: str | None = None
+    sender_swift_bic: str | None = None
+    client_id: str | None = None
+    settlement_wallet: str | None = None
+    settlement_network: str = "ethereum"
+    notes: str | None = None
+
+
+@router.post("/circle/wire-deposits", tags=["circle"])
+async def circle_create_deposit(
+    _: AdminKey,
+    body: CircleWireDepositCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new expected Circle wire deposit with unique SWIFT reference."""
+    deposit = await circle_create_wire_deposit(
+        db,
+        amount_eur=body.amount_eur,
+        sender_name=body.sender_name,
+        sender_bank=body.sender_bank,
+        sender_iban=body.sender_iban,
+        sender_swift_bic=body.sender_swift_bic,
+        client_id=body.client_id,
+        settlement_wallet=body.settlement_wallet,
+        settlement_network=body.settlement_network,
+        notes=body.notes,
+    )
+    return {
+        "ok": True,
+        "id": deposit.id,
+        "swift_reference": deposit.swift_reference,
+        "amount_eur": str(deposit.amount_eur),
+        "status": deposit.status,
+        "settlement_wallet": deposit.settlement_wallet,
+        "settlement_network": deposit.settlement_network,
+        "created_at": deposit.created_at.isoformat(),
+        "message": (
+            f"Wire deposit created. Client must include reference '{deposit.swift_reference}' "
+            "in their SWIFT MT103 payment details field."
+        ),
+    }
+
+
+@router.get("/circle/wire-deposits/{deposit_id}", tags=["circle"])
+async def circle_get_deposit(deposit_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    """Get a single Circle wire deposit by ID."""
+    deposit = await circle_get_wire_deposit(db, deposit_id)
+    if not deposit:
+        raise HTTPException(status_code=404, detail="Wire deposit not found")
+    return {
+        "id": deposit.id,
+        "swift_reference": deposit.swift_reference,
+        "client_id": deposit.client_id,
+        "sender_name": deposit.sender_name,
+        "sender_bank": deposit.sender_bank,
+        "sender_iban": deposit.sender_iban,
+        "sender_swift_bic": deposit.sender_swift_bic,
+        "amount_eur": str(deposit.amount_eur),
+        "amount_usdc": str(deposit.amount_usdc) if deposit.amount_usdc else None,
+        "fx_rate": str(deposit.fx_rate) if deposit.fx_rate else None,
+        "circle_payment_id": deposit.circle_payment_id,
+        "settlement_tx_hash": deposit.settlement_tx_hash,
+        "settlement_wallet": deposit.settlement_wallet,
+        "settlement_network": deposit.settlement_network,
+        "status": deposit.status,
+        "circle_webhook_data": deposit.circle_webhook_data,
+        "notes": deposit.notes,
+        "created_at": deposit.created_at.isoformat(),
+        "updated_at": deposit.updated_at.isoformat(),
+    }
+
+
+@router.post("/circle/wire-deposits/{deposit_id}/settle", tags=["circle"])
+async def circle_settle_deposit(deposit_id: str, _: AdminKey, db: AsyncSession = Depends(get_db)):
+    """Manually trigger USDC settlement from Circle wallet to Master Wallet."""
+    result = await circle_settle_wire_deposit(db, deposit_id)
+    return {"ok": "error" not in result, **result}
+
+
+@router.post("/circle/wire-deposits/{deposit_id}/cancel", tags=["circle"])
+async def circle_cancel_deposit(
+    deposit_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+    notes: str | None = None,
+):
+    """Cancel a pending Circle wire deposit."""
+    result = await circle_cancel_wire_deposit(db, deposit_id, notes=notes)
+    return {"ok": "error" not in result, **result}
