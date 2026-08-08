@@ -3705,7 +3705,8 @@ loadAlch();
 _COUNTERPARTIES_BODY = """
 <div class="page-body">
   <div class="filter-bar">
-    <button class="btn btn-ghost" onclick="loadClients()">Refresh</button>
+    <input id="clSearch" type="text" placeholder="&#128269; Search by name or ID..." oninput="filterClients()" style="background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:8px;padding:7px 12px;color:var(--ink);font-size:12px;width:260px;">
+    <button class="btn btn-ghost" onclick="loadClients()">&#x1F504; Refresh</button>
     <button class="btn btn-primary" onclick="toggleAddCl()">+ Add Counterparty</button>
   </div>
 
@@ -3810,30 +3811,47 @@ function openClientDetails(id){
     panel.scrollIntoView({behavior:'smooth'});
   }).catch(function(e){body.innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message||String(e))+'</div>';});
 }
+var _allClients = [];
+
+function renderClients(rows){
+  if(!rows.length){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">&#128273;</div>No clients found</div>';return;}
+  var th='<th>ID</th><th>Name</th><th>Active</th><th>HMAC</th><th>OAuth</th><th>mTLS</th><th>JWS</th><th>IPs</th><th>Created</th><th>Action</th>';
+  var tb=rows.map(function(r){return '<tr>'
+    +'<td><code style="font-size:10px;" title="'+esc(r.id)+'">'+esc(r.id.slice(0,12))+'...</code>'
+    +'<button data-cid="'+esc(r.id)+'" onclick="copyText(this.dataset.cid)" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:10px;margin-left:4px;" title="Copy full ID">&#128203;</button></td>'
+    +'<td><strong>'+esc(r.name)+'</strong></td>'
+    +'<td>'+(r.is_active?'<span style="color:#10b981;font-weight:700;">Active</span>':'<span style="color:#ef4444;">Disabled</span>')+'</td>'
+    +'<td>'+(r.hmac_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
+    +'<td>'+(r.oauth_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
+    +'<td>'+(r.mtls_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
+    +'<td>'+(r.jws_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
+    +'<td style="font-size:11px;">'+esc((r.allowed_ips||[]).length?r.allowed_ips.join(', '):'Any IP')+'</td>'
+    +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
+    +'<td><div style="display:flex;gap:6px;flex-wrap:wrap;">'
+    +'<button class="btn btn-ghost" data-cid="'+esc(r.id)+'" onclick="openClientDetails(this.dataset.cid)" style="font-size:11px;padding:3px 8px;">&#128269; View</button>'
+    +'<button class="btn" data-cid="'+esc(r.id)+'" data-cname="'+esc(r.name)+'" onclick="openWhitelistModal(this.dataset.cid,this.dataset.cname)" style="font-size:11px;padding:3px 8px;background:#1e3a5f;color:#e2c97e;border:1px solid #c9a84c;">&#128737; Whitelist IP</button>'
+    +'<button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+esc(r.id)+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active)" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'Disable':'Enable')+'</button>'
+    +'</div></td>'
+    +'</tr>';}).join('');
+  document.getElementById('clBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
+}
+
+function filterClients(){
+  var q=(document.getElementById('clSearch').value||'').toLowerCase().trim();
+  var filtered=q?_allClients.filter(function(r){
+    return (r.id||'').toLowerCase().indexOf(q)>=0
+        || (r.name||'').toLowerCase().indexOf(q)>=0
+        || (r.allowed_ips||[]).join(' ').toLowerCase().indexOf(q)>=0;
+  }):_allClients;
+  document.getElementById('clCnt').textContent=filtered.length+' / '+_allClients.length+' clients';
+  renderClients(filtered);
+}
+
 function loadClients(){
   api('/api/v1/admin/clients').then(function(rows) {
-    if(!Array.isArray(rows))rows=[];
-    document.getElementById('clCnt').textContent=rows.length+' client';
-    if(!rows.length){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">🔑</div>No clients found</div>';return;}
-    var th='<th>ID</th><th>Name</th><th>Active</th><th>HMAC</th><th>OAuth</th><th>mTLS</th><th>JWS</th><th>IPs</th><th>Created</th><th>Action</th>';
-    var tb=rows.map(function(r){return '<tr>'
-      +'<td><code style="font-size:10px;" title="'+r.id+'">'+r.id.slice(0,12)+'...</code></td>'
-      +'<td><strong>'+r.name+'</strong></td>'
-      +'<td>'+(r.is_active?'<span style="color:#10b981;font-weight:700;">Active</span>':'<span style="color:#ef4444;">Disabled</span>')+'</td>'
-      +'<td>'+(r.hmac_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
-      +'<td>'+(r.oauth_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
-      +'<td>'+(r.mtls_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
-      +'<td>'+(r.jws_required?'<span style="color:#10b981;">Yes</span>':'—')+'</td>'
-      +'<td>'+((r.allowed_ips||[]).length?r.allowed_ips.join(', '):'Any IP')+'</td>'
-      +'<td style="font-size:11px;">'+fmtDate(r.created_at)+'</td>'
-      +'<td><div style="display:flex;gap:6px;flex-wrap:wrap;">'
-      +'<button class="btn btn-ghost" data-cid="'+r.id+'" onclick="openClientDetails(this.dataset.cid)" style="font-size:11px;padding:3px 8px;">View</button>'
-      +'<button class="btn" data-cid="'+r.id+'" data-cname="'+r.name+'" onclick="openWhitelistModal(this.dataset.cid,this.dataset.cname)" style="font-size:11px;padding:3px 8px;background:#1e3a5f;color:#e2c97e;border:1px solid #c9a84c;">&#128737; Whitelist IP</button>'
-      +'<button class="btn '+(r.is_active?'btn-danger':'btn-success')+'" data-cid="'+r.id+'" data-active="'+(r.is_active?'false':'true')+'" onclick="toggleClient(this.dataset.cid,this.dataset.active)" style="font-size:11px;padding:3px 8px;">'+(r.is_active?'Disable':'Enable')+'</button>'
-      +'</div></td>'
-      +'</tr>';}).join('');
-    document.getElementById('clBody').innerHTML='<div class="table-wrap"><table><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>';
-  }).catch(function(e){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+e.message+'</div>';});
+    _allClients=Array.isArray(rows)?rows:[];
+    filterClients();
+  }).catch(function(e){document.getElementById('clBody').innerHTML='<div class="empty-state"><div class="icon">x</div>'+esc(e.message)+'</div>';});
 }
 
 /* ══ WHITELIST IP MODAL ══════════════════════════════════════════════════════ */
