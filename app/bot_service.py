@@ -46,7 +46,9 @@ def _anthropic_client():
 async def _admin(method: str, path: str, body: dict | None = None, params: dict | None = None) -> dict:
     """Call an internal admin endpoint using the admin API key."""
     from app.config import settings  # noqa: PLC0415
-    base = f"http://127.0.0.1:{settings.app_port}"
+    # On Render, the server listens on $PORT (not APP_PORT). Use $PORT if set.
+    port = int(os.environ.get("PORT") or settings.app_port)
+    base = f"http://127.0.0.1:{port}"
     headers = {"X-Admin-API-Key": settings.admin_api_key, "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=30) as client:
         url = f"{base}{settings.api_prefix}{path}"
