@@ -280,7 +280,7 @@ _BOT_PANEL = """
       if(d.tool_calls&&d.tool_calls.length){
         d.tool_calls.forEach(function(tc){
           var res=typeof tc.result==='object'?JSON.stringify(tc.result,null,2):String(tc.result);
-          botAppend('tool','⚙️ <strong>'+escH(tc.tool)+'</strong>\n'+escH(res.slice(0,600))+(res.length>600?'\n...(truncated)':''));
+          botAppend('tool','⚙️ <strong>'+escH(tc.tool)+'</strong>\\n'+escH(res.slice(0,600))+(res.length>600?'\\n...(truncated)':''));
         });
       }
       /* Show reply */
@@ -351,7 +351,7 @@ _BOT_PANEL = """
     s=s.replace(/^## (.*?)$/gm,'<strong style="font-size:14px;display:block;margin-bottom:4px;">$1</strong>');
     s=s.replace(/^# (.*?)$/gm,'<strong style="font-size:15px;display:block;margin-bottom:6px;">$1</strong>');
     /* bullets */ s=s.replace(/^[*-] (.*?)$/gm,'<div style="padding-left:12px;">• $1</div>');
-    /* newlines */ s=s.replace(/\n/g,'<br>');
+    /* newlines */ s=s.replace(/\\n/g,'<br>');
     return s;
   }
 })();
