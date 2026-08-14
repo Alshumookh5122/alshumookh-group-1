@@ -782,6 +782,487 @@ async def create_topup_wallet(wallet_name: str, currency: str = "USDT", network:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# TRANSFERS — ADVANCED
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("retry_transfer", "Retry a FAILED outbound transfer (re-approve + broadcast automatically)", {
+    "type": "object",
+    "properties": {"transfer_id": {"type": "string", "description": "Transfer UUID"}},
+    "required": ["transfer_id"]
+})
+async def retry_transfer(transfer_id: str, **_):
+    return await _admin("POST", f"/admin/outbound-transfers/{transfer_id}/retry")
+
+
+@register_tool("rebroadcast_transfer", "Re-broadcast a stuck PENDING_CONFIRMATION transfer with a fresh nonce", {
+    "type": "object",
+    "properties": {"transfer_id": {"type": "string"}},
+    "required": ["transfer_id"]
+})
+async def rebroadcast_transfer(transfer_id: str, **_):
+    return await _admin("POST", f"/admin/outbound-transfers/{transfer_id}/rebroadcast")
+
+
+@register_tool("force_check_transfer", "Manually trigger a blockchain confirmation check for a transfer", {
+    "type": "object",
+    "properties": {"transfer_id": {"type": "string"}},
+    "required": ["transfer_id"]
+})
+async def force_check_transfer(transfer_id: str, **_):
+    return await _admin("POST", f"/admin/outbound-transfers/{transfer_id}/force-check")
+
+
+@register_tool("force_complete_transfer", "Force a transfer to CONFIRMED status (admin override for stuck transfers)", {
+    "type": "object",
+    "properties": {"transfer_id": {"type": "string"}},
+    "required": ["transfer_id"]
+})
+async def force_complete_transfer(transfer_id: str, **_):
+    return await _admin("POST", f"/admin/outbound-transfers/{transfer_id}/force-complete")
+
+
+@register_tool("delete_transfer", "Delete a transfer record permanently", {
+    "type": "object",
+    "properties": {"transfer_id": {"type": "string"}},
+    "required": ["transfer_id"]
+})
+async def delete_transfer(transfer_id: str, **_):
+    return await _admin("DELETE", f"/admin/outbound-transfers/{transfer_id}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TOKENIZATION JOBS — ADVANCED
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("delete_tokenization_job", "Delete / cancel a tokenization job (cannot delete while SENDING)", {
+    "type": "object",
+    "properties": {"job_id": {"type": "string", "description": "Job UUID"}},
+    "required": ["job_id"]
+})
+async def delete_tokenization_job(job_id: str, **_):
+    return await _admin("DELETE", f"/admin/tokenization-jobs/{job_id}")
+
+
+@register_tool("estimate_gas_fee", "Estimate the gas fee for a USDT transfer on Ethereum/Base", {
+    "type": "object",
+    "properties": {
+        "amount": {"type": "number", "description": "Transfer amount in USDT"},
+        "network": {"type": "string", "default": "ethereum"}
+    },
+    "required": ["amount"]
+})
+async def estimate_gas_fee(amount: float, network: str = "ethereum", **_):
+    return await _admin("POST", "/admin/tokenization-jobs/gas-fee/estimate", {"amount": amount, "network": network})
+
+
+@register_tool("create_gas_fee_invoice", "Create a gas fee invoice (USDT TRC20) for a tokenization job", {
+    "type": "object",
+    "properties": {"job_id": {"type": "string"}},
+    "required": ["job_id"]
+})
+async def create_gas_fee_invoice(job_id: str, **_):
+    return await _admin("POST", f"/admin/tokenization-jobs/{job_id}/gas-fee-invoice")
+
+
+@register_tool("route_tokenization_job", "Route a tokenization job's EUR payload to a payment provider (moonpay/circle/stripe)", {
+    "type": "object",
+    "properties": {
+        "job_id": {"type": "string"},
+        "provider": {"type": "string", "enum": ["moonpay", "circle", "stripe"]}
+    },
+    "required": ["job_id", "provider"]
+})
+async def route_tokenization_job(job_id: str, provider: str, **_):
+    return await _admin("POST", f"/admin/tokenization-jobs/{job_id}/route-provider", {"provider": provider})
+
+
+@register_tool("get_tokenization_job_details", "Get full summary and blockchain details for a specific tokenization job", {
+    "type": "object",
+    "properties": {"job_id": {"type": "string"}},
+    "required": ["job_id"]
+})
+async def get_tokenization_job_details(job_id: str, **_):
+    return await _admin("GET", f"/admin/tokenization-jobs/{job_id}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# OTC QUOTES — ADVANCED
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("approve_otc_quote", "Approve an OTC quote", {
+    "type": "object",
+    "properties": {"quote_id": {"type": "string"}},
+    "required": ["quote_id"]
+})
+async def approve_otc_quote(quote_id: str, **_):
+    return await _admin("POST", f"/admin/otc/quotes/{quote_id}/approve")
+
+
+@register_tool("lock_otc_quote", "Lock an OTC quote to freeze the price with an expiry time", {
+    "type": "object",
+    "properties": {"quote_id": {"type": "string"}},
+    "required": ["quote_id"]
+})
+async def lock_otc_quote(quote_id: str, **_):
+    return await _admin("POST", f"/admin/otc/quotes/{quote_id}/lock")
+
+
+@register_tool("cancel_otc_quote", "Cancel an OTC quote", {
+    "type": "object",
+    "properties": {"quote_id": {"type": "string"}},
+    "required": ["quote_id"]
+})
+async def cancel_otc_quote(quote_id: str, **_):
+    return await _admin("POST", f"/admin/otc/quotes/{quote_id}/cancel")
+
+
+@register_tool("refresh_otc_quote", "Refresh an OTC quote with the latest Binance rate", {
+    "type": "object",
+    "properties": {"quote_id": {"type": "string"}},
+    "required": ["quote_id"]
+})
+async def refresh_otc_quote(quote_id: str, **_):
+    return await _admin("POST", f"/admin/otc/quotes/{quote_id}/refresh")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FIAT DEPOSITS — ADVANCED
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("match_fiat_deposit", "Link a fiat deposit to a Transfer Request (manual match)", {
+    "type": "object",
+    "properties": {
+        "deposit_id": {"type": "string"},
+        "transfer_request_id": {"type": "string"}
+    },
+    "required": ["deposit_id", "transfer_request_id"]
+})
+async def match_fiat_deposit(deposit_id: str, transfer_request_id: str, **_):
+    return await _admin("POST", f"/admin/fiat/deposits/{deposit_id}/match", {"transfer_request_id": transfer_request_id})
+
+
+@register_tool("refund_fiat_deposit", "Mark a fiat deposit as refunded", {
+    "type": "object",
+    "properties": {
+        "deposit_id": {"type": "string"},
+        "reason": {"type": "string", "default": ""}
+    },
+    "required": ["deposit_id"]
+})
+async def refund_fiat_deposit(deposit_id: str, reason: str = "", **_):
+    return await _admin("POST", f"/admin/fiat/deposits/{deposit_id}/refund", {"reason": reason})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRANSFER REQUESTS — ADVANCED
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("advance_transfer_request", "Manually advance a Transfer Request to a new status", {
+    "type": "object",
+    "properties": {
+        "request_id": {"type": "string"},
+        "status": {"type": "string", "description": "Target status"}
+    },
+    "required": ["request_id", "status"]
+})
+async def advance_transfer_request(request_id: str, status: str, **_):
+    return await _admin("POST", f"/admin/transfer-requests/{request_id}/advance", {"status": status})
+
+
+@register_tool("attach_quote_to_request", "Link an OTC Quote to a Transfer Request", {
+    "type": "object",
+    "properties": {
+        "request_id": {"type": "string"},
+        "quote_id": {"type": "string"}
+    },
+    "required": ["request_id", "quote_id"]
+})
+async def attach_quote_to_request(request_id: str, quote_id: str, **_):
+    return await _admin("POST", f"/admin/transfer-requests/{request_id}/attach-quote", {"quote_id": quote_id})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CIRCLE — ADVANCED
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("cancel_circle_deposit", "Cancel a pending Circle wire deposit", {
+    "type": "object",
+    "properties": {"deposit_id": {"type": "string"}},
+    "required": ["deposit_id"]
+})
+async def cancel_circle_deposit(deposit_id: str, **_):
+    return await _admin("POST", f"/admin/circle/wire-deposits/{deposit_id}/cancel")
+
+
+@register_tool("manual_match_circle_deposit", "Manually link a Circle payment ID to a wire deposit", {
+    "type": "object",
+    "properties": {
+        "deposit_id": {"type": "string"},
+        "circle_payment_id": {"type": "string"}
+    },
+    "required": ["deposit_id", "circle_payment_id"]
+})
+async def manual_match_circle_deposit(deposit_id: str, circle_payment_id: str, **_):
+    return await _admin("POST", f"/admin/circle/wire-deposits/{deposit_id}/manual-match",
+                        {"circle_payment_id": circle_payment_id})
+
+
+@register_tool("retry_circle_settle", "Retry settlement for a failed or pending Circle deposit", {
+    "type": "object",
+    "properties": {"deposit_id": {"type": "string"}},
+    "required": ["deposit_id"]
+})
+async def retry_circle_settle(deposit_id: str, **_):
+    return await _admin("POST", f"/admin/circle/wire-deposits/{deposit_id}/retry-settle")
+
+
+@register_tool("get_circle_analytics", "Get daily volume analytics for Circle wire deposits", {
+    "type": "object", "properties": {}, "required": []
+})
+async def get_circle_analytics(**_):
+    return await _admin("GET", "/admin/circle/analytics")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOWPAYMENTS — ADVANCED
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("nowpayments_create_invoice", "Create a hosted NOWPayments invoice page (payment link)", {
+    "type": "object",
+    "properties": {
+        "price_amount": {"type": "number"},
+        "price_currency": {"type": "string", "default": "usd"},
+        "pay_currency": {"type": "string", "default": "usdt"},
+        "order_description": {"type": "string", "default": ""}
+    },
+    "required": ["price_amount"]
+})
+async def nowpayments_create_invoice(price_amount: float, price_currency: str = "usd",
+                                     pay_currency: str = "usdt", order_description: str = "", **_):
+    return await _admin("POST", "/admin/nowpayments/create-invoice", {
+        "price_amount": price_amount, "price_currency": price_currency,
+        "pay_currency": pay_currency, "order_description": order_description
+    })
+
+
+@register_tool("nowpayments_mass_payout", "Execute a mass crypto payout to multiple addresses", {
+    "type": "object",
+    "properties": {
+        "withdrawals": {
+            "type": "array",
+            "description": "List of {address, currency, amount} objects",
+            "items": {"type": "object"}
+        }
+    },
+    "required": ["withdrawals"]
+})
+async def nowpayments_mass_payout(withdrawals: list, **_):
+    return await _admin("POST", "/admin/nowpayments/create-payout", {"withdrawals": withdrawals})
+
+
+@register_tool("nowpayments_check_payment", "Get status and details of a specific NOWPayments payment", {
+    "type": "object",
+    "properties": {"payment_id": {"type": "string"}},
+    "required": ["payment_id"]
+})
+async def nowpayments_check_payment(payment_id: str, **_):
+    return await _admin("GET", f"/admin/nowpayments/payment/{payment_id}")
+
+
+@register_tool("nowpayments_estimate", "Estimate how much crypto the user receives for a fiat amount", {
+    "type": "object",
+    "properties": {
+        "amount": {"type": "number"},
+        "currency_from": {"type": "string", "default": "usd"},
+        "currency_to": {"type": "string", "default": "usdt"}
+    },
+    "required": ["amount"]
+})
+async def nowpayments_estimate(amount: float, currency_from: str = "usd", currency_to: str = "usdt", **_):
+    return await _admin("POST", "/admin/nowpayments/estimate", {
+        "amount": amount, "currency_from": currency_from, "currency_to": currency_to
+    })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TOP-UP ENGINE — ADVANCED
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("update_topup_wallet_status", "Update the status of a top-up wallet (active/inactive/suspended)", {
+    "type": "object",
+    "properties": {
+        "wallet_id": {"type": "string"},
+        "status": {"type": "string", "enum": ["active", "inactive", "suspended"]}
+    },
+    "required": ["wallet_id", "status"]
+})
+async def update_topup_wallet_status(wallet_id: str, status: str, **_):
+    return await _admin("PATCH", f"/admin/topup/wallets/{wallet_id}/status", {"status": status})
+
+
+@register_tool("create_topup_card", "Create a new top-up card", {
+    "type": "object",
+    "properties": {
+        "card_number": {"type": "string"},
+        "card_holder": {"type": "string"},
+        "currency": {"type": "string", "default": "USD"}
+    },
+    "required": ["card_number", "card_holder"]
+})
+async def create_topup_card(card_number: str, card_holder: str, currency: str = "USD", **_):
+    return await _admin("POST", "/admin/topup/cards", {
+        "card_number": card_number, "card_holder": card_holder, "currency": currency
+    })
+
+
+@register_tool("list_topup_cards", "List all top-up cards", {
+    "type": "object", "properties": {}, "required": []
+})
+async def list_topup_cards(**_):
+    return await _admin("GET", "/admin/topup/cards")
+
+
+@register_tool("list_topup_transactions", "List all top-up transactions with optional card filter", {
+    "type": "object",
+    "properties": {"card_id": {"type": "string", "description": "Optional card ID filter"}},
+    "required": []
+})
+async def list_topup_transactions(card_id: str = "", **_):
+    params = {"card_id": card_id} if card_id else {}
+    return await _admin("GET", "/admin/topup/transactions", params=params)
+
+
+@register_tool("process_topup_request", "Process a top-up request: charge a card with an amount", {
+    "type": "object",
+    "properties": {
+        "card_number": {"type": "string"},
+        "amount": {"type": "number"}
+    },
+    "required": ["card_number", "amount"]
+})
+async def process_topup_request(card_number: str, amount: float, **_):
+    return await _admin("POST", "/admin/topup/request", {"card_number": card_number, "amount": amount})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WALLET OTP — ADVANCED
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("delete_wallet_otp", "Delete a wallet OTP record (clean up expired OTPs)", {
+    "type": "object",
+    "properties": {"otp_id": {"type": "string"}},
+    "required": ["otp_id"]
+})
+async def delete_wallet_otp(otp_id: str, **_):
+    return await _admin("DELETE", f"/admin/wallet-otp/{otp_id}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CLIENTS — ADVANCED
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("get_client_details", "Get full details of a client: orders, payloads, audit logs, accounts", {
+    "type": "object",
+    "properties": {"client_id": {"type": "string"}},
+    "required": ["client_id"]
+})
+async def get_client_details(client_id: str, **_):
+    return await _admin("GET", f"/admin/clients/{client_id}/details")
+
+
+@register_tool("get_clients_security_posture", "Security posture report for all clients (institutional/strong/basic)", {
+    "type": "object", "properties": {}, "required": []
+})
+async def get_clients_security_posture(**_):
+    return await _admin("GET", "/admin/clients/security-posture")
+
+
+@register_tool("generate_whitelist_certificate", "Generate a PDF IP Whitelist Authorization Certificate for a client", {
+    "type": "object",
+    "properties": {"client_id": {"type": "string"}},
+    "required": ["client_id"]
+})
+async def generate_whitelist_certificate(client_id: str, **_):
+    return await _admin("GET", f"/admin/clients/{client_id}/whitelist-certificate")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# M1 FUNDS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("list_m1_funds", "List all received M1 Fund inbound payloads", {
+    "type": "object", "properties": {}, "required": []
+})
+async def list_m1_funds(**_):
+    return await _admin("GET", "/admin/m1-funds")
+
+
+@register_tool("approve_m1_fund", "Approve an M1 Fund for tokenization processing", {
+    "type": "object",
+    "properties": {"fund_id": {"type": "string"}},
+    "required": ["fund_id"]
+})
+async def approve_m1_fund(fund_id: str, **_):
+    return await _admin("POST", f"/admin/m1-funds/{fund_id}/approve")
+
+
+@register_tool("reject_m1_fund", "Reject an M1 Fund payload with a reason", {
+    "type": "object",
+    "properties": {
+        "fund_id": {"type": "string"},
+        "reason": {"type": "string", "default": ""}
+    },
+    "required": ["fund_id"]
+})
+async def reject_m1_fund(fund_id: str, reason: str = "", **_):
+    return await _admin("POST", f"/admin/m1-funds/{fund_id}/reject", {"reason": reason})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SWIFT TERMINAL
+# ══════════════════════════════════════════════════════════════════════════════
+
+@register_tool("swift_lookup", "Search transactions by any reference (UUID, email, tx_hash, IBAN, amount)", {
+    "type": "object",
+    "properties": {"query": {"type": "string", "description": "Search query: ID, reference, email, tx hash, etc."}},
+    "required": ["query"]
+})
+async def swift_lookup(query: str, **_):
+    return await _admin("GET", "/admin/swift/lookup", params={"q": query})
+
+
+@register_tool("swift_update_status", "Update status of a PaymentOrder, ExternalPayload, or M1 Job via SWIFT terminal", {
+    "type": "object",
+    "properties": {
+        "record_id": {"type": "string"},
+        "status": {"type": "string"}
+    },
+    "required": ["record_id", "status"]
+})
+async def swift_update_status(record_id: str, status: str, **_):
+    return await _admin("PATCH", f"/admin/swift/{record_id}/status", {"status": status})
+
+
+@register_tool("swift_add_note", "Add an internal admin note to any transaction record", {
+    "type": "object",
+    "properties": {
+        "record_id": {"type": "string"},
+        "note": {"type": "string"}
+    },
+    "required": ["record_id", "note"]
+})
+async def swift_add_note(record_id: str, note: str, **_):
+    return await _admin("POST", f"/admin/swift/{record_id}/notes", {"note": note})
+
+
+@register_tool("get_audit_alchemy_events", "List all Alchemy blockchain events from audit logs", {
+    "type": "object", "properties": {}, "required": []
+})
+async def get_audit_alchemy_events(**_):
+    return await _admin("GET", "/admin/alchemy-events")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # FILE EXTRACTION HELPER
 # ══════════════════════════════════════════════════════════════════════════════
 
