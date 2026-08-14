@@ -9,7 +9,21 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 settings = get_settings()
-config.set_main_option('sqlalchemy.url', settings.sync_database_url)
+
+# Derive a sync URL: prefer SYNC_DATABASE_URL, but fall back to DATABASE_URL
+# converting async drivers (asyncpg / aiosqlite) to their sync equivalents.
+_sync_url = settings.sync_database_url
+if _sync_url.startswith("sqlite+aiosqlite"):
+    # If SYNC_DATABASE_URL is still the SQLite default, use DATABASE_URL instead
+    _db_url = settings.database_url
+    _sync_url = (
+        _db_url
+        .replace("postgresql+asyncpg://", "postgresql://")
+        .replace("postgresql+aiopg://", "postgresql://")
+        .replace("sqlite+aiosqlite://", "sqlite://")
+    )
+
+config.set_main_option('sqlalchemy.url', _sync_url)
 target_metadata = Base.metadata
 
 
