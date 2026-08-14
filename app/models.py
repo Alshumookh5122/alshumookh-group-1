@@ -1017,6 +1017,42 @@ class M1BlockchainConfirmation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
 
+# ─── Client-Admin Live Chat ───────────────────────────────────────────────────
+
+class ChatSession(Base):
+    """A support conversation thread started by a client."""
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    client_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    client_email: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
+    client_company: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_open: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_deleted_by_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    unread_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    messages: Mapped[list["ChatMessage"]] = relationship(
+        "ChatMessage", back_populates="session", cascade="all, delete-orphan", order_by="ChatMessage.created_at"
+    )
+
+
+class ChatMessage(Base):
+    """A single message within a chat session."""
+    __tablename__ = "chat_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    session_id: Mapped[str] = mapped_column(String(36), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    sender: Mapped[str] = mapped_column(String(20), nullable=False)  # "client" or "admin"
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="messages")
+
+
 class M1AuditLog(Base):
     __tablename__ = "m1_audit_logs"
 

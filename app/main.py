@@ -61,6 +61,7 @@ from app.webhooks import router as webhooks_router, settlement_webhooks_router
 from app.dashboard_pages import router as dashboard_pages_router
 from app.client_pages import router as client_pages_router
 from app.tasks.transfer_confirmations import transfer_confirmation_monitor_loop
+from app.chat_routes import router as chat_router
 
 # مهم جداً: استيراد الموديلز حتى يتم تسجيل الجداول قبل create_all
 import app.models  # noqa: F401
@@ -117,6 +118,7 @@ PUBLIC_SAFE_PATHS = {
     "/client/login",
     "/health",
     "/ready",
+    "/support",
     "/favicon.ico",
     "/favicon.png",
     "/apple-touch-icon.png",
@@ -287,7 +289,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         host = (request.headers.get("host") or "").split(":", 1)[0].lower()
 
         is_static_asset = path.startswith("/static/")
-        is_public_safe = path in PUBLIC_SAFE_PATHS or is_static_asset
+        is_public_chat = path.startswith("/api/v1/chat/start") or path.startswith("/api/v1/chat/reply") or path.startswith("/api/v1/chat/session/")
+        is_public_safe = path in PUBLIC_SAFE_PATHS or is_static_asset or is_public_chat
 
         # ── Resolve client IP ────────────────────────────────────────────────
         try:
@@ -564,6 +567,15 @@ app.include_router(client_portal_router)
 # Multi-page dashboard and client portal
 app.include_router(dashboard_pages_router)
 app.include_router(client_pages_router)
+
+# Client-Admin Live Chat
+app.include_router(chat_router)
+
+
+@app.get("/support", include_in_schema=False)
+async def client_chat_page():
+    """Public client support chat page."""
+    return FileResponse("app/static/chat_client.html")
 
 
 def _receiver_openapi_schema() -> dict:

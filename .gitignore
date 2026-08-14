@@ -10,3 +10,5 @@ postgres_data/
 intake/
 push_to_github.sh
 *.sh.bak
+*.env
+alshumookh-group-1.env

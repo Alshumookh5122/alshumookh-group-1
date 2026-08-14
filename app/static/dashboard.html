@@ -32,6 +32,11 @@
       <a href="#reports" data-ar="التقارير" data-en="Reports">التقارير</a>
       <a href="/swift" target="_blank">⬡ SWIFT Lookup</a>
       <a href="#logs" data-ar="السجلات" data-en="Logs">السجلات</a>
+      <a href="#client-chat" id="chatNavLink" data-ar="شات العملاء" data-en="Client Chat" style="position:relative;">
+        شات العملاء
+        <span id="chatBadge" style="display:none;position:absolute;top:6px;left:8px;background:#ef4444;color:#fff;font-size:10px;font-weight:900;border-radius:10px;padding:1px 6px;min-width:18px;text-align:center;">0</span>
+      </a>
+      <a href="#bot" data-ar="المساعد الذكي" data-en="AI Assistant">🤖 المساعد الذكي</a>
     </nav>
 
     <div class="sidebar-foot">
@@ -662,6 +667,141 @@
         <div id="modalError" style="display:none;margin:0 24px 20px;padding:12px 16px;background:#fff0f0;border-radius:8px;color:#b83232;font-size:13px;font-weight:700;"></div>
       </div>
     </div>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         CLIENT-ADMIN LIVE CHAT SECTION
+    ══════════════════════════════════════════════════════════════════════ -->
+    <section id="client-chat" style="padding:24px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h2 style="font-size:20px;font-weight:900;color:#0f172a;margin-bottom:4px;">💬 شات العملاء</h2>
+          <p style="font-size:13px;color:#64748b;">استفسارات العملاء المباشرة — رد وإدارة المحادثات من هنا</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <a href="/support" target="_blank" style="display:inline-block;padding:8px 16px;background:#1d4ed8;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;">🔗 رابط العميل</a>
+          <button onclick="loadChatSessions()" style="padding:8px 16px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">🔄 تحديث</button>
+          <button onclick="deleteAllChats()" style="padding:8px 16px;background:#fff0f0;border:1px solid #fca5a5;border-radius:8px;font-size:13px;font-weight:700;color:#dc2626;cursor:pointer;">🗑️ حذف الكل</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:320px 1fr;gap:0;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;min-height:500px;">
+
+        <!-- Sessions List -->
+        <div style="border-left:1px solid #e2e8f0;background:#f8fafc;">
+          <div style="padding:14px 16px;border-bottom:1px solid #e2e8f0;background:#fff;">
+            <strong style="font-size:13px;color:#0f172a;">المحادثات</strong>
+            <span id="totalSessionsBadge" style="margin-right:8px;background:#e2e8f0;color:#64748b;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700;">0</span>
+          </div>
+          <div id="chatSessionsList" style="overflow-y:auto;max-height:450px;">
+            <div style="padding:40px;text-align:center;color:#94a3b8;font-size:13px;">جارٍ التحميل...</div>
+          </div>
+        </div>
+
+        <!-- Active Chat Thread -->
+        <div style="display:flex;flex-direction:column;">
+          <!-- Thread Header -->
+          <div id="chatThreadHeader" style="padding:14px 20px;border-bottom:1px solid #e2e8f0;background:#fff;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;color:#94a3b8;">اختر محادثة من اليسار</span>
+          </div>
+          <!-- Messages -->
+          <div id="chatThreadMessages" style="flex:1;overflow-y:auto;padding:20px;background:#f8fafc;min-height:340px;display:flex;flex-direction:column;gap:10px;">
+          </div>
+          <!-- Reply Input -->
+          <div id="chatReplyArea" style="padding:12px 16px;border-top:1px solid #e2e8f0;background:#fff;display:flex;gap:10px;align-items:flex-end;">
+            <textarea id="adminReplyInput" placeholder="اكتب ردك على العميل..." rows="2"
+              style="flex:1;border:1.5px solid #d1d5db;border-radius:8px;padding:10px;font-size:13px;resize:none;font-family:inherit;direction:rtl;outline:none;"
+              onkeydown="handleAdminEnter(event)"></textarea>
+            <button onclick="sendAdminReply()" style="padding:10px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;height:42px;">إرسال ➤</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         AI BOT SECTION — REDESIGNED
+    ══════════════════════════════════════════════════════════════════════ -->
+    <section id="bot" style="padding:24px 0;">
+
+      <!-- Bot Header -->
+      <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0f2027 100%);border-radius:16px;padding:28px 32px;margin-bottom:24px;display:flex;align-items:center;gap:20px;position:relative;overflow:hidden;">
+        <div style="position:absolute;inset:0;background:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22none%22 stroke=%22rgba(255,255,255,.03)%22 stroke-width=%2240%22/></svg>') center/200px repeat;opacity:.4;"></div>
+        <div style="width:64px;height:64px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;box-shadow:0 8px 24px rgba(99,102,241,.4);position:relative;">🤖</div>
+        <div style="position:relative;flex:1;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+            <h2 style="color:#fff;font-size:22px;font-weight:900;margin:0;">ASIG-BOT</h2>
+            <span style="background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.4);color:#34d399;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;">● نشط</span>
+          </div>
+          <p style="color:rgba(255,255,255,.7);font-size:13px;margin:0;">المساعد الذكي — ينفذ أي إجراء في النظام، يجيب على الأسئلة، ويعالج المعاملات تلقائياً</p>
+        </div>
+        <div style="position:relative;text-align:left;">
+          <div style="color:rgba(255,255,255,.5);font-size:11px;margin-bottom:4px;">وضع التشغيل</div>
+          <select id="botMode" onchange="updateBotMode()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;">
+            <option value="auto">⚡ تلقائي</option>
+            <option value="manual">🔍 يدوي</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px;">
+        <button onclick="botQuickAction('اعرض ملخص النظام الكامل')" style="padding:12px 16px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-weight:700;color:#0f172a;cursor:pointer;text-align:right;transition:all .2s;" onmouseover="this.style.borderColor='#6366f1';this.style.background='#f5f3ff'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">📊 ملخص النظام</button>
+        <button onclick="botQuickAction('أظهر جميع المعاملات المعلقة')" style="padding:12px 16px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-weight:700;color:#0f172a;cursor:pointer;text-align:right;transition:all .2s;" onmouseover="this.style.borderColor='#f59e0b';this.style.background='#fffbeb'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">⏳ المعاملات المعلقة</button>
+        <button onclick="botQuickAction('اعرض آخر 10 payloads')" style="padding:12px 16px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-weight:700;color:#0f172a;cursor:pointer;text-align:right;transition:all .2s;" onmouseover="this.style.borderColor='#059669';this.style.background='#f0fdf4'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">📦 آخر Payloads</button>
+        <button onclick="botQuickAction('اعرض سعر الصرف الحالي EUR/USD')" style="padding:12px 16px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-weight:700;color:#0f172a;cursor:pointer;text-align:right;transition:all .2s;" onmouseover="this.style.borderColor='#1d4ed8';this.style.background='#eff6ff'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">💱 سعر الصرف</button>
+      </div>
+
+      <!-- Chat Area -->
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.06);">
+
+        <!-- Messages -->
+        <div id="botMessages" style="min-height:360px;max-height:520px;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:16px;background:#f8fafc;">
+          <!-- Welcome message -->
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🤖</div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;border-top-right-radius:4px;padding:14px 18px;max-width:80%;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+              <p style="font-size:14px;color:#0f172a;line-height:1.6;margin:0 0 8px 0;font-weight:700;">مرحباً! أنا ASIG-BOT 👋</p>
+              <p style="font-size:13px;color:#475569;line-height:1.6;margin:0;">يمكنني تنفيذ أي إجراء في النظام. جرّب أن تقول:<br>
+              <span style="color:#6366f1;font-weight:700;">"نفذ كل الإجراءات اللازمة للمعاملة [ID] واعمل لها سيتلمنت"</span><br>
+              أو أي سؤال أو أمر آخر.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tools Used Panel -->
+        <div id="botToolsPanel" style="display:none;padding:12px 20px;background:#f1f5f9;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;">
+          <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">أدوات منُفِّذة:</div>
+          <div id="botToolsList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
+
+        <!-- Input -->
+        <div style="padding:16px 20px;background:#fff;display:flex;gap:12px;align-items:flex-end;">
+          <!-- File upload -->
+          <label style="cursor:pointer;flex-shrink:0;" title="إرفاق ملف">
+            <input type="file" id="botFileInput" onchange="handleBotFile()" accept=".pdf,.json,.csv,.txt,.docx" style="display:none;">
+            <div style="width:40px;height:40px;background:#f1f5f9;border:1.5px solid #d1d5db;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .2s;" onmouseover="this.style.background='#e0e7ff'" onmouseout="this.style.background='#f1f5f9'">📎</div>
+          </label>
+          <div style="flex:1;position:relative;">
+            <div id="botFileTag" style="display:none;background:#e0e7ff;color:#3730a3;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+              <span id="botFileName"></span>
+              <span onclick="clearBotFile()" style="cursor:pointer;font-size:14px;color:#6366f1;">✕</span>
+            </div>
+            <textarea id="botInput"
+              placeholder="اكتب أمرك أو سؤالك... (Shift+Enter لسطر جديد)"
+              rows="2"
+              style="width:100%;border:1.5px solid #d1d5db;border-radius:10px;padding:12px 14px;font-size:14px;font-family:inherit;direction:rtl;resize:none;outline:none;transition:border-color .2s;line-height:1.5;"
+              onfocus="this.style.borderColor='#6366f1'"
+              onblur="this.style.borderColor='#d1d5db'"
+              onkeydown="handleBotKey(event)"
+              oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,160)+'px'"></textarea>
+          </div>
+          <button id="botSendBtn" onclick="sendBotMessage()"
+            style="width:44px;height:44px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:10px;font-size:18px;cursor:pointer;flex-shrink:0;transition:opacity .2s;box-shadow:0 4px 12px rgba(99,102,241,.3);"
+            onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">➤</button>
+        </div>
+
+      </div>
+    </section>
+
   </main>
 
   <script src="/static/dashboard.js?v=swift004"></script>
@@ -782,6 +922,335 @@
     }
 
     applyAdminLang(adminLang);
+
+    // ════════════════════════════════════════════════════════════════════════
+    // CLIENT-ADMIN CHAT
+    // ════════════════════════════════════════════════════════════════════════
+    let activeChatSessionId = null;
+    let chatPollInterval = null;
+
+    async function loadChatSessions() {
+      const list = document.getElementById('chatSessionsList');
+      list.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">جارٍ التحميل...</div>';
+      try {
+        const r = await fetch('/api/v1/chat/admin/sessions');
+        if (!r.ok) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#ef4444;font-size:13px;">خطأ في التحميل</div>'; return; }
+        const sessions = await r.json();
+
+        document.getElementById('totalSessionsBadge').textContent = sessions.length;
+        const unread = sessions.reduce((s, x) => s + (x.unread_count || 0), 0);
+        const badge = document.getElementById('chatBadge');
+        if (unread > 0) { badge.style.display = 'inline'; badge.textContent = unread; }
+        else { badge.style.display = 'none'; }
+
+        if (!sessions.length) {
+          list.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;font-size:13px;">لا توجد محادثات بعد</div>';
+          return;
+        }
+
+        list.innerHTML = sessions.map(s => `
+          <div onclick="openChatSession('${s.id}')"
+            style="padding:14px 16px;border-bottom:1px solid #e2e8f0;cursor:pointer;transition:background .15s;${activeChatSessionId === s.id ? 'background:#eff6ff;' : ''}"
+            onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='${activeChatSessionId === s.id ? '#eff6ff' : ''}'">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <strong style="font-size:13px;color:#0f172a;">${escChat(s.client_name)}</strong>
+              ${s.unread_count > 0 ? `<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;">${s.unread_count}</span>` : ''}
+            </div>
+            ${s.client_company ? `<div style="font-size:11px;color:#64748b;margin-bottom:3px;">${escChat(s.client_company)}</div>` : ''}
+            ${s.subject ? `<div style="font-size:12px;color:#475569;margin-bottom:4px;font-weight:700;">${escChat(s.subject)}</div>` : ''}
+            <div style="font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escChat(s.last_message || '')}</div>
+            <div style="font-size:10px;color:#cbd5e1;margin-top:4px;">${new Date(s.updated_at).toLocaleString('ar-SA')}</div>
+          </div>
+        `).join('');
+      } catch (e) {
+        list.innerHTML = '<div style="padding:20px;text-align:center;color:#ef4444;font-size:13px;">خطأ في الاتصال</div>';
+      }
+    }
+
+    async function openChatSession(id) {
+      activeChatSessionId = id;
+      const r = await fetch(`/api/v1/chat/admin/sessions/${id}`);
+      if (!r.ok) return;
+      const data = await r.json();
+
+      // Header
+      document.getElementById('chatThreadHeader').innerHTML = `
+        <div>
+          <strong style="font-size:14px;color:#0f172a;">${escChat(data.client_name)}</strong>
+          ${data.client_email ? `<div style="font-size:12px;color:#64748b;">${escChat(data.client_email)}</div>` : ''}
+          ${data.subject ? `<div style="font-size:12px;color:#1d4ed8;font-weight:700;">${escChat(data.subject)}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="closeChatSession('${id}')" style="padding:6px 12px;font-size:12px;font-weight:700;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;background:#fff;">
+            ${data.is_open ? '✅ إغلاق' : '🔓 إعادة فتح'}
+          </button>
+          <button onclick="deleteChatSession('${id}')" style="padding:6px 12px;font-size:12px;font-weight:700;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;background:#fff0f0;color:#dc2626;">🗑️ حذف</button>
+        </div>
+      `;
+
+      // Messages
+      renderChatMessages(data.messages);
+      loadChatSessions();
+
+      // Start polling for new messages
+      if (chatPollInterval) clearInterval(chatPollInterval);
+      chatPollInterval = setInterval(() => refreshChatThread(id), 5000);
+    }
+
+    async function refreshChatThread(id) {
+      if (activeChatSessionId !== id) return;
+      const r = await fetch(`/api/v1/chat/admin/sessions/${id}`);
+      if (!r.ok) return;
+      const data = await r.json();
+      renderChatMessages(data.messages);
+    }
+
+    function renderChatMessages(messages) {
+      const area = document.getElementById('chatThreadMessages');
+      if (!messages.length) {
+        area.innerHTML = '<div style="text-align:center;color:#94a3b8;font-size:13px;padding:40px;">لا توجد رسائل بعد</div>';
+        return;
+      }
+      area.innerHTML = messages.map(m => `
+        <div style="display:flex;${m.sender === 'admin' ? 'justify-content:flex-end' : 'justify-content:flex-start'}">
+          <div style="max-width:70%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5;${
+            m.sender === 'admin'
+              ? 'background:linear-gradient(135deg,#1d4ed8,#1e40af);color:#fff;border-bottom-right-radius:4px;'
+              : 'background:#fff;border:1px solid #e2e8f0;color:#0f172a;border-bottom-left-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.06);'
+          }">
+            <div>${escChat(m.message).replace(/\n/g,'<br>')}</div>
+            <div style="font-size:10px;opacity:.6;margin-top:4px;text-align:${m.sender === 'admin' ? 'left' : 'right'};">${new Date(m.created_at).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'})}</div>
+          </div>
+        </div>
+      `).join('');
+      area.scrollTop = area.scrollHeight;
+    }
+
+    async function sendAdminReply() {
+      if (!activeChatSessionId) return;
+      const input = document.getElementById('adminReplyInput');
+      const message = input.value.trim();
+      if (!message) return;
+      input.value = '';
+      const r = await fetch(`/api/v1/chat/admin/sessions/${activeChatSessionId}/reply`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ message }),
+      });
+      if (r.ok) { refreshChatThread(activeChatSessionId); }
+    }
+
+    function handleAdminEnter(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAdminReply(); }
+    }
+
+    async function closeChatSession(id) {
+      await fetch(`/api/v1/chat/admin/sessions/${id}/close`, { method: 'PATCH' });
+      openChatSession(id);
+    }
+
+    async function deleteChatSession(id) {
+      if (!confirm('هل تريد حذف هذه المحادثة؟')) return;
+      await fetch(`/api/v1/chat/admin/sessions/${id}`, { method: 'DELETE' });
+      activeChatSessionId = null;
+      document.getElementById('chatThreadHeader').innerHTML = '<span style="font-size:13px;color:#94a3b8;">اختر محادثة من اليسار</span>';
+      document.getElementById('chatThreadMessages').innerHTML = '';
+      loadChatSessions();
+    }
+
+    async function deleteAllChats() {
+      if (!confirm('هل تريد حذف جميع المحادثات؟')) return;
+      await fetch('/api/v1/chat/admin/sessions', { method: 'DELETE' });
+      activeChatSessionId = null;
+      document.getElementById('chatThreadHeader').innerHTML = '<span style="font-size:13px;color:#94a3b8;">اختر محادثة من اليسار</span>';
+      document.getElementById('chatThreadMessages').innerHTML = '';
+      loadChatSessions();
+    }
+
+    function escChat(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // Load chats on page load + poll every 15s
+    loadChatSessions();
+    setInterval(loadChatSessions, 15000);
+
+    // ════════════════════════════════════════════════════════════════════════
+    // AI BOT — IMPROVED
+    // ════════════════════════════════════════════════════════════════════════
+    let botMessages = [];
+    let botMode = 'auto';
+    let botFileData = null;
+    let botFileContext = null;
+
+    function updateBotMode() {
+      botMode = document.getElementById('botMode').value;
+    }
+
+    function botQuickAction(text) {
+      document.getElementById('botInput').value = text;
+      sendBotMessage();
+    }
+
+    function handleBotKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBotMessage(); }
+    }
+
+    async function handleBotFile() {
+      const file = document.getElementById('botFileInput').files[0];
+      if (!file) return;
+      botFileData = file;
+      document.getElementById('botFileName').textContent = '📎 ' + file.name;
+      document.getElementById('botFileTag').style.display = 'flex';
+    }
+
+    function clearBotFile() {
+      botFileData = null;
+      botFileContext = null;
+      document.getElementById('botFileInput').value = '';
+      document.getElementById('botFileTag').style.display = 'none';
+    }
+
+    function appendBotMessage(role, content, tools) {
+      const area = document.getElementById('botMessages');
+      const isBot = role === 'assistant';
+
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;gap:12px;align-items:flex-start;' + (isBot ? '' : 'flex-direction:row-reverse;');
+
+      const avatar = document.createElement('div');
+      avatar.style.cssText = 'width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;font-weight:900;';
+      if (isBot) {
+        avatar.style.background = 'linear-gradient(135deg,#6366f1,#8b5cf6)';
+        avatar.textContent = '🤖';
+      } else {
+        avatar.style.background = 'linear-gradient(135deg,#1d4ed8,#1e40af)';
+        avatar.style.color = '#fff';
+        avatar.textContent = 'أنت';
+        avatar.style.fontSize = '11px';
+      }
+
+      const bubble = document.createElement('div');
+      bubble.style.cssText = 'border-radius:12px;padding:14px 18px;max-width:80%;font-size:14px;line-height:1.7;word-break:break-word;' + (isBot
+        ? 'background:#fff;border:1px solid #e2e8f0;color:#0f172a;border-top-right-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.06);'
+        : 'background:linear-gradient(135deg,#1d4ed8,#1e40af);color:#fff;border-top-left-radius:4px;');
+
+      // Render markdown-like content
+      bubble.innerHTML = renderBotMarkdown(content);
+
+      div.appendChild(avatar);
+      div.appendChild(bubble);
+      area.appendChild(div);
+      area.scrollTop = area.scrollHeight;
+
+      // Show tools used
+      if (tools && tools.length) {
+        const panel = document.getElementById('botToolsPanel');
+        const list = document.getElementById('botToolsList');
+        panel.style.display = 'block';
+        tools.forEach(t => {
+          const span = document.createElement('span');
+          span.style.cssText = 'background:#e0e7ff;color:#3730a3;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;';
+          span.textContent = '⚡ ' + t.tool;
+          list.appendChild(span);
+        });
+      }
+    }
+
+    function renderBotMarkdown(text) {
+      return text
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g,'<em>$1</em>')
+        .replace(/`(.+?)`/g,'<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12px;">$1</code>')
+        .replace(/\n/g,'<br>');
+    }
+
+    function showBotTyping() {
+      const area = document.getElementById('botMessages');
+      const div = document.createElement('div');
+      div.id = 'botTyping';
+      div.style.cssText = 'display:flex;gap:12px;align-items:flex-start;';
+      div.innerHTML = `
+        <div style="width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🤖</div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;border-top-right-radius:4px;padding:14px 18px;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+          <div style="display:flex;gap:4px;align-items:center;">
+            <div style="width:8px;height:8px;background:#6366f1;border-radius:50%;animation:bounce .6s infinite alternate;"></div>
+            <div style="width:8px;height:8px;background:#8b5cf6;border-radius:50%;animation:bounce .6s .2s infinite alternate;"></div>
+            <div style="width:8px;height:8px;background:#a78bfa;border-radius:50%;animation:bounce .6s .4s infinite alternate;"></div>
+          </div>
+          <style>@keyframes bounce{from{transform:translateY(0)}to{transform:translateY(-6px)}}</style>
+        </div>
+      `;
+      area.appendChild(div);
+      area.scrollTop = area.scrollHeight;
+    }
+
+    function hideBotTyping() {
+      const el = document.getElementById('botTyping');
+      if (el) el.remove();
+    }
+
+    async function sendBotMessage() {
+      const input = document.getElementById('botInput');
+      const text = input.value.trim();
+      if (!text && !botFileData) return;
+
+      const adminKey = document.getElementById('adminKey')?.value || localStorage.getItem('adminKey') || '';
+      input.value = '';
+      input.style.height = 'auto';
+      document.getElementById('botSendBtn').disabled = true;
+      document.getElementById('botToolsPanel').style.display = 'none';
+      document.getElementById('botToolsList').innerHTML = '';
+
+      // Append user message
+      appendBotMessage('user', text || '[ملف مرفق]');
+
+      // Add to messages array
+      if (text) {
+        botMessages.push({ role: 'user', content: text });
+      }
+
+      showBotTyping();
+
+      try {
+        const formData = new FormData();
+        formData.append('messages_json', JSON.stringify(botMessages));
+        formData.append('mode', botMode);
+        if (botFileData) { formData.append('file', botFileData); }
+
+        const r = await fetch('/api/v1/admin/bot/chat', {
+          method: 'POST',
+          headers: { 'X-Admin-API-Key': adminKey },
+          body: formData,
+        });
+
+        hideBotTyping();
+
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          appendBotMessage('assistant', '❌ خطأ: ' + (err.detail || r.status));
+          return;
+        }
+
+        const data = await r.json();
+        appendBotMessage('assistant', data.reply || '(لا يوجد رد)', data.tool_calls);
+        botMessages.push({ role: 'assistant', content: data.reply || '' });
+
+        // Keep last 20 messages
+        if (botMessages.length > 20) botMessages = botMessages.slice(-20);
+
+        if (botFileData) clearBotFile();
+
+      } catch (e) {
+        hideBotTyping();
+        appendBotMessage('assistant', '❌ تعذر الاتصال: ' + e.message);
+      } finally {
+        document.getElementById('botSendBtn').disabled = false;
+        input.focus();
+      }
+    }
+
   </script>
 </body>
 </html>
