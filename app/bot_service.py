@@ -50,7 +50,13 @@ async def _admin(method: str, path: str, body: dict | None = None, params: dict 
     headers = {"X-Admin-API-Key": settings.admin_api_key, "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=30) as client:
         url = f"{base}{settings.api_prefix}{path}"
-        resp = await getattr(client, method.lower())(url, headers=headers, json=body, params=params)
+        m = method.lower()
+        # GET and DELETE do not accept a json body — pass body as params for GET
+        if m in ("get", "delete"):
+            kwargs: dict = {"headers": headers, "params": params}
+        else:
+            kwargs = {"headers": headers, "json": body, "params": params}
+        resp = await getattr(client, m)(url, **kwargs)
         try:
             return resp.json()
         except Exception:
