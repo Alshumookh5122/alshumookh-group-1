@@ -148,6 +148,12 @@ class Settings(BaseSettings):
     settlement_jwe_private_key_passphrase: str | None = Field(default=None, alias="SETTLEMENT_JWE_PRIVATE_KEY_PASSPHRASE")
     fnfcu_auth_token: str | None = Field(default=None, alias="FNFCU_AUTH_TOKEN")
 
+    # ── AI Bot — Anthropic Claude ─────────────────────────────────────────────
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    bot_model: str = Field(default="claude-sonnet-4-6", alias="BOT_MODEL")
+    bot_max_tokens: int = Field(default=8096, alias="BOT_MAX_TOKENS")
+    bot_enabled: bool = Field(default=True, alias="BOT_ENABLED")
+
     # ── Wallet roles ────────────────────────────────────────────────────────
     # ETH_TREASURY_ADDRESS  : Ledger hardware wallet — RECEIVES funds, never exposed
     # ETH_PRIVATE_KEY       : MetaMask operator software wallet — SIGNS & BROADCASTS txs

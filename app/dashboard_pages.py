@@ -86,6 +86,278 @@ _SIDEBAR_LINKS = [
 # ── Private Report floating panel (injected into every page) v2 ───
 _PRIVATE_PANEL = ""  # Replaced by standalone /dashboard/private page
 
+# ══════════════════════════════════════════════════════════════════════════════
+# AI BOT PANEL — injected into every dashboard page
+# ══════════════════════════════════════════════════════════════════════════════
+_BOT_PANEL = """
+<style>
+/* ── Bot FAB button ─────────────────────────────────────────── */
+#botFab{position:fixed;bottom:28px;right:28px;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#2563eb);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 4px 24px rgba(124,58,237,.55);z-index:9000;transition:.25s;color:#fff;}
+#botFab:hover{transform:scale(1.1);box-shadow:0 6px 32px rgba(124,58,237,.7);}
+#botFab .botPulse{position:absolute;inset:0;border-radius:50%;animation:botPulse 2s ease-out infinite;border:2px solid rgba(124,58,237,.6);}
+@keyframes botPulse{0%{transform:scale(1);opacity:1}100%{transform:scale(1.6);opacity:0}}
+/* ── Bot panel ──────────────────────────────────────────────── */
+#botPanel{position:fixed;bottom:100px;right:28px;width:420px;max-height:78vh;background:var(--panel-solid,#101827);border:1px solid rgba(124,58,237,.4);border-radius:18px;box-shadow:0 12px 60px rgba(0,0,0,.6);z-index:9001;display:none;flex-direction:column;overflow:hidden;transition:.3s;}
+#botPanel.open{display:flex;}
+/* header */
+#botHeader{background:linear-gradient(135deg,#7c3aed,#2563eb);padding:14px 18px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+#botHeader .bTitle{flex:1;font-size:14px;font-weight:800;color:#fff;letter-spacing:.3px;}
+#botHeader .bMeta{font-size:10px;color:rgba(255,255,255,.75);}
+.botModeBtn{padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.35);font-size:10px;font-weight:700;cursor:pointer;color:#fff;background:rgba(255,255,255,.12);transition:.2s;}
+.botModeBtn.active{background:rgba(255,255,255,.3);border-color:#fff;}
+#botClose{background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;}
+/* tool indicator */
+#botToolBar{background:rgba(124,58,237,.12);border-bottom:1px solid rgba(124,58,237,.2);padding:6px 14px;font-size:10px;color:#a78bfa;display:none;align-items:center;gap:6px;}
+/* messages */
+#botMessages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.bmsg{max-width:88%;padding:10px 14px;border-radius:12px;font-size:12.5px;line-height:1.55;word-break:break-word;}
+.bmsg.user{align-self:flex-end;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border-radius:12px 12px 2px 12px;}
+.bmsg.bot{align-self:flex-start;background:rgba(255,255,255,.07);color:var(--ink,#e2e8f0);border:1px solid rgba(255,255,255,.1);border-radius:12px 12px 12px 2px;}
+.bmsg.tool{align-self:flex-start;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);color:#6ee7b7;font-family:monospace;font-size:11px;border-radius:8px;width:100%;}
+.bmsg.error{background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);color:#fca5a5;}
+.bmsg .bLabel{font-size:10px;font-weight:700;opacity:.65;margin-bottom:4px;}
+/* typing */
+.botTyping{display:flex;gap:4px;padding:8px 12px;align-self:flex-start;}
+.botTyping span{width:7px;height:7px;border-radius:50%;background:#7c3aed;animation:botDot 1.2s ease-in-out infinite;}
+.botTyping span:nth-child(2){animation-delay:.2s;}
+.botTyping span:nth-child(3){animation-delay:.4s;}
+@keyframes botDot{0%,60%,100%{transform:translateY(0);opacity:.6}30%{transform:translateY(-6px);opacity:1}}
+/* input area */
+#botInputArea{padding:10px 12px;border-top:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:8px;flex-shrink:0;}
+#botFileBar{display:none;align-items:center;gap:8px;background:rgba(124,58,237,.1);border-radius:8px;padding:6px 10px;font-size:11px;color:#a78bfa;}
+#botFileBar .bfName{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#botRow{display:flex;gap:8px;align-items:flex-end;}
+#botInput{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:9px 12px;color:var(--ink,#e2e8f0);font-size:12.5px;resize:none;max-height:100px;min-height:38px;line-height:1.5;}
+#botInput:focus{outline:none;border-color:rgba(124,58,237,.6);}
+#botSend{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#2563eb);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0;}
+#botSend:disabled{opacity:.4;cursor:not-allowed;}
+#botUploadBtn{width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted,#94a3b8);font-size:16px;flex-shrink:0;}
+/* quick commands */
+#botQuick{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 8px;}
+.bqBtn{padding:4px 10px;border-radius:20px;border:1px solid rgba(124,58,237,.35);font-size:10px;color:#a78bfa;background:rgba(124,58,237,.08);cursor:pointer;white-space:nowrap;}
+.bqBtn:hover{background:rgba(124,58,237,.2);}
+/* clear */
+#botClear{font-size:10px;color:var(--muted);cursor:pointer;text-align:center;padding-bottom:2px;opacity:.6;}
+#botClear:hover{opacity:1;color:#f87171;}
+/* scrollbar */
+#botMessages::-webkit-scrollbar{width:4px;}
+#botMessages::-webkit-scrollbar-track{background:transparent;}
+#botMessages::-webkit-scrollbar-thumb{background:rgba(124,58,237,.3);border-radius:4px;}
+</style>
+
+<!-- ── Bot FAB ──────────────────────────────────────────────────────────── -->
+<button id="botFab" onclick="botToggle()" title="ASIG-BOT — AI Assistant">
+  <span class="botPulse"></span>🤖
+</button>
+
+<!-- ── Bot Panel ───────────────────────────────────────────────────────── -->
+<div id="botPanel">
+  <!-- Header -->
+  <div id="botHeader">
+    <div style="font-size:22px;">🤖</div>
+    <div style="flex:1;">
+      <div class="bTitle">ASIG-BOT</div>
+      <div class="bMeta">AI Operations Assistant — claude-sonnet-4-6</div>
+    </div>
+    <button class="botModeBtn" id="bModeManual" onclick="botSetMode('manual')" title="Confirm before executing">Manual</button>
+    <button class="botModeBtn" id="bModeAuto" onclick="botSetMode('auto')" title="Execute immediately">Auto</button>
+    <button id="botClose" onclick="botToggle()">✕</button>
+  </div>
+  <!-- Tool indicator -->
+  <div id="botToolBar"><span>⚙️</span><span id="botToolName">Executing tool...</span></div>
+  <!-- Messages -->
+  <div id="botMessages">
+    <div class="bmsg bot">
+      <div class="bLabel">ASIG-BOT</div>
+      مرحباً! أنا ASIG-BOT، مساعدك الذكي المتكامل مع الداشبورد بالكامل.<br><br>
+      يمكنني تنفيذ أي عملية: إنشاء تحويلات، الموافقة على Payloads، تسوية الإيداعات، إدارة العملاء، وأكثر بكثير.<br><br>
+      <strong>يمكنك أيضاً رفع ملف</strong> (PDF/JSON/CSV/DOCX) وسأستخرج المعلومات منه وأستخدمها في التنفيذ.
+    </div>
+  </div>
+  <!-- Quick commands -->
+  <div id="botQuick">
+    <span class="bqBtn" onclick="botQuick('اعرض ملخص النظام الكامل')">📊 ملخص النظام</span>
+    <span class="bqBtn" onclick="botQuick('اعرض جميع الـ Payloads المعلقة')">📥 Payloads معلقة</span>
+    <span class="bqBtn" onclick="botQuick('اعرض التحويلات المعلقة')">🚀 Transfers</span>
+    <span class="bqBtn" onclick="botQuick('رصيد Circle')">🔵 Circle Balance</span>
+    <span class="bqBtn" onclick="botQuick('السعر اللحظي EUR/USD')">💱 FX Rate</span>
+    <span class="bqBtn" onclick="botQuick('اعرض أحداث الأمان الأخيرة')">🛡 Security</span>
+    <span class="bqBtn" onclick="botQuick('اعرض قائمة العملاء')">🔑 Clients</span>
+    <span class="bqBtn" onclick="botQuick('حالة النظام وجاهزيته')">✅ Readiness</span>
+  </div>
+  <!-- Input -->
+  <div id="botInputArea">
+    <div id="botFileBar">
+      <span>📎</span>
+      <span class="bfName" id="botFileName">—</span>
+      <button onclick="botClearFile()" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:14px;">✕</button>
+    </div>
+    <div id="botRow">
+      <button id="botUploadBtn" onclick="document.getElementById('botFileInput').click()" title="رفع ملف">📎</button>
+      <input type="file" id="botFileInput" style="display:none;" accept=".pdf,.json,.csv,.txt,.docx,.xlsx" onchange="botHandleFile(this)">
+      <textarea id="botInput" placeholder="اكتب أمرك هنا... (Shift+Enter لسطر جديد)" rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();botSend();}
+                   this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px';"></textarea>
+      <button id="botSend" onclick="botSend()" title="إرسال">➤</button>
+    </div>
+    <div id="botClear" onclick="botClearHistory()">🗑 مسح المحادثة</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  /* ── State ────────────────────────────────────────────────── */
+  var _mode='manual';
+  var _session='bot_'+Math.random().toString(36).slice(2);
+  var _fileCtx=null;
+  var _typing=null;
+
+  /* ── Toggle panel ─────────────────────────────────────────── */
+  window.botToggle=function(){
+    var p=document.getElementById('botPanel');
+    p.classList.toggle('open');
+    if(p.classList.contains('open')) document.getElementById('botInput').focus();
+  };
+
+  /* ── Mode ────────────────────────────────────────────────── */
+  window.botSetMode=function(m){
+    _mode=m;
+    document.getElementById('bModeManual').classList.toggle('active',m==='manual');
+    document.getElementById('bModeAuto').classList.toggle('active',m==='auto');
+  };
+  botSetMode('manual');
+
+  /* ── Quick commands ──────────────────────────────────────── */
+  window.botQuick=function(txt){
+    document.getElementById('botInput').value=txt;
+    botSend();
+  };
+
+  /* ── File handling ───────────────────────────────────────── */
+  window.botHandleFile=function(inp){
+    var file=inp.files[0];
+    if(!file) return;
+    var fd=new FormData();
+    fd.append('file',file);
+    fetch('/api/v1/admin/bot/upload',{method:'POST',headers:{'X-Admin-API-Key':_getKey()},body:fd})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        _fileCtx=d.full_content;
+        document.getElementById('botFileName').textContent=file.name;
+        document.getElementById('botFileBar').style.display='flex';
+        botAppend('bot','📎 تم رفع الملف: <strong>'+escH(file.name)+'</strong><br><small>'+escH((d.content_preview||'').slice(0,120))+'...</small>');
+      })
+      .catch(function(e){botAppend('error','فشل رفع الملف: '+e.message);});
+    inp.value='';
+  };
+
+  window.botClearFile=function(){
+    _fileCtx=null;
+    document.getElementById('botFileBar').style.display='none';
+    document.getElementById('botFileName').textContent='—';
+  };
+
+  /* ── Send ────────────────────────────────────────────────── */
+  window.botSend=function(){
+    var inp=document.getElementById('botInput');
+    var msg=(inp.value||'').trim();
+    if(!msg) return;
+    inp.value='';inp.style.height='auto';
+    botAppend('user',escH(msg));
+    showTyping();
+    document.getElementById('botSend').disabled=true;
+
+    fetch('/api/v1/admin/bot/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Admin-API-Key':_getKey()},
+      body:JSON.stringify({message:msg,session_id:_session,mode:_mode,file_context:_fileCtx||null})
+    })
+    .then(function(r){return r.json();})
+    .then(function(d){
+      hideTyping();
+      document.getElementById('botSend').disabled=false;
+      /* Show tool calls */
+      if(d.tool_calls&&d.tool_calls.length){
+        d.tool_calls.forEach(function(tc){
+          var res=typeof tc.result==='object'?JSON.stringify(tc.result,null,2):String(tc.result);
+          botAppend('tool','⚙️ <strong>'+escH(tc.tool)+'</strong>\n'+escH(res.slice(0,600))+(res.length>600?'\n...(truncated)':''));
+        });
+      }
+      /* Show reply */
+      if(d.reply) botAppend('bot',md2html(d.reply));
+      if(d.error) botAppend('error',escH(d.error));
+    })
+    .catch(function(e){
+      hideTyping();
+      document.getElementById('botSend').disabled=false;
+      botAppend('error','خطأ في الاتصال: '+escH(e.message));
+    });
+  };
+
+  /* ── Clear history ───────────────────────────────────────── */
+  window.botClearHistory=function(){
+    fetch('/api/v1/admin/bot/session/'+_session,{method:'DELETE',headers:{'X-Admin-API-Key':_getKey()}});
+    _session='bot_'+Math.random().toString(36).slice(2);
+    _fileCtx=null;
+    document.getElementById('botFileBar').style.display='none';
+    var msgs=document.getElementById('botMessages');
+    msgs.innerHTML='<div class="bmsg bot"><div class="bLabel">ASIG-BOT</div>تم مسح المحادثة. كيف يمكنني مساعدتك؟</div>';
+  };
+
+  /* ── Helpers ─────────────────────────────────────────────── */
+  function botAppend(type,html){
+    var msgs=document.getElementById('botMessages');
+    var d=document.createElement('div');
+    d.className='bmsg '+type;
+    if(type==='bot') d.innerHTML='<div class="bLabel">ASIG-BOT</div>'+html;
+    else if(type==='user') d.innerHTML='<div class="bLabel" style="text-align:right;">You</div>'+html;
+    else if(type==='tool') d.innerHTML='<pre style="margin:0;white-space:pre-wrap;font-size:10.5px;">'+html+'</pre>';
+    else d.innerHTML=html;
+    msgs.appendChild(d);
+    msgs.scrollTop=msgs.scrollHeight;
+  }
+
+  function showTyping(){
+    hideTyping();
+    var msgs=document.getElementById('botMessages');
+    var d=document.createElement('div');
+    d.className='botTyping';d.id='_botTyping';
+    d.innerHTML='<span></span><span></span><span></span>';
+    msgs.appendChild(d);
+    msgs.scrollTop=msgs.scrollHeight;
+  }
+  function hideTyping(){
+    var t=document.getElementById('_botTyping');
+    if(t) t.remove();
+  }
+
+  function _getKey(){
+    /* Uses the shared.js getAdminKey() which reads from sessionStorage/localStorage */
+    if(typeof getAdminKey==='function') return getAdminKey();
+    return sessionStorage.getItem('asig_admin_key')||localStorage.getItem('asig_admin_key')||'';
+  }
+
+  function escH(s){
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* Very lightweight markdown → HTML converter */
+  function md2html(s){
+    s=escH(s);
+    /* bold */ s=s.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    /* italic */ s=s.replace(/\*(.*?)\*/g,'<em>$1</em>');
+    /* code inline */ s=s.replace(/`([^`]+)`/g,'<code style="background:rgba(255,255,255,.08);padding:1px 4px;border-radius:3px;font-size:11px;">$1</code>');
+    /* headers */ s=s.replace(/^### (.*?)$/gm,'<strong style="font-size:13px;">$1</strong>');
+    s=s.replace(/^## (.*?)$/gm,'<strong style="font-size:14px;display:block;margin-bottom:4px;">$1</strong>');
+    s=s.replace(/^# (.*?)$/gm,'<strong style="font-size:15px;display:block;margin-bottom:6px;">$1</strong>');
+    /* bullets */ s=s.replace(/^[*-] (.*?)$/gm,'<div style="padding-left:12px;">• $1</div>');
+    /* newlines */ s=s.replace(/\n/g,'<br>');
+    return s;
+  }
+})();
+</script>
+"""
+
 _PRIVATE_PANEL_UNUSED = """
 <!-- ══ PRIVATE REPORT FLOATING PANEL — RETIRED ══════════════════════════════ -->
 <div id="_prOverlay" onclick="closePrivatePanel()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9990;"></div>
@@ -907,6 +1179,7 @@ def _page(title: str, active: str, body: str) -> str:
         "<body>\n"
         + _sidebar(active)
         + _PRIVATE_PANEL
+        + _BOT_PANEL
         + "<main>\n"
         + _topbar(title)
         + _SHARED_JS

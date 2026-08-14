@@ -5513,3 +5513,97 @@ async def circle_webhook_log_endpoint(
     """Return recent Circle webhook events recorded in wire deposit records."""
     logs = await circle_get_webhook_log(db, limit=limit)
     return {"logs": logs}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AI BOT ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+# In-memory conversation store (per session_id)
+_bot_sessions: dict[str, list[dict]] = {}
+_MAX_HISTORY = 40  # max messages per session
+
+
+@router.post("/bot/chat", tags=["ai-bot"])
+async def bot_chat(
+    request: Request,
+    _: AdminKey,
+):
+    """
+    Main AI Bot chat endpoint.
+    Body JSON: { "message": str, "session_id": str, "mode": "manual"|"auto", "file_context": str|null }
+    """
+    from app.bot_service import chat as _bot_chat  # noqa: PLC0415
+    from app.config import settings as _s  # noqa: PLC0415
+
+    if not _s.bot_enabled:
+        raise HTTPException(status_code=503, detail="AI Bot is disabled. Set BOT_ENABLED=true in .env")
+
+    body = await request.json()
+    message: str = body.get("message", "").strip()
+    session_id: str = body.get("session_id", "default")
+    mode: str = body.get("mode", "manual")
+    file_context: str | None = body.get("file_context")
+
+    if not message:
+        raise HTTPException(status_code=400, detail="message is required")
+
+    # Build conversation history
+    history = _bot_sessions.setdefault(session_id, [])
+    history.append({"role": "user", "content": message})
+
+    # Keep only last N messages to avoid token overflow
+    if len(history) > _MAX_HISTORY:
+        history[:] = history[-_MAX_HISTORY:]
+
+    try:
+        result = await _bot_chat(messages=history, mode=mode, file_context=file_context)
+        # Append assistant reply to history
+        if result.get("reply"):
+            history.append({"role": "assistant", "content": result["reply"]})
+        return {
+            "reply": result.get("reply", ""),
+            "tool_calls": result.get("tool_calls", []),
+            "session_id": session_id,
+            "mode": mode,
+        }
+    except Exception as exc:
+        import traceback  # noqa: PLC0415
+        logger.error("Bot chat error: %s\n%s", exc, traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Bot error: {exc}")
+
+
+@router.post("/bot/upload", tags=["ai-bot"])
+async def bot_upload_file(
+    _: AdminKey,
+    file: UploadFile = File(...),
+):
+    """Upload a file for the bot to extract and use as context."""
+    from app.bot_service import extract_file_content  # noqa: PLC0415
+
+    if file.size and file.size > 10 * 1024 * 1024:  # 10MB limit
+        raise HTTPException(status_code=413, detail="File too large (max 10MB)")
+
+    raw = await file.read()
+    try:
+        content = await extract_file_content(file.filename or "file", raw)
+        return {"filename": file.filename, "content_preview": content[:500], "full_content": content, "size": len(raw)}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"File extraction failed: {exc}")
+
+
+@router.delete("/bot/session/{session_id}", tags=["ai-bot"])
+async def bot_clear_session(session_id: str, _: AdminKey):
+    """Clear conversation history for a session."""
+    _bot_sessions.pop(session_id, None)
+    return {"cleared": True, "session_id": session_id}
+
+
+@router.get("/bot/tools", tags=["ai-bot"])
+async def bot_list_tools(_: AdminKey):
+    """List all registered bot tools (capabilities)."""
+    from app.bot_service import TOOLS  # noqa: PLC0415
+    return {
+        "total": len(TOOLS),
+        "tools": [{"name": t["name"], "description": t["description"]} for t in TOOLS],
+    }
