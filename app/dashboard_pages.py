@@ -211,10 +211,29 @@ _BOT_PANEL = """
 <script>
 (function(){
   /* ── State ────────────────────────────────────────────────── */
-  var _mode='manual';
-  var _session='bot_'+Math.random().toString(36).slice(2);
-  var _fileCtx=null;
-  var _typing=null;
+  var _mode = localStorage.getItem('asig_bot_mode') || 'manual';
+  var _fileCtx = null;
+  var _typing = null;
+
+  /* ── Session: persist across page navigations ─────────────── */
+  var _session = localStorage.getItem('asig_bot_session');
+  if (!_session) {
+    _session = 'bot_' + Math.random().toString(36).slice(2);
+    localStorage.setItem('asig_bot_session', _session);
+  }
+
+  /* ── Restore saved messages from localStorage ─────────────── */
+  (function restoreMessages(){
+    var saved = localStorage.getItem('asig_bot_messages');
+    if (!saved) return;
+    try {
+      var msgs = JSON.parse(saved);
+      var container = document.getElementById('botMessages');
+      // Clear the default welcome message
+      container.innerHTML = '';
+      msgs.forEach(function(m){ _renderMsg(m.type, m.html, false); });
+    } catch(e){}
+  })();
 
   /* ── Toggle panel ─────────────────────────────────────────── */
   window.botToggle=function(){
@@ -226,10 +245,11 @@ _BOT_PANEL = """
   /* ── Mode ────────────────────────────────────────────────── */
   window.botSetMode=function(m){
     _mode=m;
+    localStorage.setItem('asig_bot_mode', m);
     document.getElementById('bModeManual').classList.toggle('active',m==='manual');
     document.getElementById('bModeAuto').classList.toggle('active',m==='auto');
   };
-  botSetMode('manual');
+  botSetMode(_mode);
 
   /* ── Quick commands ──────────────────────────────────────── */
   window.botQuick=function(txt){
@@ -302,6 +322,8 @@ _BOT_PANEL = """
   window.botClearHistory=function(){
     fetch('/api/v1/admin/bot/session/'+_session,{method:'DELETE',headers:{'X-Admin-API-Key':_getKey()}});
     _session='bot_'+Math.random().toString(36).slice(2);
+    localStorage.setItem('asig_bot_session', _session);
+    localStorage.removeItem('asig_bot_messages');
     _fileCtx=null;
     document.getElementById('botFileBar').style.display='none';
     var msgs=document.getElementById('botMessages');
@@ -309,7 +331,7 @@ _BOT_PANEL = """
   };
 
   /* ── Helpers ─────────────────────────────────────────────── */
-  function botAppend(type,html){
+  function _renderMsg(type, html, save){
     var msgs=document.getElementById('botMessages');
     var d=document.createElement('div');
     d.className='bmsg '+type;
@@ -319,6 +341,19 @@ _BOT_PANEL = """
     else d.innerHTML=html;
     msgs.appendChild(d);
     msgs.scrollTop=msgs.scrollHeight;
+    if(save !== false) _saveMessage(type, html);
+  }
+  function botAppend(type,html){ _renderMsg(type, html, true); }
+
+  /* ── Persist messages in localStorage ───────────────────── */
+  var _MAX_SAVED = 60;
+  function _saveMessage(type, html){
+    try {
+      var saved = JSON.parse(localStorage.getItem('asig_bot_messages') || '[]');
+      saved.push({type: type, html: html});
+      if(saved.length > _MAX_SAVED) saved = saved.slice(saved.length - _MAX_SAVED);
+      localStorage.setItem('asig_bot_messages', JSON.stringify(saved));
+    } catch(e){}
   }
 
   function showTyping(){
