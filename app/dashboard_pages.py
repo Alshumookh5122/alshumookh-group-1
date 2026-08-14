@@ -184,6 +184,10 @@ _BOT_PANEL = """
     <span class="bqBtn" onclick="botQuick('اعرض أحداث الأمان الأخيرة')">🛡 Security</span>
     <span class="bqBtn" onclick="botQuick('اعرض قائمة العملاء')">🔑 Clients</span>
     <span class="bqBtn" onclick="botQuick('حالة النظام وجاهزيته')">✅ Readiness</span>
+    <span class="bqBtn" onclick="botQuick('أنشئ تقرير PDF كامل للنظام')">📄 تقرير PDF النظام</span>
+    <span class="bqBtn" onclick="botQuick('أنشئ تقرير PDF لجميع الـ Payloads')">📄 تقرير PDF Payloads</span>
+    <span class="bqBtn" onclick="botQuick('أنشئ تقرير PDF للتحويلات')">📄 تقرير PDF Transfers</span>
+    <span class="bqBtn" onclick="botQuick('أنشئ تقرير PDF للأوردرات')">📄 تقرير PDF Orders</span>
   </div>
   <!-- Input -->
   <div id="botInputArea">
@@ -351,6 +355,13 @@ _BOT_PANEL = """
     s=s.replace(/^## (.*?)$/gm,'<strong style="font-size:14px;display:block;margin-bottom:4px;">$1</strong>');
     s=s.replace(/^# (.*?)$/gm,'<strong style="font-size:15px;display:block;margin-bottom:6px;">$1</strong>');
     /* bullets */ s=s.replace(/^[*-] (.*?)$/gm,'<div style="padding-left:12px;">• $1</div>');
+    /* download links → styled button */
+    s=s.replace(/\[([^\]]+)\]\((\/api\/v1\/admin\/bot\/download\/[^\)]+)\)/g,function(m,label,url){
+      var dlUrl=url+(url.indexOf('?')>=0?'&':'?')+'key='+encodeURIComponent(_getKey());
+      return '<a href="'+dlUrl+'" target="_blank" download style="display:inline-flex;align-items:center;gap:6px;margin:6px 0;padding:8px 16px;background:linear-gradient(135deg,#059669,#047857);color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;">📥 '+label+'</a>';
+    });
+    /* regular links */
+    s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,'<a href="$2" target="_blank" style="color:#60a5fa;text-decoration:underline;">$1</a>');
     /* newlines */ s=s.replace(/\\n/g,'<br>');
     return s;
   }

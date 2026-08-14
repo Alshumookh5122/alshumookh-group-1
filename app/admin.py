@@ -5607,3 +5607,40 @@ async def bot_list_tools(_: AdminKey):
         "total": len(TOOLS),
         "tools": [{"name": t["name"], "description": t["description"]} for t in TOOLS],
     }
+
+
+@router.get("/bot/download/{filename}", tags=["ai-bot"])
+async def bot_download_report(filename: str, request: Request, key: str = ""):
+    """Download a generated bot PDF report. Accepts session cookie or key query param."""
+    import os as _os  # noqa: PLC0415
+    from fastapi.responses import FileResponse  # noqa: PLC0415
+
+    # Auth: session cookie OR X-Admin-API-Key header OR ?key= query param
+    authed = is_admin_request_authenticated(request)
+    if not authed:
+        expected = str(settings.admin_api_key or "")
+        header_key = str(request.headers.get("X-Admin-API-Key") or "")
+        q_key = str(key or "")
+        if expected and (
+            (header_key and hmac.compare_digest(header_key, expected)) or
+            (q_key and hmac.compare_digest(q_key, expected))
+        ):
+            authed = True
+    if not authed:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # Sanitize filename — only allow safe characters
+    safe = "".join(c for c in filename if c.isalnum() or c in ("_", "-", "."))
+    if not safe.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Invalid file")
+
+    filepath = f"/tmp/bot_reports/{safe}"
+    if not _os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Report not found or expired. Please generate it again.")
+
+    return FileResponse(
+        filepath,
+        media_type="application/pdf",
+        filename=safe,
+        headers={"Content-Disposition": f'attachment; filename="{safe}"'},
+    )

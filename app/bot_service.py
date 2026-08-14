@@ -828,6 +828,228 @@ async def extract_file_content(filename: str, file_bytes: bytes) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# PDF REPORT GENERATOR
+# ══════════════════════════════════════════════════════════════════════════════
+
+_REPORTS_DIR = "/tmp/bot_reports"
+os.makedirs(_REPORTS_DIR, exist_ok=True)
+
+
+async def _build_pdf(title: str, subtitle: str, headers: list, rows: list, summary: str = "") -> str:
+    """Generate a professional PDF report. Returns filename (saved in _REPORTS_DIR)."""
+    try:
+        from reportlab.lib.pagesizes import A4  # noqa: PLC0415
+        from reportlab.lib import colors as rl_colors  # noqa: PLC0415
+        from reportlab.lib.units import cm  # noqa: PLC0415
+        from reportlab.platypus import (  # noqa: PLC0415
+            SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+        )
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # noqa: PLC0415
+        from reportlab.lib.enums import TA_CENTER  # noqa: PLC0415
+    except Exception as e:
+        return f"__error__{e}"
+
+    filename = f"asig_{uuid.uuid4().hex[:10]}.pdf"
+    filepath = os.path.join(_REPORTS_DIR, filename)
+
+    doc = SimpleDocTemplate(
+        filepath, pagesize=A4,
+        topMargin=1.8 * cm, bottomMargin=1.8 * cm,
+        leftMargin=1.5 * cm, rightMargin=1.5 * cm,
+    )
+
+    styles = getSampleStyleSheet()
+    brand_blue = rl_colors.HexColor("#1e40af")
+    light_row  = rl_colors.HexColor("#f1f5f9")
+
+    h1 = ParagraphStyle("H1", parent=styles["Title"],
+                         textColor=brand_blue, fontSize=16, spaceAfter=2)
+    h2 = ParagraphStyle("H2", parent=styles["Heading2"],
+                         textColor=rl_colors.HexColor("#0f172a"), fontSize=12, spaceAfter=2)
+    sub = ParagraphStyle("Sub", parent=styles["Normal"],
+                          textColor=rl_colors.HexColor("#64748b"), fontSize=9, spaceAfter=6)
+    foot = ParagraphStyle("Foot", parent=styles["Normal"],
+                           textColor=rl_colors.HexColor("#94a3b8"), fontSize=7,
+                           alignment=TA_CENTER)
+
+    story = []
+    story.append(Paragraph("ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT", h1))
+    story.append(Paragraph(title, h2))
+    story.append(Paragraph(subtitle, sub))
+    story.append(Paragraph(
+        f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} | CONFIDENTIAL",
+        sub,
+    ))
+    story.append(HRFlowable(width="100%", thickness=2, color=brand_blue, spaceAfter=8))
+
+    if summary:
+        story.append(Paragraph(summary, styles["Normal"]))
+        story.append(Spacer(1, 0.4 * cm))
+
+    if rows:
+        page_w = A4[0] - 3 * cm
+        col_w = page_w / max(len(headers), 1)
+        table_data = [headers] + [[str(c)[:40] for c in r] for r in rows]
+        t = Table(table_data, colWidths=[col_w] * len(headers), repeatRows=1)
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0),  brand_blue),
+            ("TEXTCOLOR",     (0, 0), (-1, 0),  rl_colors.white),
+            ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 7.5),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [rl_colors.white, light_row]),
+            ("GRID",          (0, 0), (-1, -1), 0.3, rl_colors.HexColor("#cbd5e1")),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(t)
+    else:
+        story.append(Paragraph("No data available for this report.", styles["Normal"]))
+
+    story.append(Spacer(1, 0.8 * cm))
+    story.append(HRFlowable(width="100%", thickness=0.5,
+                             color=rl_colors.HexColor("#94a3b8"), spaceAfter=4))
+    story.append(Paragraph(
+        "ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT — Confidential Internal Report",
+        foot,
+    ))
+
+    doc.build(story)
+    return filename
+
+
+@register_tool(
+    "generate_pdf_report",
+    "Generate a professional PDF report for payloads, orders, transfers, or full system summary. "
+    "Returns a download URL the user can click to get the PDF file.",
+    {
+        "type": "object",
+        "properties": {
+            "report_type": {
+                "type": "string",
+                "enum": ["payloads", "orders", "transfers", "system"],
+                "description": "Type of report to generate",
+            },
+            "status_filter": {
+                "type": "string",
+                "description": "Optional status filter (e.g. MANUAL_REVIEW, PENDING, COMPLETED)",
+                "default": "",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Max rows to include (default 200)",
+                "default": 200,
+            },
+        },
+        "required": ["report_type"],
+    },
+)
+async def generate_pdf_report(report_type: str = "system", status_filter: str = "", limit: int = 200, **_):
+    try:
+        rows: list = []
+        headers: list = []
+        title = ""
+        subtitle = ""
+        summary = ""
+
+        if report_type == "payloads":
+            title = "Settlement Payloads Report"
+            params: dict = {"limit": limit}
+            if status_filter:
+                params["status"] = status_filter
+            data = await _admin("GET", "/admin/payloads", params=params)
+            items = data if isinstance(data, list) else data.get("items", data.get("payloads", []))
+            headers = ["ID", "Amount", "Asset", "Network", "Status", "Security", "Created"]
+            for p in items[:limit]:
+                rows.append([
+                    str(p.get("id", ""))[:12],
+                    str(p.get("amount", "")),
+                    str(p.get("asset", "")),
+                    str(p.get("network_name", p.get("network", ""))),
+                    str(p.get("verification_status", "")),
+                    str(p.get("security_level", "")),
+                    str(p.get("created_at", ""))[:16],
+                ])
+            subtitle = f"Total: {len(rows)} payload(s)"
+            if status_filter:
+                subtitle += f" | Filter: {status_filter}"
+
+        elif report_type == "orders":
+            title = "Payment Orders Report"
+            params = {"limit": limit}
+            if status_filter:
+                params["status"] = status_filter
+            data = await _admin("GET", "/admin/orders", params=params)
+            items = data if isinstance(data, list) else data.get("items", data.get("orders", []))
+            headers = ["ID", "Amount", "Currency", "Status", "Client", "Created"]
+            for o in items[:limit]:
+                rows.append([
+                    str(o.get("id", ""))[:12],
+                    str(o.get("amount", "")),
+                    str(o.get("currency", "")),
+                    str(o.get("status", "")),
+                    str(o.get("client_id", "")),
+                    str(o.get("created_at", ""))[:16],
+                ])
+            subtitle = f"Total: {len(rows)} order(s)"
+
+        elif report_type == "transfers":
+            title = "Outbound Transfers Report"
+            params = {"limit": limit}
+            if status_filter:
+                params["status"] = status_filter
+            data = await _admin("GET", "/admin/transfers", params=params)
+            items = data if isinstance(data, list) else data.get("items", data.get("transfers", []))
+            headers = ["ID", "Amount", "Asset", "Network", "To Address", "Status", "Created"]
+            for t in items[:limit]:
+                rows.append([
+                    str(t.get("id", ""))[:12],
+                    str(t.get("amount", "")),
+                    str(t.get("asset", "")),
+                    str(t.get("network", "")),
+                    str(t.get("to_address", ""))[:20],
+                    str(t.get("status", "")),
+                    str(t.get("created_at", ""))[:16],
+                ])
+            subtitle = f"Total: {len(rows)} transfer(s)"
+
+        elif report_type == "system":
+            title = "Full System Summary Report"
+            subtitle = "Complete operational overview"
+            sys_data  = await _admin("GET", "/admin/summary")
+            mon_data  = await _admin("GET", "/admin/monitoring/live")
+            headers = ["Metric", "Value"]
+            for k, v in sys_data.items():
+                rows.append([str(k).replace("_", " ").title(), str(v)])
+            if isinstance(mon_data, dict):
+                for k, v in mon_data.items():
+                    if not isinstance(v, (list, dict)):
+                        rows.append([str(k).replace("_", " ").title(), str(v)])
+            summary = f"Report generated from live system data at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
+
+        else:
+            return {"error": f"Unknown report_type: {report_type}"}
+
+        filename = await _build_pdf(title, subtitle, headers, rows, summary)
+        if filename.startswith("__error__"):
+            return {"error": f"PDF generation failed: {filename[9:]}"}
+
+        download_url = f"/api/v1/admin/bot/download/{filename}"
+        return {
+            "success": True,
+            "filename": filename,
+            "download_url": download_url,
+            "rows": len(rows),
+            "title": title,
+        }
+
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # TOOLS SCHEMA for Claude API
 # ══════════════════════════════════════════════════════════════════════════════
 
