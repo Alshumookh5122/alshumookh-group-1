@@ -1205,24 +1205,40 @@
 
       // Append user message
       appendBotMessage('user', text || '[ملف مرفق]');
-
-      // Add to messages array
-      if (text) {
-        botMessages.push({ role: 'user', content: text });
-      }
-
       showBotTyping();
 
       try {
-        const formData = new FormData();
-        formData.append('messages_json', JSON.stringify(botMessages));
-        formData.append('mode', botMode);
-        if (botFileData) { formData.append('file', botFileData); }
+        let fileContext = null;
 
+        // Upload file first if attached
+        if (botFileData) {
+          const fd = new FormData();
+          fd.append('file', botFileData);
+          const fr = await fetch('/api/v1/admin/bot/upload', {
+            method: 'POST',
+            headers: { 'X-Admin-API-Key': adminKey },
+            body: fd,
+          });
+          if (fr.ok) {
+            const fdata = await fr.json();
+            fileContext = fdata.full_content;
+          }
+          clearBotFile();
+        }
+
+        // Send message to bot
         const r = await fetch('/api/v1/admin/bot/chat', {
           method: 'POST',
-          headers: { 'X-Admin-API-Key': adminKey },
-          body: formData,
+          headers: {
+            'X-Admin-API-Key': adminKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: text || '(انظر الملف المرفق)',
+            session_id: 'dashboard_main',
+            mode: botMode,
+            file_context: fileContext,
+          }),
         });
 
         hideBotTyping();
@@ -1235,12 +1251,6 @@
 
         const data = await r.json();
         appendBotMessage('assistant', data.reply || '(لا يوجد رد)', data.tool_calls);
-        botMessages.push({ role: 'assistant', content: data.reply || '' });
-
-        // Keep last 20 messages
-        if (botMessages.length > 20) botMessages = botMessages.slice(-20);
-
-        if (botFileData) clearBotFile();
 
       } catch (e) {
         hideBotTyping();
