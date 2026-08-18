@@ -5578,7 +5578,8 @@ async def bot_chat(
         )
     except Exception as exc:
         import traceback  # noqa: PLC0415
-        logger.error("Bot chat error: %s\n%s", exc, traceback.format_exc())
+        import logging as _logging  # noqa: PLC0415
+        _logging.getLogger(__name__).error("Bot chat error: %s\n%s", exc, traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Bot error: {exc}")
 
 
