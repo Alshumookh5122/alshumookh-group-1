@@ -50,7 +50,7 @@ async def _admin(method: str, path: str, body: dict | None = None, params: dict 
     port = int(os.environ.get("PORT") or settings.app_port)
     base = f"http://127.0.0.1:{port}"
     headers = {"X-Admin-API-Key": settings.admin_api_key, "Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=12) as client:
         url = f"{base}{settings.api_prefix}{path}"
         m = method.lower()
         # GET and DELETE do not accept a json body — pass body as params for GET
@@ -1606,8 +1606,9 @@ async def chat(
     final_text = ""
 
     # Agentic loop: Claude can call multiple tools in sequence
+    # Max 5 iterations to stay within Render's 30-second request timeout
     working_messages = list(messages)
-    max_iterations = 10
+    max_iterations = 5
 
     from app.config import settings as _s  # noqa: PLC0415
     _model = _s.bot_model

@@ -5557,7 +5557,11 @@ async def bot_chat(
         history[:] = history[-_MAX_HISTORY:]
 
     try:
-        result = await _bot_chat(messages=history, mode=mode, file_context=file_context)
+        import asyncio as _asyncio  # noqa: PLC0415
+        result = await _asyncio.wait_for(
+            _bot_chat(messages=history, mode=mode, file_context=file_context),
+            timeout=25,  # Stay under Render's 30-second request timeout
+        )
         # Append assistant reply to history
         if result.get("reply"):
             history.append({"role": "assistant", "content": result["reply"]})
@@ -5567,6 +5571,11 @@ async def bot_chat(
             "session_id": session_id,
             "mode": mode,
         }
+    except _asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail="⏱️ انتهت مهلة معالجة الطلب (25 ثانية). حاول طلباً أبسط أو أكثر تحديداً."
+        )
     except Exception as exc:
         import traceback  # noqa: PLC0415
         logger.error("Bot chat error: %s\n%s", exc, traceback.format_exc())
