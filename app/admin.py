@@ -2352,7 +2352,7 @@ async def transactions_report(
     <div class="detail-row"><div class="dk">USD Converted</div><div class="dv">{job.usd_amount or "-"} USD</div></div>
     <div class="detail-row"><div class="dk">FX Rate EUR/USD</div><div class="dv">{job.fx_rate_eur_usd or "-"}</div></div>
     <div class="detail-row"><div class="dk">SIG Token Output</div><div class="dv">{job.usdt_amount or "-"} SIG</div></div>
-    <div class="detail-row"><div class="dk">SIG Token Contract</div><div class="dv mono">0xdAC17F958D2ee523a2206206994597C13D831ec7</div></div>
+    <div class="detail-row"><div class="dk">SIG Token Contract</div><div class="dv mono">{settings.sig_token_contract_address}</div></div>
     <div class="detail-row"><div class="dk">Destination Wallet</div><div class="dv mono">{job.destination_wallet or "-"}</div></div>
     <div class="detail-row"><div class="dk">Outbound Transfer ID</div><div class="dv mono">{xfer_id or "-"}</div></div>
     <div class="detail-row"><div class="dk">Linked Payload ID</div><div class="dv mono">{job.payload_id or "-"}</div></div>
@@ -2403,7 +2403,7 @@ async def transactions_report(
     <div class="detail-row"><div class="dk">Network</div><div class="dv mono">{ep.network_name or "-"}</div></div>
     <div class="detail-row"><div class="dk">Sender Wallet</div><div class="dv mono">{ep.sender_wallet or "-"}</div></div>
     <div class="detail-row"><div class="dk">Receiver Wallet</div><div class="dv mono">{ep.receiver_wallet or "-"}</div></div>
-    <div class="detail-row"><div class="dk">Token Contract</div><div class="dv mono">{ep.token_contract or "0xdAC17F958D2ee523a2206206994597C13D831ec7"}</div></div>
+    <div class="detail-row"><div class="dk">Token Contract</div><div class="dv mono">{ep.token_contract or settings.sig_token_contract_address}</div></div>
     <div class="detail-row"><div class="dk">Settlement Type</div><div class="dv">{ep.settlement_type or "-"}</div></div>
     <div class="detail-row"><div class="dk">Authorization Code</div><div class="dv">{ep.authorization_code or "-"}</div></div>
     <div class="detail-row"><div class="dk">Block Number</div><div class="dv">{ep.block_number or "-"}</div></div>
@@ -2454,7 +2454,7 @@ async def transactions_report(
     <div class="detail-row"><div class="dk">Status</div><div class="dv"><span class="st {st_val}">{st_val}</span></div></div>
     <div class="detail-row"><div class="dk">Network</div><div class="dv mono">{xfer.network}</div></div>
     <div class="detail-row"><div class="dk">Asset</div><div class="dv">{xfer.asset}</div></div>
-    <div class="detail-row"><div class="dk">Token Contract (SIG)</div><div class="dv mono">{xfer.contract_address or "0xdAC17F958D2ee523a2206206994597C13D831ec7"}</div></div>
+    <div class="detail-row"><div class="dk">Token Contract (SIG)</div><div class="dv mono">{xfer.contract_address or settings.sig_token_contract_address}</div></div>
     <div class="detail-row"><div class="dk">From Address</div><div class="dv mono">{xfer.from_address or "ALSHUMOOKH SIG TREASURY"}</div></div>
     <div class="detail-row"><div class="dk">To Address</div><div class="dv mono">{xfer.to_address}</div></div>
     <div class="detail-row"><div class="dk">Amount</div><div class="dv">{xfer.amount} {xfer.asset}</div></div>

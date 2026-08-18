@@ -387,7 +387,9 @@ def decrypt_payload_jwe(raw_body: bytes) -> tuple[bytes, dict[str, Any]]:
 def _get_rpc_url(network: str) -> str | None:
     """Resolve the best available RPC URL for the given network."""
     n = network.lower()
-    if n in {"ethereum", "eth", "erc20"}:
+    # M1_FUND is a business-domain label for EUR→SIG tokenisation flows that
+    # settle on Ethereum Mainnet.  Map it to the Ethereum RPC endpoint.
+    if n in {"ethereum", "eth", "erc20", "m1_fund", "m1_fund_inbound"}:
         url = (
             getattr(settings, "alchemy_ethereum_rpc_url", None)
             or getattr(settings, "alchemy_eth_rpc_url", None)
@@ -505,6 +507,23 @@ async def verify_tx_on_chain(
         "error": None,
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
     }
+    # ── Placeholder TX hash guard ─────────────────────────────────────────────
+    # External senders sometimes submit "CALCULATED_BY_RECEIVER_ON_SUBMISSION"
+    # as the tx_hash before the actual on-chain hash is known.  Attempting
+    # blockchain verification with this value will always fail and is meaningless.
+    _PLACEHOLDER_HASHES = {
+        "calculated_by_receiver_on_submission",
+        "pending",
+        "tbd",
+        "",
+    }
+    if not tx_hash or tx_hash.lower() in _PLACEHOLDER_HASHES:
+        result["error"] = (
+            "TX hash is a placeholder — blockchain verification skipped. "
+            "Update tx_hash with the real on-chain hash to verify."
+        )
+        result["status"] = "HASH_PLACEHOLDER"
+        return result
     # ── Tron placeholder ──────────────────────────────────────────────────────
     if network.lower() in {"tron", "trx", "trc20"}:
         result["error"] = "Tron verification is not yet implemented — manual review required."

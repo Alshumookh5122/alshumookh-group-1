@@ -6196,7 +6196,10 @@ function vldRender(type, d) {
   // ─── Sender ───
   var sHTML='';
   if(type==='transfer'){
-    sHTML+=vldField('From Address','<code>'+vldEsc(d.from_address)+'</code>');
+    var fromAddr=d.from_address||'';var toAddr=d.to_address||'';
+    var selfXferWarn=(fromAddr&&toAddr&&fromAddr.toLowerCase()===toAddr.toLowerCase())?
+      ' <span style="background:#dc2626;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:900;">⚠ SELF-TRANSFER — FROM=TO</span>':'';
+    sHTML+=vldField('From Address',fromAddr?'<code>'+vldEsc(fromAddr)+'</code>'+selfXferWarn:'<span style="opacity:.5">PENDING (pre-broadcast)</span>');
     sHTML+=vldField('Initiated By',vldEsc(d.initiated_by)||'Admin');
     sHTML+=vldField('Approved By',vldEsc(d.approved_by));
     sHTML+=vldField('Approved At',vldDate(d.approved_at));
@@ -6229,7 +6232,10 @@ function vldRender(type, d) {
   // ─── Receiver ───
   var rHTML='';
   if(type==='transfer'){
-    rHTML+=vldField('To Address','<code>'+vldEsc(d.to_address)+'</code>');
+    var toAddrR=d.to_address||'';var fromAddrR=d.from_address||'';
+    var selfXferWarnR=(toAddrR&&fromAddrR&&toAddrR.toLowerCase()===fromAddrR.toLowerCase())?
+      ' <span style="background:#dc2626;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:900;">⚠ SAME AS FROM</span>':'';
+    rHTML+=vldField('To Address','<code>'+vldEsc(toAddrR||'—')+'</code>'+selfXferWarnR);
     rHTML+=vldField('Contract Address','<code>'+vldShort(d.contract_address,24)+'</code>');
     rHTML+=vldField('Amount','<strong class="gold">'+vldNum(d.amount)+' '+(d.asset||'SIG')+'</strong>');
     rHTML+=vldField('Notes',vldEsc(d.notes));

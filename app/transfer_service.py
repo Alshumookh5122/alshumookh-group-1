@@ -477,6 +477,20 @@ async def create_outbound_transfer(
     notes: str | None = None,
 ) -> OutboundTransfer:
     """Create a pending outbound transfer record (before broadcasting)."""
+    # Guard: prevent self-transfers where the destination equals the treasury source wallet.
+    # Such transfers result in From Address = To Address in reports and serve no purpose.
+    try:
+        treasury = _treasury_address()
+        if to_address and treasury and to_address.strip().lower() == treasury.lower():
+            raise ValueError(
+                f"Self-transfer rejected: to_address ({to_address}) matches the treasury "
+                f"source wallet. This would create a circular transaction."
+            )
+    except ValueError:
+        raise
+    except Exception:
+        pass  # if treasury address is not configured, skip the check
+
     ot = OutboundTransfer(
         to_address=to_address,
         amount=amount,

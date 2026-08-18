@@ -263,8 +263,9 @@ async def notify_payload_verified(
     amount: str | None,
     asset: str | None,
     network: str | None,
-) -> None:
-    """Alert admin: on-chain verification confirmed."""
+    callback_url: str | None = None,
+) -> dict | None:
+    """Alert admin (WhatsApp) and fire callback webhook when on-chain verification confirmed."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     msg = (
         f"ALSHUMOOKH - On-Chain CONFIRMED\n\n"
@@ -276,3 +277,16 @@ async def notify_payload_verified(
         f"Time: {now}"
     )
     await send_whatsapp(msg)
+
+    # Fire callback webhook to the sender if they provided a callback_url
+    return await _post_webhook(callback_url, {
+        "event":                  "payload.verified",
+        "payload_id":             payload_id,
+        "transaction_reference":  transaction_reference,
+        "tx_hash":                tx_hash,
+        "amount":                 amount,
+        "asset":                  asset,
+        "network":                network,
+        "verification_status":    "ALCHEMY_VERIFIED",
+        "timestamp":              datetime.now(timezone.utc).isoformat(),
+    })

@@ -16,6 +16,7 @@ from app.audit_service import log_event
 from app.config import settings
 from app.database import get_db
 from app.models import ExternalPayload, OrderStatus, PaymentOrder, PayloadVerificationStatus, Provider
+from app.notification_service import notify_payload_verified
 from app.schemas import WebhookAck
 from app.circle_service import process_circle_webhook as _process_circle_wire_webhook
 
@@ -107,6 +108,18 @@ async def _match_external_payloads(db: AsyncSession, payload: dict) -> int:
             await db.commit()
             await db.refresh(ep)
             updated += 1
+
+            # Fire callback webhook if the sender provided a callback_url
+            if ep.callback_url:
+                await notify_payload_verified(
+                    payload_id=ep.id,
+                    transaction_reference=ep.transaction_reference,
+                    tx_hash=ep.tx_hash or tx_hash or "",
+                    amount=str(ep.amount) if ep.amount else None,
+                    asset=ep.asset or asset,
+                    network=ep.network_name or network,
+                    callback_url=ep.callback_url,
+                )
 
     return updated
 

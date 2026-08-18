@@ -27,9 +27,17 @@ def _receipt_value(receipt: Any, key: str) -> Any:
     return getattr(receipt, key, None)
 
 
+_PLACEHOLDER_TX_HASHES = {
+    "calculated_by_receiver_on_submission",
+    "pending",
+    "tbd",
+}
+
+
 def _web3_for_network(network: str):
     normalized = (network or "ethereum").strip().lower()
-    if normalized in {"ethereum", "eth", "erc20"}:
+    # M1_FUND is a business label for EUR→SIG flows that settle on Ethereum Mainnet
+    if normalized in {"ethereum", "eth", "erc20", "m1_fund", "m1_fund_inbound"}:
         return ethereum_mainnet_client(), "https://etherscan.io/tx/"
     if normalized == "base":
         return base_client(), "https://basescan.org/tx/"
@@ -75,6 +83,11 @@ async def check_pending_transfer_confirmations_once(limit: int = 100) -> int:
             select(OutboundTransfer)
             .where(OutboundTransfer.status == OutboundTransferStatus.PENDING_CONFIRMATION.value)
             .where(OutboundTransfer.tx_hash.is_not(None))
+            # Exclude placeholder tx_hash values set by external parties before the
+            # real on-chain hash is known.  These cannot be looked up on-chain.
+            .where(
+                ~OutboundTransfer.tx_hash.in_(list(_PLACEHOLDER_TX_HASHES))
+            )
             .order_by(OutboundTransfer.broadcasted_at.asc().nulls_last(), OutboundTransfer.created_at.asc())
             .limit(limit)
         )

@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit_service import log_event
 from app.auth import hash_api_key, require_admin_api_key, verify_settlement_access_token
+from app.config import settings as _settings
 from app.database import get_db
 from app.deps import AdminKey
 from app.models import ApiClient, ExternalPayload, OutboundTransferStatus, PayloadVerificationStatus, TransactionFile
@@ -1733,7 +1734,7 @@ async def receive_m1_fund(
             "amount_eur":    raw_eur or "NOT_SPECIFIED",
             "token":         token_info.get("symbol", "USDT"),
             "token_network": token_info.get("type", "ERC-20"),
-            "contract":      token_info.get("contract_address", "0xdAC17F958D2ee523a2206206994597C13D831ec7"),
+            "contract":      token_info.get("contract_address") or _settings.sig_token_contract_address,
         },
         "next_steps": (
             "Your M1 Fund file has been received, logged, and queued for compliance review. "
