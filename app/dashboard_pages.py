@@ -296,10 +296,20 @@ _BOT_PANEL = """
       headers:{'Content-Type':'application/json','X-Admin-API-Key':_getKey()},
       body:JSON.stringify({message:msg,session_id:_session,mode:_mode,file_context:_fileCtx||null})
     })
-    .then(function(r){return r.json();})
+    .then(function(r){
+      var status=r.status;
+      return r.json().then(function(d){ d.__httpStatus=status; d.__ok=r.ok; return d; })
+               .catch(function(){ return {__ok:false,__httpStatus:status,detail:'خطأ غير متوقع من الخادم (HTTP '+status+')'}; });
+    })
     .then(function(d){
       hideTyping();
       document.getElementById('botSend').disabled=false;
+      /* Handle HTTP errors — detail field is set by FastAPI on 4xx/5xx */
+      if(!d.__ok || d.detail){
+        var errMsg = d.detail || ('HTTP ' + (d.__httpStatus||'?'));
+        botAppend('error','❌ '+escH(String(errMsg)));
+        return;
+      }
       /* Show tool calls */
       if(d.tool_calls&&d.tool_calls.length){
         d.tool_calls.forEach(function(tc){
@@ -309,12 +319,13 @@ _BOT_PANEL = """
       }
       /* Show reply */
       if(d.reply) botAppend('bot',md2html(d.reply));
+      else if(!d.tool_calls||!d.tool_calls.length) botAppend('bot','(لا يوجد رد)');
       if(d.error) botAppend('error',escH(d.error));
     })
     .catch(function(e){
       hideTyping();
       document.getElementById('botSend').disabled=false;
-      botAppend('error','خطأ في الاتصال: '+escH(e.message));
+      botAppend('error','❌ خطأ في الاتصال: '+escH(e.message));
     });
   };
 
