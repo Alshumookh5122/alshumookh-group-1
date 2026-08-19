@@ -7506,11 +7506,39 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     '<span style="background:#f0fdf4;color:#065f46;border:1px solid #bbf7d0;font-size:7px;font-weight:800;padding:2px 8px;border-radius:3px;letter-spacing:.5px;">BLOCKCHAIN VERIFIED</span>',
     '<span style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;font-size:7px;font-weight:800;padding:2px 8px;border-radius:3px;letter-spacing:.5px;">REPORT REF: PR-' + ref + '</span>',
     '</div></div></div>',
-    /* Right side: circular status badge */
-    '<div style="text-align:center;flex-shrink:0;">',
-    '<div style="width:64px;height:64px;border:2.5px solid #b8860b;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;">&#9878;</div>',
-    '<div style="font-size:7px;font-weight:800;color:#8b6914;margin-top:4px;letter-spacing:.5px;">OFFICIAL<br>SEAL</div>',
-    '</div>',
+    /* Right side: SVG official seal */
+    '<div style="flex-shrink:0;text-align:center;">'
+    + '<svg width="96" height="96" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">'
+    +   '<defs>'
+    +     '<path id="arcTop" d="M 9,48 A 39,39 0 0,1 87,48"/>'
+    +     '<path id="arcBot" d="M 82,56 A 39,39 0 0,1 14,56"/>'
+    +   '</defs>'
+    /* outer rings */
+    +   '<circle cx="48" cy="48" r="46" fill="none" stroke="#b8860b" stroke-width="2"/>'
+    +   '<circle cx="48" cy="48" r="43" fill="none" stroke="#c9a84c" stroke-width="0.5" stroke-dasharray="3,2"/>'
+    +   '<circle cx="48" cy="48" r="40" fill="#fffdf5" stroke="#b8860b" stroke-width="1"/>'
+    /* top circular text */
+    +   '<text font-size="5.4" font-weight="800" fill="#7a5400" letter-spacing="1.6" font-family="Arial,Helvetica,sans-serif">'
+    +     '<textPath href="#arcTop" startOffset="4%">&#9733; ALSHUMOOKH GLOBAL BANKING &#9733;</textPath>'
+    +   '</text>'
+    /* bottom circular text */
+    +   '<text font-size="5" font-weight="700" fill="#9a6f10" letter-spacing="1.4" font-family="Arial,Helvetica,sans-serif">'
+    +     '<textPath href="#arcBot" startOffset="6%">UAE &nbsp; &#9733; &nbsp; EST. 2020 &nbsp; &#9733; &nbsp; FINANCE</textPath>'
+    +   '</text>'
+    /* center scales of justice */
+    +   '<text x="48" y="47" text-anchor="middle" font-size="22" fill="#b8860b">&#9878;</text>'
+    /* horizontal rule lines */
+    +   '<line x1="22" y1="51" x2="74" y2="51" stroke="#b8860b" stroke-width="0.7"/>'
+    +   '<line x1="25" y1="53.5" x2="71" y2="53.5" stroke="#c9a84c" stroke-width="0.3"/>'
+    /* OFFICIAL SEAL text */
+    +   '<text x="48" y="62" text-anchor="middle" font-size="7.2" font-weight="900" fill="#0d2240" letter-spacing="2.5" font-family="Arial,Helvetica,sans-serif">OFFICIAL</text>'
+    +   '<text x="48" y="70" text-anchor="middle" font-size="5.5" font-weight="700" fill="#7a5400" letter-spacing="2" font-family="Arial,Helvetica,sans-serif">SEAL</text>'
+    /* bottom decorative dots */
+    +   '<circle cx="35" cy="76" r="1.5" fill="#b8860b"/>'
+    +   '<circle cx="48" cy="78" r="1.5" fill="#b8860b"/>'
+    +   '<circle cx="61" cy="76" r="1.5" fill="#b8860b"/>'
+    + '</svg>'
+    + '</div>',
     '</div>',
 
     /* Print/Close controls */
