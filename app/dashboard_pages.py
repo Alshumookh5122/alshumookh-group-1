@@ -7366,36 +7366,102 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
   }
   var doneCnt = stages.filter(function(s){return s.done;}).length;
   var flowPct = Math.round(doneCnt/stages.length*100);
+
+  /* ── Engineering schematic diagram ── */
   var stagesHTML = '';
   stages.forEach(function(s, i) {
-    var bg = s.done ? '#10b981' : '#f1f5f9';
-    var bd = s.done ? '#059669' : '#94a3b8';
-    var lc = s.done ? '#065f46' : '#64748b';
-    var lbl = s.name.replace(/\\n/g,'<br>');
-    stagesHTML += '<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">';
-    stagesHTML += '<div style="width:44px;height:44px;border-radius:50%;background:'+bg+';border:2.5px solid '+bd+';display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:7px;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.1);">';
-    stagesHTML += s.icon;
-    if (s.done) { stagesHTML += '<div style="position:absolute;bottom:-3px;right:-3px;width:15px;height:15px;background:#059669;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;font-weight:900;">&#10003;</div>'; }
+    var isLast = (i === stages.length - 1);
+    var boxBg   = s.done ? 'linear-gradient(160deg,#0d4a2e 0%,#065f46 100%)' : 'linear-gradient(160deg,#0d1f3c 0%,#0d2240 100%)';
+    var boxBd   = s.done ? '#10b981' : '#2a4a7a';
+    var numBg   = s.done ? '#10b981' : '#1a3a6b';
+    var statusTx = s.done ? '#34d399' : '#60a5fa';
+    var statusLbl= s.done ? 'COMPLETED' : 'PENDING';
+    var lbl = s.name.replace(/\\n/g,' ');
+    var num = String(i+1).length < 2 ? '0'+(i+1) : String(i+1);
+
+    /* stage box */
+    stagesHTML += '<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;position:relative;">';
+    /* top corner marks */
+    stagesHTML += '<div style="width:100%;max-width:108px;position:relative;">';
+    stagesHTML +=   '<div style="position:absolute;top:0;left:0;width:7px;height:7px;border-top:1.5px solid '+boxBd+';border-left:1.5px solid '+boxBd+';"></div>';
+    stagesHTML +=   '<div style="position:absolute;top:0;right:0;width:7px;height:7px;border-top:1.5px solid '+boxBd+';border-right:1.5px solid '+boxBd+';"></div>';
+    stagesHTML +=   '<div style="background:'+boxBg+';border:1.5px solid '+boxBd+';border-radius:4px;padding:8px 6px 7px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.35);">';
+    /* stage number badge */
+    stagesHTML +=     '<div style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;background:'+numBg+';border-radius:3px;font-size:9px;font-weight:900;color:#e2c97e;font-family:Courier New,monospace;letter-spacing:.5px;margin-bottom:5px;border:1px solid rgba(201,168,76,.4);">'+num+'</div>';
+    /* icon */
+    stagesHTML +=     '<div style="font-size:16px;margin-bottom:4px;line-height:1;">'+s.icon+'</div>';
+    /* label */
+    stagesHTML +=     '<div style="font-size:7px;font-weight:800;color:#e2e8f0;letter-spacing:.4px;line-height:1.4;font-family:Courier New,monospace;text-transform:uppercase;">'+lbl+'</div>';
+    /* status tag */
+    stagesHTML +=     '<div style="margin-top:5px;padding:2px 5px;background:rgba(0,0,0,.35);border-radius:2px;font-size:6.5px;font-weight:900;color:'+statusTx+';letter-spacing:.8px;font-family:Courier New,monospace;">&#9679; '+statusLbl+'</div>';
+    stagesHTML +=   '</div>';
+    /* bottom corner marks */
+    stagesHTML +=   '<div style="position:absolute;bottom:0;left:0;width:7px;height:7px;border-bottom:1.5px solid '+boxBd+';border-left:1.5px solid '+boxBd+';"></div>';
+    stagesHTML +=   '<div style="position:absolute;bottom:0;right:0;width:7px;height:7px;border-bottom:1.5px solid '+boxBd+';border-right:1.5px solid '+boxBd+';"></div>';
     stagesHTML += '</div>';
-    stagesHTML += '<div style="font-size:7.5px;font-weight:700;color:'+lc+';text-align:center;line-height:1.45;">'+lbl+'</div>';
-    stagesHTML += '<div style="font-size:7px;font-weight:800;color:'+bd+';margin-top:3px;letter-spacing:.3px;">'+(s.done?'DONE':'PENDING')+'</div>';
     stagesHTML += '</div>';
-    if (i < stages.length - 1) {
-      var lnCol = s.done ? '#10b981' : '#d0d9ea';
-      stagesHTML += '<div style="height:2.5px;flex:0.4;background:'+lnCol+';margin-bottom:32px;border-radius:2px;flex-shrink:0;"></div>';
+
+    /* connector arrow */
+    if (!isLast) {
+      var arrowCol = s.done ? '#10b981' : '#2a4a7a';
+      stagesHTML += '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:0 0 28px;padding-bottom:12px;">';
+      stagesHTML +=   '<div style="height:1.5px;width:100%;background:'+arrowCol+';position:relative;">';
+      stagesHTML +=     '<div style="position:absolute;right:-1px;top:-4px;width:0;height:0;border-top:4.5px solid transparent;border-bottom:4.5px solid transparent;border-left:7px solid '+arrowCol+';"></div>';
+      stagesHTML +=   '</div>';
+      stagesHTML +=   '<div style="font-size:6px;color:'+arrowCol+';font-family:Courier New,monospace;margin-top:3px;letter-spacing:.5px;">'+(s.done?'DONE':'──')+'</div>';
+      stagesHTML += '</div>';
     }
   });
-  var flowDiagram = '<div style="margin:16px 0;padding:14px 18px 12px;background:#f8fafd;border:1.5px solid #d0d9ea;border-radius:8px;page-break-inside:avoid;">'
-    + '<div style="font-size:8px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#1a3a6b;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">'
-    + '&#9878; TRANSACTION LIFECYCLE — STAGE COMPLETION CHART</div>'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;">' + stagesHTML + '</div>'
-    + '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">'
-    + '<div style="display:flex;justify-content:space-between;font-size:8px;font-weight:700;color:#64748b;margin-bottom:5px;">'
-    + '<span>Overall Transaction Progress</span>'
-    + '<span style="color:#1a3a6b;font-weight:900;">'+flowPct+'% Complete — '+doneCnt+' of '+stages.length+' stages</span></div>'
-    + '<div style="height:9px;background:#e2e8f0;border-radius:5px;overflow:hidden;border:1px solid #d0d9ea;">'
-    + '<div style="height:100%;width:'+flowPct+'%;background:linear-gradient(90deg,#1a3a6b,#10b981);border-radius:5px;"></div></div>'
-    + '</div></div>';
+
+  /* progress bar segments */
+  var segmentsHTML = '';
+  stages.forEach(function(s,i){
+    var w = (100/stages.length);
+    var segBg = s.done ? 'linear-gradient(90deg,#059669,#10b981)' : 'rgba(255,255,255,.07)';
+    var segBd = s.done ? '#10b981' : '#2a4a7a';
+    segmentsHTML += '<div style="flex:1;height:14px;background:'+segBg+';border:1px solid '+segBd+';margin-right:'+(i<stages.length-1?'2px':'0')+';">';
+    segmentsHTML += '<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:900;color:'+(s.done?'#fff':'#4a6a9a')+';font-family:Courier New,monospace;letter-spacing:.5px;">'+(s.done?'&#10003;'+String(i+1):'&#9675;'+String(i+1))+'</div>';
+    segmentsHTML += '</div>';
+  });
+
+  var flowDiagram =
+    /* outer blueprint frame */
+    '<div style="margin:20px 0 16px;background:#07111f;border:2px solid #1a3a6b;border-radius:4px;page-break-inside:avoid;position:relative;overflow:hidden;">'
+    /* grid background overlay */
+    + '<div style="position:absolute;inset:0;opacity:.07;background-image:linear-gradient(#4a8ab0 1px,transparent 1px),linear-gradient(90deg,#4a8ab0 1px,transparent 1px);background-size:14px 14px;pointer-events:none;"></div>'
+    /* corner brackets */
+    + '<div style="position:absolute;top:4px;left:4px;width:12px;height:12px;border-top:2px solid #c9a84c;border-left:2px solid #c9a84c;"></div>'
+    + '<div style="position:absolute;top:4px;right:4px;width:12px;height:12px;border-top:2px solid #c9a84c;border-right:2px solid #c9a84c;"></div>'
+    + '<div style="position:absolute;bottom:4px;left:4px;width:12px;height:12px;border-bottom:2px solid #c9a84c;border-left:2px solid #c9a84c;"></div>'
+    + '<div style="position:absolute;bottom:4px;right:4px;width:12px;height:12px;border-bottom:2px solid #c9a84c;border-right:2px solid #c9a84c;"></div>'
+    /* title bar */
+    + '<div style="background:linear-gradient(90deg,#0d2240,#122d52);border-bottom:1px solid #1a3a6b;padding:7px 20px;display:flex;justify-content:space-between;align-items:center;">'
+    +   '<div style="display:flex;align-items:center;gap:10px;">'
+    +     '<div style="width:3px;height:22px;background:#c9a84c;border-radius:1px;"></div>'
+    +     '<div>'
+    +       '<div style="font-size:8px;font-weight:900;color:#c9a84c;letter-spacing:2px;text-transform:uppercase;font-family:Courier New,monospace;">TRANSACTION PROCESS FLOW DIAGRAM</div>'
+    +       '<div style="font-size:6.5px;color:#4a8ab0;letter-spacing:1px;margin-top:1px;font-family:Courier New,monospace;">DWG-REF: TXN-FLOW-' + type.toUpperCase() + ' &nbsp;|&nbsp; REV.A &nbsp;|&nbsp; ALSHUMOOKH GLOBAL BANKING</div>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div style="text-align:right;">'
+    +     '<div style="font-size:8px;font-weight:900;color:#e2c97e;font-family:Courier New,monospace;letter-spacing:.5px;">'+ flowPct +'%</div>'
+    +     '<div style="font-size:6.5px;color:#4a8ab0;font-family:Courier New,monospace;">COMPLETE</div>'
+    +   '</div>'
+    + '</div>'
+    /* stages row */
+    + '<div style="padding:16px 20px 12px;display:flex;align-items:center;justify-content:space-between;">'
+    + stagesHTML
+    + '</div>'
+    /* progress bar row */
+    + '<div style="padding:0 20px 14px;">'
+    +   '<div style="font-size:6px;color:#4a8ab0;font-family:Courier New,monospace;letter-spacing:1px;margin-bottom:4px;text-transform:uppercase;">Stage Completion Matrix — ' + doneCnt + ' / ' + stages.length + ' Stages Verified</div>'
+    +   '<div style="display:flex;border:1px solid #1a3a6b;border-radius:2px;overflow:hidden;">' + segmentsHTML + '</div>'
+    +   '<div style="display:flex;justify-content:space-between;margin-top:4px;">'
+    +     '<div style="font-size:5.5px;color:#4a8ab0;font-family:Courier New,monospace;">INITIATED</div>'
+    +     '<div style="font-size:5.5px;color:#4a8ab0;font-family:Courier New,monospace;">SETTLEMENT COMPLETE</div>'
+    +   '</div>'
+    + '</div>'
+    + '</div>';
 
   var css = [
     '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box;}',
@@ -7455,9 +7521,6 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
 
     stampBN,
 
-    /* ── Transaction flow diagram ── */
-    flowDiagram,
-
     /* Main data table */
     '<table>' + rowsHTML + '</table>',
 
@@ -7516,6 +7579,9 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     '<button onclick="prApplyNotes()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 22px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">&#10003; Apply Notes to Report</button>',
     '<button onclick="prClearNotes()" style="background:#f1f5f9;color:#374151;border:1px solid #d0d9ea;padding:9px 16px;font-size:12px;border-radius:6px;cursor:pointer;">&#10007; Clear</button>',
     '</div></div>',
+
+    /* ── Transaction lifecycle flow diagram (bottom) ── */
+    flowDiagram,
 
     /* Signature & Footer */
     '<div style="margin-top:20px;padding:14px 20px;border:1.5px solid #d0d9ea;border-radius:8px;background:#f8fafd;page-break-inside:avoid;">',
