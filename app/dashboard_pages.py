@@ -7431,7 +7431,7 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     /* Header with logo */
     '<div class="hdr">',
     '<div style="display:flex;align-items:center;gap:14px;">',
-    '<img src="/static/company-logo.png" class="logo-img" alt="Alshumookh Group" onerror="this.style.display=\'none\'">',
+    '<img src="/static/company-logo.png" class="logo-img" alt="Alshumookh Group" onerror="this.style.display=\\'none\\'">',
     '<div>',
     '<div class="co">ALSHUMOOKH GLOBAL &mdash; Banking Finance &amp; Credit</div>',
     '<div class="sub">&#128274; PRIVATE REPORT &nbsp;&bull;&nbsp; ' + titleStr + ' &nbsp;&bull;&nbsp; Generated: ' + nowStr + '</div>',
