@@ -7191,8 +7191,8 @@ function prBuildRows(type, d) {
       {h:'FIAT'},{l:'Fiat Amount',v:'<strong>'+pn(d.fiat_amount)+' '+pe(d.fiat_currency)+'</strong>'},{l:'Exchange Rate',v:pe(d.exchange_rate)},{l:'Fees',v:pe(d.fees_fiat)},
       {h:'CRYPTO'},{l:'Crypto Amount',v:'<strong>'+pn(d.crypto_amount)+' '+pe(d.crypto_currency)+'</strong>'},{l:'Network',v:pe(d.network)},{l:'Provider',v:pe(d.provider)},
       {h:'WALLETS'},{l:'User Wallet',v:'<code>'+pe(d.user_wallet_address||d.wallet)+'</code>'},{l:'Treasury Wallet',v:'<code>'+pe(d.treasury_wallet_address)+'</code>'},
-      {h:'BLOCKCHAIN'},{l:'TX Hash',v:'<code>'+pe(d.tx_hash)+'</code>'},{l:'Processor Ref',v:pe(d.processor_reference)},
-      {h:'STATUS'},{l:'Status',v:pe(d.status)},{l:'Client IP',v:pe(d.client_ip)},{l:'Notes',v:pe(d.notes)},
+      {h:'BLOCKCHAIN'},{l:'TX Hash',v:d.tx_hash?'<code>'+pe(d.tx_hash)+'</code>':'&mdash;'},{l:'Processor Ref',v:pe(d.processor_reference)||'&mdash;'},
+      {h:'STATUS'},{l:'Status',v:pe(d.status)||'&mdash;'},{l:'Client IP',v:pe(d.client_ip)||'&mdash;'},{l:'Notes',v:pe(d.notes)||'&mdash;'},
       {h:'TIMESTAMPS'},{l:'Created',v:pd(d.created_at)},{l:'Updated',v:pd(d.updated_at)},{l:'Completed',v:pd(d.completed_at)}
     ];
   } else if (type === 'm1') {
@@ -7223,16 +7223,16 @@ function prBuildRows(type, d) {
       {l:'Contract Address',v:caLink},
       {h:'TRANSACTION'},
       {l:'TX Hash',v:txLink},
-      {l:'Block Number',v:pe(d.block_number?String(d.block_number):null)},
-      {l:'Confirmations',v:pe(d.confirmations?String(d.confirmations):null)},
-      {l:'Gas Used',v:pe(d.gas_used?String(d.gas_used):null)},
+      {l:'Block Number',v:d.block_number?pe(String(d.block_number)):'&mdash;'},
+      {l:'Confirmations',v:d.confirmations?pe(String(d.confirmations)):'&mdash;'},
+      {l:'Gas Used',v:d.gas_used?pe(String(d.gas_used)):'&mdash;'},
       {l:'Explorer',v:d.explorer_url?'<a href="'+pe(d.explorer_url)+'" target="_blank" style="color:#1d4ed8;font-size:10px;">View on Explorer</a>':'—'},
       {h:'STATUS'},
       {l:'Job Status',v:'<strong>'+pe(d.status)+'</strong>'},
-      {l:'Outbound Status',v:pe(d.outbound_status)},
-      {l:'Approved By',v:pe(d.approved_by)},
-      {l:'Error',v:pe(d.error_message)},
-      {l:'Notes',v:pe(d.notes)},
+      {l:'Outbound Status',v:pe(d.outbound_status)||'&mdash;'},
+      {l:'Approved By',v:pe(d.approved_by)||'&mdash;'},
+      {l:'Error',v:pe(d.error_message)||'&mdash;'},
+      {l:'Notes',v:pe(d.notes)||'&mdash;'},
       {h:'TIMESTAMPS'},
       {l:'Created',v:pd(d.created_at)},
       {l:'Updated',v:pd(d.updated_at)},
@@ -7243,8 +7243,8 @@ function prBuildRows(type, d) {
       {h:'IDENTITY'},{l:'Payload ID',v:pe(d.id)},{l:'Transaction Reference',v:pe(d.transaction_reference)},{l:'Request ID',v:pe(d.request_id)},
       {h:'AMOUNT'},{l:'Asset',v:pe(d.asset)},{l:'Amount',v:'<strong>'+pn(d.amount)+' '+pe(d.asset)+'</strong>'},{l:'Network',v:pe(d.network_name)},
       {h:'WALLETS'},{l:'Sender',v:'<code>'+pe(d.sender_wallet)+'</code>'},{l:'Receiver',v:'<code>'+pe(d.receiver_wallet)+'</code>'},
-      {h:'BLOCKCHAIN'},{l:'TX Hash',v:'<code>'+pe(d.tx_hash)+'</code>'},{l:'Block Number',v:pe(d.block_number)},{l:'Confirmations',v:pe(d.confirmations)},
-      {h:'SECURITY'},{l:'Status',v:pe(d.verification_status)},{l:'Security Level',v:pe(d.security_level)},{l:'Client IP',v:pe(d.client_ip)},
+      {h:'BLOCKCHAIN'},{l:'TX Hash',v:d.tx_hash?'<code>'+pe(d.tx_hash)+'</code>':'&mdash;'},{l:'Block Number',v:pe(d.block_number)||'&mdash;'},{l:'Confirmations',v:pe(d.confirmations)||'&mdash;'},
+      {h:'SECURITY'},{l:'Status',v:pe(d.verification_status)||'&mdash;'},{l:'Security Level',v:pe(d.security_level)||'&mdash;'},{l:'Client IP',v:pe(d.client_ip)||'&mdash;'},
       {h:'TIMESTAMPS'},{l:'Created',v:pd(d.created_at)},{l:'Updated',v:pd(d.updated_at)}
     ];
   } else {
@@ -7310,62 +7310,179 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     if (m.custom_amt)  { rows.push({ l:'Post-Liquidation Amount', v:'<strong>' + m.custom_amt + ' ' + (m.custom_cur || 'USD') + '</strong>' }); }
     if (m.stamp)       { rows.push({ l:'Status Stamp',            v:'<strong style="color:' + (sColors[m.stamp] || '#555') + ';">' + m.stamp + '</strong>' }); }
   }
+
+  /* ── All fields shown — no filtering — every field must appear ── */
   var rowsHTML = rows.map(function(r) {
     if (r.h) {
-      return '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:9px;font-weight:800;letter-spacing:.8px;padding:5px 12px;text-transform:uppercase;">' + r.h + '</td></tr>';
+      return '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:8.5px;font-weight:800;letter-spacing:1px;padding:6px 14px;text-transform:uppercase;border-left:3px solid #c9a84c;">' + r.h + '</td></tr>';
     }
-    return '<tr><td style="background:#f4f7fb;font-weight:600;color:#445;padding:5px 12px;white-space:nowrap;font-size:9.5px;width:38%;">' + r.l + '</td><td style="padding:5px 12px;font-size:9.5px;color:#1a2a3a;">' + r.v + '</td></tr>';
+    return '<tr><td style="background:#f4f7fb;font-weight:700;color:#1a3a6b;padding:6px 14px;white-space:nowrap;font-size:9px;width:36%;border-right:1px solid #e0e8f4;">' + r.l + '</td>'
+         + '<td style="padding:6px 14px;font-size:9.5px;color:#0d1b2a;line-height:1.5;">' + r.v + '</td></tr>';
   }).join('');
+
   var stamp = m.stamp || '';
-  var stampWM = stamp ? '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(0,0,0,.05);white-space:nowrap;pointer-events:none;">' + stamp + '</div>' : '';
-  var stampBN = stamp ? '<div style="background:' + (sBg[stamp] || '#e5e7eb') + ';color:' + (sColors[stamp] || '#374151') + ';font-size:15px;font-weight:900;text-align:center;padding:8px;letter-spacing:2px;margin-bottom:14px;border-radius:5px;">' + stamp + '</div>' : '';
+  var stampWM = stamp ? '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);font-size:88px;font-weight:900;color:rgba(13,34,64,.06);white-space:nowrap;pointer-events:none;z-index:0;letter-spacing:8px;">' + stamp + '</div>' : '';
+  var stampBN = stamp ? '<div style="background:' + (sBg[stamp] || '#e5e7eb') + ';color:' + (sColors[stamp] || '#374151') + ';font-size:14px;font-weight:900;text-align:center;padding:9px;letter-spacing:3px;margin-bottom:16px;border-radius:6px;border:1.5px solid currentColor;">' + stamp + '</div>' : '';
+
+  /* ── Transaction flow diagram ──────────────────────────────────── */
+  var hasHash = !!(d.tx_hash && String(d.tx_hash).toLowerCase() !== 'calculated_by_receiver_on_submission' && d.tx_hash !== '—');
+  var hasBlock = !!(d.block_number && d.block_number > 0);
+  var stUp = String(d.status || d.verification_status || '').toUpperCase();
+  var isOkFlow = ['COMPLETED','CONFIRMED','RECONCILED','APPROVED','ALCHEMY_VERIFIED','ON_CHAIN_CONFIRMED'].indexOf(stUp) !== -1;
+  var isFailFlow = ['FAILED','REJECTED','CANCELLED','ERROR'].indexOf(stUp) !== -1;
+  var stages = [];
+  if (type === 'transfer') {
+    stages = [
+      {name:'Transfer\nInitiated',  done:true,                               icon:'&#128196;'},
+      {name:'Approval\nGranted',    done:!!(d.approved_at||d.approved_by),   icon:'&#9989;'},
+      {name:'Blockchain\nBroadcast',done:!!(d.broadcasted_at||hasHash),      icon:'&#128225;'},
+      {name:'On-Chain\nConfirmed',  done:hasBlock,                           icon:'&#9851;'},
+      {name:'Settlement\nComplete', done:isOkFlow,                           icon:'&#127881;'}
+    ];
+  } else if (type === 'm1') {
+    stages = [
+      {name:'SWIFT Wire\nReceived', done:true,                                       icon:'&#127760;'},
+      {name:'FX Rate\nApplied',     done:!!(d.fx_rate_eur_usd||d.fx_rate||d.usd_amount), icon:'&#128176;'},
+      {name:'Token\nMinting',       done:!!(d.broadcasted_at||hasHash),              icon:'&#128192;'},
+      {name:'On-Chain\nVerified',   done:hasBlock,                                   icon:'&#9851;'},
+      {name:'Tokenization\nComplete',done:isOkFlow,                                  icon:'&#127881;'}
+    ];
+  } else if (type === 'payload') {
+    stages = [
+      {name:'Payment\nReceived',    done:true,        icon:'&#128229;'},
+      {name:'Review\nRequested',    done:true,        icon:'&#128269;'},
+      {name:'Blockchain\nVerified', done:hasHash,     icon:'&#9851;'},
+      {name:'AML/KYC\nCleared',     done:!isFailFlow, icon:'&#128737;'},
+      {name:'Payload\nSettled',     done:isOkFlow,    icon:'&#127881;'}
+    ];
+  } else {
+    stages = [
+      {name:'Order\nCreated',       done:true,            icon:'&#128203;'},
+      {name:'Payment\nProcessed',   done:!!(d.provider),  icon:'&#128179;'},
+      {name:'Crypto\nDispatched',   done:hasHash,         icon:'&#9851;'},
+      {name:'Chain\nConfirmed',     done:hasBlock,        icon:'&#9989;'},
+      {name:'Order\nComplete',      done:isOkFlow,        icon:'&#127881;'}
+    ];
+  }
+  var doneCnt = stages.filter(function(s){return s.done;}).length;
+  var flowPct = Math.round(doneCnt/stages.length*100);
+  var stagesHTML = '';
+  stages.forEach(function(s, i) {
+    var bg = s.done ? '#10b981' : '#f1f5f9';
+    var bd = s.done ? '#059669' : '#94a3b8';
+    var lc = s.done ? '#065f46' : '#64748b';
+    var lbl = s.name.replace(/\n/g,'<br>');
+    stagesHTML += '<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">';
+    stagesHTML += '<div style="width:44px;height:44px;border-radius:50%;background:'+bg+';border:2.5px solid '+bd+';display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:7px;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.1);">';
+    stagesHTML += s.icon;
+    if (s.done) { stagesHTML += '<div style="position:absolute;bottom:-3px;right:-3px;width:15px;height:15px;background:#059669;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;font-weight:900;">&#10003;</div>'; }
+    stagesHTML += '</div>';
+    stagesHTML += '<div style="font-size:7.5px;font-weight:700;color:'+lc+';text-align:center;line-height:1.45;">'+lbl+'</div>';
+    stagesHTML += '<div style="font-size:7px;font-weight:800;color:'+bd+';margin-top:3px;letter-spacing:.3px;">'+(s.done?'DONE':'PENDING')+'</div>';
+    stagesHTML += '</div>';
+    if (i < stages.length - 1) {
+      var lnCol = s.done ? '#10b981' : '#d0d9ea';
+      stagesHTML += '<div style="height:2.5px;flex:0.4;background:'+lnCol+';margin-bottom:32px;border-radius:2px;flex-shrink:0;"></div>';
+    }
+  });
+  var flowDiagram = '<div style="margin:16px 0;padding:14px 18px 12px;background:#f8fafd;border:1.5px solid #d0d9ea;border-radius:8px;page-break-inside:avoid;">'
+    + '<div style="font-size:8px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#1a3a6b;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">'
+    + '&#9878; TRANSACTION LIFECYCLE — STAGE COMPLETION CHART</div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;">' + stagesHTML + '</div>'
+    + '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">'
+    + '<div style="display:flex;justify-content:space-between;font-size:8px;font-weight:700;color:#64748b;margin-bottom:5px;">'
+    + '<span>Overall Transaction Progress</span>'
+    + '<span style="color:#1a3a6b;font-weight:900;">'+flowPct+'% Complete — '+doneCnt+' of '+stages.length+' stages</span></div>'
+    + '<div style="height:9px;background:#e2e8f0;border-radius:5px;overflow:hidden;border:1px solid #d0d9ea;">'
+    + '<div style="height:100%;width:'+flowPct+'%;background:linear-gradient(90deg,#1a3a6b,#10b981);border-radius:5px;"></div></div>'
+    + '</div></div>';
+
   var css = [
-    '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}',
-    'body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;color:#0d1b2a;margin:0;padding:22px 28px;background:#fff;}',
-    '.gbar{height:5px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);}',
-    '.cband{background:#1a3a6b;color:#fff;padding:7px 20px;font-size:8px;font-weight:700;display:flex;justify-content:space-between;}',
-    '.hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 0 10px;border-bottom:2px solid #1a3a6b;margin-bottom:14px;}',
-    '.co{font-size:14px;font-weight:800;color:#1a3a6b;}',
-    '.seal{width:56px;height:56px;border:2px solid #b8860b;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:7.5px;font-weight:700;color:#8b6914;line-height:1.3;}',
-    'table{width:100%;border-collapse:collapse;margin-bottom:16px;border:1px solid #d0d9ea;}',
-    'tr:nth-child(even)>td{background:#f9fbfd;}',
-    '.np{display:block}code{font-family:monospace;font-size:8.5px;word-break:break-all;}',
-    '@media print{.np{display:none!important}@page{size:A4 portrait;margin:8mm 10mm}body{padding:0}}'
+    '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box;}',
+    'body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:10px;color:#0d1b2a;margin:0;padding:20px 26px;background:#fff;position:relative;}',
+    '.gbar{height:6px;background:linear-gradient(90deg,#7a5400,#c9a227,#f0c040,#c9a227,#7a5400);margin-bottom:0;}',
+    '.cband{background:#0d2240;color:#e2c97e;padding:7px 20px;font-size:7.5px;font-weight:800;display:flex;justify-content:space-between;letter-spacing:.6px;align-items:center;}',
+    '.hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 0 12px;border-bottom:2.5px solid #0d2240;margin-bottom:14px;}',
+    '.co{font-size:15px;font-weight:900;color:#0d2240;letter-spacing:.3px;}',
+    '.sub{font-size:8.5px;color:#5a6a80;margin-top:3px;font-weight:600;}',
+    '.logo-img{height:58px;width:auto;object-fit:contain;}',
+    'table{width:100%;border-collapse:collapse;margin-bottom:14px;border:1px solid #d0d9ea;border-radius:6px;overflow:hidden;}',
+    'tr:nth-child(even)>td:last-child{background:#f9fbfd;}',
+    'tr:hover>td{background:#f0f4fb;}',
+    'code{font-family:"Courier New",monospace;font-size:8px;word-break:break-all;background:#f4f7fc;padding:1px 4px;border-radius:3px;}',
+    'a{color:#1d4ed8;text-decoration:none;}',
+    '.np{display:block;}',
+    '.section-title{font-size:8px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#1a3a6b;margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid #e0e8f4;}',
+    '@media print{.np{display:none!important}@page{size:A4 portrait;margin:7mm 9mm}body{padding:0}}'
   ].join('');
+
+  var nowStr = new Date().toLocaleString('en-GB',{timeZone:'UTC',year:'numeric',month:'long',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) + ' UTC';
   var parts = [
-    '<!doctype html><html><head><meta charset="utf-8">',
-    '<title>Private Report - ' + titleStr + '</title>',
+    '<!doctype html><html lang="en"><head><meta charset="utf-8">',
+    '<title>Private Report — ' + titleStr + ' — PR-' + ref + '</title>',
     '<style>' + css + '</style></head><body>',
+    stampWM,
     '<div class="gbar"></div>',
-    '<div class="cband"><span>ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &mdash; PRIVATE &mdash; CONFIDENTIAL</span><span>Ref: PR-' + ref + '</span></div>',
-    '<div class="hdr"><div><div class="co">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>',
-    '<div style="font-size:9.5px;color:#5a6a80;margin-top:3px;">Private Report &mdash; ' + titleStr + ' &mdash; ' + new Date().toUTCString() + '</div></div>',
-    '<div class="seal">ALSH<br>GROUP<br>&#9733;&#9733;&#9733;</div></div>',
-    '<div class="np" style="margin-bottom:14px;display:flex;gap:8px;">',
-    '<button onclick="window.print()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 24px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;">&#128424; Print / Save PDF</button>',
-    '<button onclick="window.close()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 18px;font-size:12px;border-radius:5px;cursor:pointer;">&#10005; Close</button></div>',
-    stampWM, stampBN,
-    '<table>' + rowsHTML + '</table>',
-    '<div id="prNotesDisplay" style="display:none;margin-top:22px;padding:14px 20px;border:2px solid #0d2240;border-radius:8px;background:#f7f9fc;">',
-    '<div style="font-size:8.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#6b7a90;margin-bottom:8px;">REMARKS / NOTES</div>',
-    '<div id="prNotesContent" style="font-size:12px;color:#0d2240;font-weight:600;line-height:1.7;white-space:pre-wrap;"></div>',
+    '<div class="cband">',
+    '<span>&#128274; ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT &nbsp;&bull;&nbsp; PRIVATE &amp; CONFIDENTIAL &nbsp;&bull;&nbsp; NOT FOR DISTRIBUTION</span>',
+    '<span>Report Ref: PR-' + ref + '</span>',
     '</div>',
 
-    '<div class="np" id="prNotesPanel" style="margin-top:22px;padding:16px 20px;background:#f0f4fb;border:2px dashed #c8d9f0;border-radius:10px;">',
-    '<div style="font-size:13px;font-weight:800;color:#0d2240;margin-bottom:10px;">&#128203; Add Remarks / Notes</div>',
+    /* Header with logo */
+    '<div class="hdr">',
+    '<div style="display:flex;align-items:center;gap:14px;">',
+    '<img src="/static/company-logo.png" class="logo-img" alt="Alshumookh Group" onerror="this.style.display=\'none\'">',
+    '<div>',
+    '<div class="co">ALSHUMOOKH GLOBAL &mdash; Banking Finance &amp; Credit</div>',
+    '<div class="sub">&#128274; PRIVATE REPORT &nbsp;&bull;&nbsp; ' + titleStr + ' &nbsp;&bull;&nbsp; Generated: ' + nowStr + '</div>',
+    '<div style="margin-top:5px;display:flex;gap:8px;flex-wrap:wrap;">',
+    '<span style="background:#0d2240;color:#e2c97e;font-size:7px;font-weight:800;padding:2px 8px;border-radius:3px;letter-spacing:.5px;">CONFIDENTIAL</span>',
+    '<span style="background:#f0fdf4;color:#065f46;border:1px solid #bbf7d0;font-size:7px;font-weight:800;padding:2px 8px;border-radius:3px;letter-spacing:.5px;">BLOCKCHAIN VERIFIED</span>',
+    '<span style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;font-size:7px;font-weight:800;padding:2px 8px;border-radius:3px;letter-spacing:.5px;">REPORT REF: PR-' + ref + '</span>',
+    '</div></div></div>',
+    /* Right side: circular status badge */
+    '<div style="text-align:center;flex-shrink:0;">',
+    '<div style="width:64px;height:64px;border:2.5px solid #b8860b;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;">&#9878;</div>',
+    '<div style="font-size:7px;font-weight:800;color:#8b6914;margin-top:4px;letter-spacing:.5px;">OFFICIAL<br>SEAL</div>',
+    '</div>',
+    '</div>',
 
-    '<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#128336; Settlement Timeframe</div>',
+    /* Print/Close controls */
+    '<div class="np" style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">',
+    '<button onclick="window.print()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 24px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;box-shadow:0 2px 8px rgba(13,34,64,.3);">&#128424; Print / Save PDF</button>',
+    '<button onclick="window.close()" style="background:#f1f5f9;color:#374151;border:1px solid #d0d9ea;padding:9px 18px;font-size:12px;border-radius:6px;cursor:pointer;">&#10005; Close</button>',
+    '</div>',
+
+    stampBN,
+
+    /* ── Transaction flow diagram ── */
+    flowDiagram,
+
+    /* Main data table */
+    '<table>' + rowsHTML + '</table>',
+
+    /* Notes display */
+    '<div id="prNotesDisplay" style="display:none;margin-top:20px;padding:14px 20px;border:2px solid #0d2240;border-radius:8px;background:#f7f9fc;">',
+    '<div class="section-title">REMARKS / NOTES</div>',
+    '<div id="prNotesContent" style="font-size:11.5px;color:#0d2240;font-weight:600;line-height:1.8;white-space:pre-wrap;"></div>',
+    '</div>',
+
+    /* Notes panel (no-print) */
+    '<div class="np" id="prNotesPanel" style="margin-top:20px;padding:16px 20px;background:#f0f4fb;border:2px dashed #c8d9f0;border-radius:10px;">',
+    '<div style="font-size:13px;font-weight:800;color:#0d2240;margin-bottom:12px;">&#128203; Add Remarks / Notes to Report</div>',
+
+    '<div class="section-title">&#128336; Settlement Timeframe</div>',
     '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">',
     '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 24 Business Hours</button>',
     '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 48 Business Hours</button>',
     '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 72 Business Hours</button>',
-    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 5 Business Days (T+5)</button>',
-    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Same Day Settlement &mdash; Value Date Today</button>',
     '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; T+1 Settlement &mdash; Next Business Day</button>',
     '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; T+2 Settlement &mdash; Standard SWIFT Value Date</button>',
+    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Same Day Settlement &mdash; Value Date Today</button>',
+    '<button onclick="prSetPreset(this)" style="background:#164e63;color:#cffafe;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128336; Settlement within 5 Business Days (T+5)</button>',
     '</div>',
 
-    '<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#9203; Transaction Status</div>',
+    '<div class="section-title">&#9203; Transaction Status</div>',
     '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">',
     '<button onclick="prSetPreset(this)" style="background:#92400e;color:#fef3c7;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9203; Pending &mdash; Awaiting Approval</button>',
     '<button onclick="prSetPreset(this)" style="background:#065f46;color:#d1fae5;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#10003; Approved &mdash; Processed Successfully</button>',
@@ -7376,7 +7493,7 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     '<button onclick="prSetPreset(this)" style="background:#374151;color:#e5e7eb;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128203; Cancelled &mdash; Withdrawn by Client</button>',
     '</div>',
 
-    '<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#128200; Funds & Treasury</div>',
+    '<div class="section-title">&#128200; Funds &amp; Treasury</div>',
     '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">',
     '<button onclick="prSetPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128274; Funds Received &mdash; Confirmed by Treasury</button>',
     '<button onclick="prSetPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128200; Funds Transferred &mdash; Deducted from Reserve</button>',
@@ -7385,20 +7502,28 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     '<button onclick="prSetPreset(this)" style="background:#0d2240;color:#c9a84c;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128176; Payment Released &mdash; Funds Dispatched to Beneficiary</button>',
     '</div>',
 
-    '<div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#6b7a90;margin-bottom:6px;">&#9878; Compliance & Legal</div>',
+    '<div class="section-title">&#9878; Compliance &amp; Legal</div>',
     '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">',
     '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128203; For Internal Use Only &mdash; Confidential</button>',
     '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9878; KYC / AML Verification Pending</button>',
     '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#9989; KYC / AML Cleared &mdash; Verified</button>',
     '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128274; Frozen &mdash; Regulatory Hold</button>',
-    '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128220; Awaiting Supporting Documents</button>',
     '<button onclick="prSetPreset(this)" style="background:#1f2937;color:#d1d5db;border:none;padding:7px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;">&#128221; Authorized by Management &mdash; Signed Off</button>',
     '</div>',
 
-    '<textarea id="prNotesText" placeholder="Or write your own custom note here..." style="width:100%;height:72px;font-size:12px;padding:10px;border:1.5px solid #c8d9f0;border-radius:7px;font-family:Arial,sans-serif;color:#0d2240;resize:vertical;box-sizing:border-box;"></textarea>',
+    '<textarea id="prNotesText" placeholder="Or write your own custom note here..." style="width:100%;height:72px;font-size:12px;padding:10px;border:1.5px solid #c8d9f0;border-radius:7px;font-family:Arial,sans-serif;color:#0d2240;resize:vertical;box-sizing:border-box;outline:none;"></textarea>',
     '<div style="display:flex;gap:8px;margin-top:10px;">',
-    '<button onclick="prApplyNotes()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 22px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">&#10003; Apply Notes</button>',
-    '<button onclick="prClearNotes()" style="background:#e5e7eb;color:#374151;border:none;padding:9px 16px;font-size:12px;border-radius:6px;cursor:pointer;">&#10007; Clear</button>',
+    '<button onclick="prApplyNotes()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 22px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">&#10003; Apply Notes to Report</button>',
+    '<button onclick="prClearNotes()" style="background:#f1f5f9;color:#374151;border:1px solid #d0d9ea;padding:9px 16px;font-size:12px;border-radius:6px;cursor:pointer;">&#10007; Clear</button>',
+    '</div></div>',
+
+    /* Signature & Footer */
+    '<div style="margin-top:20px;padding:14px 20px;border:1.5px solid #d0d9ea;border-radius:8px;background:#f8fafd;page-break-inside:avoid;">',
+    '<div style="font-size:8px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#1a3a6b;margin-bottom:12px;">&#128221; AUTHORIZED SIGNATURES</div>',
+    '<div style="display:flex;gap:30px;flex-wrap:wrap;">',
+    '<div style="flex:1;min-width:160px;"><div style="height:1px;background:#0d2240;margin-bottom:6px;"></div><div style="font-size:8px;color:#5a6a80;font-weight:700;">Prepared By</div></div>',
+    '<div style="flex:1;min-width:160px;"><div style="height:1px;background:#0d2240;margin-bottom:6px;"></div><div style="font-size:8px;color:#5a6a80;font-weight:700;">Reviewed By</div></div>',
+    '<div style="flex:1;min-width:160px;"><div style="height:1px;background:#0d2240;margin-bottom:6px;"></div><div style="font-size:8px;color:#5a6a80;font-weight:700;">Authorized By</div></div>',
     '</div></div>',
 
     '<script>',
@@ -7407,9 +7532,11 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     'function prClearNotes(){document.getElementById("prNotesText").value="";document.getElementById("prNotesContent").textContent="";document.getElementById("prNotesDisplay").style.display="none";}',
     '<\/script>',
 
-    '<div style="margin-top:16px;padding-top:8px;border-top:1px solid #d0d9ea;display:flex;justify-content:space-between;font-size:8px;color:#9aa;">',
-    '<span>PRIVATE REPORT &mdash; ALSHUMOOKH GROUP 2026 &mdash; Ref: PR-' + ref + '</span>',
-    '<span>Generated: ' + new Date().toLocaleString() + '</span></div>',
+    /* Final footer */
+    '<div style="margin-top:14px;padding-top:8px;border-top:1.5px solid #d0d9ea;display:flex;justify-content:space-between;align-items:center;font-size:7.5px;color:#8a9ab0;flex-wrap:wrap;gap:6px;">',
+    '<div><strong style="color:#0d2240;">ALSHUMOOKH GLOBAL</strong> Banking Finance &amp; Credit &bull; Private Report &bull; PR-' + ref + '</div>',
+    '<div>Generated: ' + nowStr + ' &bull; Document is confidential and intended solely for authorized recipients.</div>',
+    '</div>',
     '</body></html>'
   ];
   return parts.join('');
