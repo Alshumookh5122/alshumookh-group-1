@@ -7333,35 +7333,35 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
   var stages = [];
   if (type === 'transfer') {
     stages = [
-      {name:'Transfer\nInitiated',  done:true,                               icon:'&#128196;'},
-      {name:'Approval\nGranted',    done:!!(d.approved_at||d.approved_by),   icon:'&#9989;'},
-      {name:'Blockchain\nBroadcast',done:!!(d.broadcasted_at||hasHash),      icon:'&#128225;'},
-      {name:'On-Chain\nConfirmed',  done:hasBlock,                           icon:'&#9851;'},
-      {name:'Settlement\nComplete', done:isOkFlow,                           icon:'&#127881;'}
+      {name:'Transfer\\nInitiated',  done:true,                               icon:'&#128196;'},
+      {name:'Approval\\nGranted',    done:!!(d.approved_at||d.approved_by),   icon:'&#9989;'},
+      {name:'Blockchain\\nBroadcast',done:!!(d.broadcasted_at||hasHash),      icon:'&#128225;'},
+      {name:'On-Chain\\nConfirmed',  done:hasBlock,                           icon:'&#9851;'},
+      {name:'Settlement\\nComplete', done:isOkFlow,                           icon:'&#127881;'}
     ];
   } else if (type === 'm1') {
     stages = [
-      {name:'SWIFT Wire\nReceived', done:true,                                       icon:'&#127760;'},
-      {name:'FX Rate\nApplied',     done:!!(d.fx_rate_eur_usd||d.fx_rate||d.usd_amount), icon:'&#128176;'},
-      {name:'Token\nMinting',       done:!!(d.broadcasted_at||hasHash),              icon:'&#128192;'},
-      {name:'On-Chain\nVerified',   done:hasBlock,                                   icon:'&#9851;'},
-      {name:'Tokenization\nComplete',done:isOkFlow,                                  icon:'&#127881;'}
+      {name:'SWIFT Wire\\nReceived', done:true,                                       icon:'&#127760;'},
+      {name:'FX Rate\\nApplied',     done:!!(d.fx_rate_eur_usd||d.fx_rate||d.usd_amount), icon:'&#128176;'},
+      {name:'Token\\nMinting',       done:!!(d.broadcasted_at||hasHash),              icon:'&#128192;'},
+      {name:'On-Chain\\nVerified',   done:hasBlock,                                   icon:'&#9851;'},
+      {name:'Tokenization\\nComplete',done:isOkFlow,                                  icon:'&#127881;'}
     ];
   } else if (type === 'payload') {
     stages = [
-      {name:'Payment\nReceived',    done:true,        icon:'&#128229;'},
-      {name:'Review\nRequested',    done:true,        icon:'&#128269;'},
-      {name:'Blockchain\nVerified', done:hasHash,     icon:'&#9851;'},
-      {name:'AML/KYC\nCleared',     done:!isFailFlow, icon:'&#128737;'},
-      {name:'Payload\nSettled',     done:isOkFlow,    icon:'&#127881;'}
+      {name:'Payment\\nReceived',    done:true,        icon:'&#128229;'},
+      {name:'Review\\nRequested',    done:true,        icon:'&#128269;'},
+      {name:'Blockchain\\nVerified', done:hasHash,     icon:'&#9851;'},
+      {name:'AML/KYC\\nCleared',     done:!isFailFlow, icon:'&#128737;'},
+      {name:'Payload\\nSettled',     done:isOkFlow,    icon:'&#127881;'}
     ];
   } else {
     stages = [
-      {name:'Order\nCreated',       done:true,            icon:'&#128203;'},
-      {name:'Payment\nProcessed',   done:!!(d.provider),  icon:'&#128179;'},
-      {name:'Crypto\nDispatched',   done:hasHash,         icon:'&#9851;'},
-      {name:'Chain\nConfirmed',     done:hasBlock,        icon:'&#9989;'},
-      {name:'Order\nComplete',      done:isOkFlow,        icon:'&#127881;'}
+      {name:'Order\\nCreated',       done:true,            icon:'&#128203;'},
+      {name:'Payment\\nProcessed',   done:!!(d.provider),  icon:'&#128179;'},
+      {name:'Crypto\\nDispatched',   done:hasHash,         icon:'&#9851;'},
+      {name:'Chain\\nConfirmed',     done:hasBlock,        icon:'&#9989;'},
+      {name:'Order\\nComplete',      done:isOkFlow,        icon:'&#127881;'}
     ];
   }
   var doneCnt = stages.filter(function(s){return s.done;}).length;
@@ -7371,7 +7371,7 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
     var bg = s.done ? '#10b981' : '#f1f5f9';
     var bd = s.done ? '#059669' : '#94a3b8';
     var lc = s.done ? '#065f46' : '#64748b';
-    var lbl = s.name.replace(/\n/g,'<br>');
+    var lbl = s.name.replace(/\\n/g,'<br>');
     stagesHTML += '<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">';
     stagesHTML += '<div style="width:44px;height:44px;border-radius:50%;background:'+bg+';border:2.5px solid '+bd+';display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:7px;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.1);">';
     stagesHTML += s.icon;
