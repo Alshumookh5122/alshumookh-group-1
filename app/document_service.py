@@ -745,25 +745,7 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
       border-top: 2px solid var(--brand);
     }}
 
-    .legal-seal {{
-      border: 2px solid var(--brand);
-      border-radius: 50%;
-      width: 90px;
-      height: 90px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      font-size: 7px;
-      font-weight: 700;
-      color: var(--brand);
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      line-height: 1.3;
-      font-family: Arial, sans-serif;
-      flex-shrink: 0;
-      box-shadow: inset 0 0 0 3px rgba(26,58,107,0.12);
-    }}
+    .legal-seal {{ display: inline-block; }}
 
     .auth-block {{
       flex: 1;
@@ -1042,11 +1024,7 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
         font-size: 9px !important;
       }}
 
-      .legal-seal {{
-        width: 72px !important;
-        height: 72px !important;
-        font-size: 6px !important;
-      }}
+      .legal-seal { display: inline-block !important; }
 
       .footer {{
         margin-top: 12px !important;
@@ -1146,7 +1124,7 @@ def render_order_document(order: PaymentOrder, document_type: str) -> str:
           <div class="auth-label">ALSHUMOOKH GLOBAL BANKING FINANCE &amp; CREDIT</div>
           <div class="auth-label" style="margin-top:2px;">Compliance &amp; Settlement Division</div>
         </div>
-        <div class="legal-seal">ALSHUMOOKH<br>GROUP<br>OFFICIAL<br>DOCUMENT</div>
+        <svg width="90" height="90" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><path id="atDS" d="M 17,50 A 33,33 0 0,1 83,50"/><path id="abDS" d="M 83,50 A 33,33 0 0,1 17,50"/></defs><polygon points="50.0,3.0 56.6,8.5 64.5,5.3 69.1,12.6 77.6,12.0 79.7,20.3 88.0,22.4 87.4,30.9 94.7,35.5 91.5,43.4 97.0,50.0 91.5,56.6 94.7,64.5 87.4,69.1 88.0,77.6 79.7,79.7 77.6,88.0 69.1,87.4 64.5,94.7 56.6,91.5 50.0,97.0 43.4,91.5 35.5,94.7 30.9,87.4 22.4,88.0 20.3,79.7 12.0,77.6 12.6,69.1 5.3,64.5 8.5,56.6 3.0,50.0 8.5,43.4 5.3,35.5 12.6,30.9 12.0,22.4 20.3,20.3 22.4,12.0 30.9,12.6 35.5,5.3 43.4,8.5" fill="#0D1B3E"/><circle cx="50" cy="50" r="42" fill="#fdf8ef" stroke="#C9A84C" stroke-width="0.4"/><circle cx="50.0" cy="12.0" r="1.4" fill="#C9A84C"/><circle cx="59.8" cy="13.3" r="0.7" fill="#C9A84C"/><circle cx="69.0" cy="17.1" r="1.4" fill="#C9A84C"/><circle cx="76.9" cy="23.1" r="0.7" fill="#C9A84C"/><circle cx="82.9" cy="31.0" r="1.4" fill="#C9A84C"/><circle cx="86.7" cy="40.2" r="0.7" fill="#C9A84C"/><circle cx="88.0" cy="50.0" r="1.4" fill="#C9A84C"/><circle cx="86.7" cy="59.8" r="0.7" fill="#C9A84C"/><circle cx="82.9" cy="69.0" r="1.4" fill="#C9A84C"/><circle cx="76.9" cy="76.9" r="0.7" fill="#C9A84C"/><circle cx="69.0" cy="82.9" r="1.4" fill="#C9A84C"/><circle cx="59.8" cy="86.7" r="0.7" fill="#C9A84C"/><circle cx="50.0" cy="88.0" r="1.4" fill="#C9A84C"/><circle cx="40.2" cy="86.7" r="0.7" fill="#C9A84C"/><circle cx="31.0" cy="82.9" r="1.4" fill="#C9A84C"/><circle cx="23.1" cy="76.9" r="0.7" fill="#C9A84C"/><circle cx="17.1" cy="69.0" r="1.4" fill="#C9A84C"/><circle cx="13.3" cy="59.8" r="0.7" fill="#C9A84C"/><circle cx="12.0" cy="50.0" r="1.4" fill="#C9A84C"/><circle cx="13.3" cy="40.2" r="0.7" fill="#C9A84C"/><circle cx="17.1" cy="31.0" r="1.4" fill="#C9A84C"/><circle cx="23.1" cy="23.1" r="0.7" fill="#C9A84C"/><circle cx="31.0" cy="17.1" r="1.4" fill="#C9A84C"/><circle cx="40.2" cy="13.3" r="0.7" fill="#C9A84C"/><circle cx="50" cy="50" r="35" fill="none" stroke="#b8860b" stroke-width="0.5"/><circle cx="50" cy="50" r="31" fill="#0D1B3E" stroke="#C9A84C" stroke-width="0.8"/><text font-size="5" font-weight="800" fill="#C9A84C" letter-spacing="0.8" font-family="Arial,sans-serif"><textPath href="#atDS" startOffset="10%">ALSHUMOOKH BANKING</textPath></text><text font-size="4.5" font-weight="700" fill="#C9A84C" letter-spacing="0.6" font-family="Arial,sans-serif"><textPath href="#abDS" startOffset="12%">UAE &#8226; OFFICIAL &#8226; EST.2020</textPath></text><text x="50" y="46" text-anchor="middle" font-size="4.5" font-weight="800" fill="#e2c97e" letter-spacing="1" font-family="Arial,sans-serif">ALSHUMOOKH</text><line x1="34" y1="49" x2="66" y2="49" stroke="#C9A84C" stroke-width="0.5"/><text x="50" y="57" text-anchor="middle" font-size="16" font-weight="900" fill="#e2c97e" font-family="Georgia,serif">AG</text><line x1="34" y1="60" x2="66" y2="60" stroke="#C9A84C" stroke-width="0.5"/><text x="50" y="67" text-anchor="middle" font-size="4.5" font-weight="700" fill="#C9A84C" letter-spacing="1.5" font-family="Arial,sans-serif">SEAL</text></svg>
       </div>
 
       <div class="footer">
