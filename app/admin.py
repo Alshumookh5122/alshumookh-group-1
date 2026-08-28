@@ -4778,13 +4778,14 @@ async def nowpayments_payout_status(payout_id: str, _: AdminKey):
 
 
 @router.post("/nowpayments/ipn-webhook", include_in_schema=False)
-async def nowpayments_ipn_webhook(request: Request):
+async def nowpayments_ipn_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """
     NOWPayments IPN (Instant Payment Notification) webhook.
-    Verifies HMAC-SHA512 signature then processes payment status update.
+    Verifies HMAC-SHA512 signature, persists event to audit_logs,
+    and updates matching PaymentOrder status.
     """
-    import logging
-    _logger = logging.getLogger("nowpayments.ipn")
+    import logging as _logging
+    _logger = _logging.getLogger("nowpayments.ipn")
 
     raw_body = await request.body()
     signature = request.headers.get("x-nowpayments-sig", "")
@@ -4799,8 +4800,8 @@ async def nowpayments_ipn_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid JSON body")
 
     internal_status = nps.parse_ipn_status(body)
-    payment_id = body.get("payment_id", "unknown")
-    order_id = body.get("order_id", "")
+    payment_id = str(body.get("payment_id", "unknown"))
+    order_id = str(body.get("order_id", ""))
     pay_amount = body.get("actually_paid", body.get("pay_amount", 0))
     pay_currency = body.get("pay_currency", "")
 
@@ -4809,7 +4810,67 @@ async def nowpayments_ipn_webhook(request: Request):
         payment_id, order_id, internal_status, pay_amount, pay_currency,
     )
 
-    # TODO: persist IPN events to database / trigger settlement logic here
+    # ── 1. Persist IPN event to audit_logs ───────────────────────────────────
+    audit = AuditLog(
+        event_type="nowpayments_ipn",
+        endpoint="/admin/nowpayments/ipn-webhook",
+        method="POST",
+        ip=get_client_ip(request),
+        transaction_id=payment_id,
+        details={
+            "payment_id": payment_id,
+            "order_id": order_id,
+            "internal_status": internal_status,
+            "pay_amount": str(pay_amount),
+            "pay_currency": pay_currency,
+            "raw": body,
+        },
+    )
+    db.add(audit)
+
+    # ── 2. Map internal_status → OrderStatus and update PaymentOrder ─────────
+    status_map = {
+        "COMPLETED":  OrderStatus.COMPLETED,
+        "CONFIRMED":  OrderStatus.PROCESSING,  # on-chain confirmed, not yet final
+        "CONFIRMING": OrderStatus.PROCESSING,
+        "SENDING":    OrderStatus.PROCESSING,
+        "FAILED":     OrderStatus.FAILED,
+        "REFUNDED":   OrderStatus.REFUNDED,
+        "PARTIAL":    OrderStatus.PENDING,
+        "WAITING":    OrderStatus.PENDING,
+        "EXPIRED":    OrderStatus.FAILED,
+    }
+    new_order_status = status_map.get(internal_status)
+
+    if new_order_status and order_id:
+        result = await db.execute(
+            select(PaymentOrder).where(PaymentOrder.id == order_id)
+        )
+        po = result.scalar_one_or_none()
+        if po is None:
+            # Fall back to external_id lookup (payment_id from NOWPayments)
+            result = await db.execute(
+                select(PaymentOrder).where(PaymentOrder.external_id == payment_id)
+            )
+            po = result.scalar_one_or_none()
+
+        if po:
+            # Only advance status (don't revert completed orders)
+            terminal = {OrderStatus.COMPLETED, OrderStatus.FAILED, OrderStatus.REFUNDED}
+            if po.status not in terminal:
+                po.status = new_order_status
+                audit.order_id = po.id
+                _logger.info(
+                    "NOWPayments IPN: updated PaymentOrder %s → %s",
+                    po.id, new_order_status.value,
+                )
+        else:
+            _logger.warning(
+                "NOWPayments IPN: no PaymentOrder found for order_id=%s payment_id=%s",
+                order_id, payment_id,
+            )
+
+    await db.commit()
     return {"received": True, "payment_id": payment_id, "status": internal_status}
 
 
@@ -5560,7 +5621,7 @@ async def bot_chat(
         import asyncio as _asyncio  # noqa: PLC0415
         result = await _asyncio.wait_for(
             _bot_chat(messages=history, mode=mode, file_context=file_context),
-            timeout=25,  # Stay under Render's 30-second request timeout
+            timeout=50,  # Allow up to 50s for multi-step agentic tool chains
         )
         # Append assistant reply to history
         if result.get("reply"):

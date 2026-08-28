@@ -137,15 +137,16 @@ async def get_session_messages_public(session_id: str, db: AsyncSession = Depend
 
 # ─── ADMIN ENDPOINTS (require admin session) ─────────────────────────────────
 
-async def _require_admin(request: Request):
-    if not await is_admin_request_authenticated(request):
+def _require_admin(request: Request):
+    """Synchronous admin auth guard — is_admin_request_authenticated is NOT a coroutine."""
+    if not is_admin_request_authenticated(request):
         raise HTTPException(401, "Admin authentication required")
 
 
 @router.get("/admin/sessions")
 async def list_chat_sessions(request: Request, db: AsyncSession = Depends(get_db)):
     """Admin: list all active chat sessions."""
-    await _require_admin(request)
+    _require_admin(request)
 
     result = await db.execute(
         select(ChatSession)
@@ -177,7 +178,7 @@ async def list_chat_sessions(request: Request, db: AsyncSession = Depends(get_db
 @router.get("/admin/sessions/{session_id}")
 async def get_chat_session(session_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     """Admin: get full chat thread."""
-    await _require_admin(request)
+    _require_admin(request)
 
     result = await db.execute(
         select(ChatSession)
@@ -234,7 +235,7 @@ async def admin_reply_to_session(
     db: AsyncSession = Depends(get_db),
 ):
     """Admin: send a reply to a client chat."""
-    await _require_admin(request)
+    _require_admin(request)
 
     result = await db.execute(
         select(ChatSession).where(ChatSession.id == session_id)
@@ -259,7 +260,7 @@ async def admin_reply_to_session(
 @router.patch("/admin/sessions/{session_id}/close")
 async def close_chat_session(session_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     """Admin: close/reopen a chat session."""
-    await _require_admin(request)
+    _require_admin(request)
 
     result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
     session = result.scalar_one_or_none()
@@ -274,7 +275,7 @@ async def close_chat_session(session_id: str, request: Request, db: AsyncSession
 @router.delete("/admin/sessions/{session_id}")
 async def delete_chat_session(session_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     """Admin: soft-delete a chat session."""
-    await _require_admin(request)
+    _require_admin(request)
 
     await db.execute(
         update(ChatSession)
@@ -288,7 +289,7 @@ async def delete_chat_session(session_id: str, request: Request, db: AsyncSessio
 @router.delete("/admin/sessions")
 async def delete_all_chat_sessions(request: Request, db: AsyncSession = Depends(get_db)):
     """Admin: delete ALL chat sessions."""
-    await _require_admin(request)
+    _require_admin(request)
 
     await db.execute(
         update(ChatSession).values(is_deleted_by_admin=True)
@@ -300,7 +301,7 @@ async def delete_all_chat_sessions(request: Request, db: AsyncSession = Depends(
 @router.get("/admin/unread-count")
 async def get_unread_count(request: Request, db: AsyncSession = Depends(get_db)):
     """Admin: get total unread message count."""
-    await _require_admin(request)
+    _require_admin(request)
 
     result = await db.execute(
         select(sa_func.sum(ChatSession.unread_count)).where(

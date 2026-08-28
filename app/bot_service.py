@@ -400,6 +400,37 @@ async def toggle_client(client_id: str, is_active: bool, **_):
     return await _admin("PATCH", f"/admin/clients/{client_id}", {"is_active": is_active})
 
 
+@register_tool("update_client", "Update API client settings (name, allowed IPs, HMAC, mTLS, rate limits, etc.)", {
+    "type": "object",
+    "properties": {
+        "client_id": {"type": "string", "description": "Client UUID"},
+        "name": {"type": "string", "description": "New display name (optional)"},
+        "allowed_ips": {"type": "string", "description": "Comma-separated allowed IPs (optional, replaces existing list)"},
+        "require_hmac": {"type": "boolean", "description": "Require HMAC signature on requests (optional)"},
+        "rate_limit_per_minute": {"type": "integer", "description": "API rate limit per minute (optional)"},
+        "is_active": {"type": "boolean", "description": "Enable or disable the client (optional)"}
+    },
+    "required": ["client_id"]
+})
+async def update_client(client_id: str, name: str = None, allowed_ips: str = None,
+                        require_hmac: bool = None, rate_limit_per_minute: int = None,
+                        is_active: bool = None, **_):
+    payload = {}
+    if name is not None:
+        payload["name"] = name
+    if allowed_ips is not None:
+        payload["allowed_ips"] = [ip.strip() for ip in allowed_ips.split(",") if ip.strip()]
+    if require_hmac is not None:
+        payload["require_hmac_signature"] = require_hmac
+    if rate_limit_per_minute is not None:
+        payload["rate_limit_per_minute"] = rate_limit_per_minute
+    if is_active is not None:
+        payload["is_active"] = is_active
+    if not payload:
+        return {"error": "No fields provided to update"}
+    return await _admin("PATCH", f"/admin/clients/{client_id}", payload)
+
+
 @register_tool("whitelist_ip", "Add an IP address to a client's whitelist", {
     "type": "object",
     "properties": {
@@ -409,7 +440,7 @@ async def toggle_client(client_id: str, is_active: bool, **_):
     "required": ["client_id", "ip_address"]
 })
 async def whitelist_ip(client_id: str, ip_address: str, **_):
-    return await _admin("POST", f"/admin/clients/{client_id}/whitelist-ip", {"ip_address": ip_address})
+    return await _admin("POST", f"/admin/clients/{client_id}/whitelist-ip", {"ip": ip_address})
 
 
 @register_tool("rotate_client_secrets", "Rotate the API key and HMAC secret for a client", {
