@@ -1655,8 +1655,6 @@ async def whitelist_certificate(
     c.rect(0, CBAND_Y, W, CBAND_H, fill=1, stroke=0)
     c.setFillColor(LGOLD2)
     c.setFont("Helvetica-Bold", 7)
-    band_left = "\u{1F512} ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT  •  PRIVATE & CONFIDENTIAL  •  NOT FOR DISTRIBUTION"
-    # Use ASCII fallback since some PDF fonts don't support emoji
     band_left = "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT  •  PRIVATE & CONFIDENTIAL  •  NOT FOR DISTRIBUTION"
     c.drawString(ML, CBAND_Y + 0.22*cm, band_left)
     # Right side: cert number (computed later — store y for now)
