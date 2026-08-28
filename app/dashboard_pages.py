@@ -4103,6 +4103,58 @@ function toggleClient(id,active){
 function closeClientDetails(){
   document.getElementById('clientDetails').style.display='none';
 }
+function removeClientIp(clientId, ip){
+  if(!confirm('Remove IP '+ip+' from whitelist?')) return;
+  api('/api/v1/admin/clients/'+clientId+'/whitelist-ip?ip='+encodeURIComponent(ip),{method:'DELETE'}).then(function(r){
+    showToast('IP removed: '+ip,'ok');
+    var container=document.getElementById('ipTagsContainer_'+clientId);
+    var counter=document.getElementById('ipCount_'+clientId);
+    if(container){
+      var remaining=r.allowed_ips||[];
+      if(counter) counter.textContent=remaining.length;
+      if(remaining.length===0){
+        container.innerHTML='<span style="color:var(--muted);font-size:12px;">No IP restriction — any IP allowed</span>';
+      } else {
+        container.innerHTML=remaining.map(function(sip){
+          return '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:3px 8px;border-radius:20px;font-size:11px;font-family:monospace;margin:3px;">'
+            +esc(sip)
+            +'<button onclick="removeClientIp(\''+esc(clientId)+'\',\''+esc(sip)+'\')" title="Remove" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:13px;line-height:1;padding:0 0 0 2px;font-weight:700;">&#215;</button>'
+            +'</span>';
+        }).join('');
+      }
+    }
+    loadClients();
+  }).catch(function(e){showToast('Error: '+e.message,'error');});
+}
+function downloadWhitelistCertForClient(clientId, clientName){
+  // Fetch current IPs then open cert
+  api('/api/v1/admin/clients/'+clientId+'/details').then(function(data){
+    var ips=(data.client||{}).allowed_ips||[];
+    if(!ips.length){showToast('No IPs whitelisted for this client','error');return;}
+    var adminKey=(document.cookie.match(/admin_key=([^;]+)/)||[])[1]||'';
+    var url='/api/v1/admin/clients/'+clientId+'/whitelist-certificate'
+      +'?ip='+encodeURIComponent(ips.join(', '))
+      +'&admin_key='+encodeURIComponent(adminKey);
+    var a=document.createElement('a');
+    a.href=url;
+    a.target='_blank';
+    a.download='IP_Whitelist_Certificate_'+clientName.replace(/[^a-zA-Z0-9]/g,'_')+'.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }).catch(function(e){showToast('Error fetching client data: '+e.message,'error');});
+}
+function clearAllIps(clientId){
+  if(!confirm('Remove ALL IP restrictions? This will allow access from any IP address.')) return;
+  api('/api/v1/admin/clients/'+clientId+'/whitelist-ip/all',{method:'DELETE'}).then(function(r){
+    showToast('All IP restrictions cleared','ok');
+    var container=document.getElementById('ipTagsContainer_'+clientId);
+    var counter=document.getElementById('ipCount_'+clientId);
+    if(container) container.innerHTML='<span style="color:var(--muted);font-size:12px;">No IP restriction — any IP allowed</span>';
+    if(counter) counter.textContent='0';
+    loadClients();
+  }).catch(function(e){showToast('Error: '+e.message,'error');});
+}
 function openClientDetails(id){
   var panel=document.getElementById('clientDetails');
   var body=document.getElementById('clientDetailsBody');
@@ -4127,12 +4179,29 @@ function openClientDetails(id){
     var logHtml=logs.length?logs.map(function(l){
       return '<tr><td>'+esc(l.event_type||'')+'</td><td>'+esc(l.method||'')+'</td><td>'+esc(l.endpoint||'')+'</td><td>'+esc(String(l.status_code||'—'))+'</td><td>'+esc(l.ip||'')+'</td><td>'+esc(l.error_message||'—')+'</td><td>'+fmtDate(l.created_at)+'</td></tr>';
     }).join(''):'<tr><td colspan="7">No audit logs found.</td></tr>';
+    var ipTags=(c.allowed_ips||[]).map(function(ip){
+      return '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:3px 8px;border-radius:20px;font-size:11px;font-family:monospace;margin:3px;">'
+        +esc(ip)
+        +'<button onclick="removeClientIp(\''+esc(c.id)+'\',\''+esc(ip)+'\')" title="Remove this IP" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:13px;line-height:1;padding:0 0 0 2px;font-weight:700;">&#215;</button>'
+        +'</span>';
+    }).join('');
     body.innerHTML=
       '<div class="stat-grid" style="margin-bottom:16px;">'
       +'<div class="stat-card"><div class="label">Client ID</div><div class="value" style="font-size:13px;word-break:break-all;">'+esc(c.id||'')+'</div></div>'
-      +'<div class="stat-card"><div class="label">Status</div><div class="value">'+(c.is_active?'Active':'Disabled')+'</div></div>'
-      +'<div class="stat-card"><div class="label">Allowed IPs</div><div class="value" style="font-size:13px;">'+esc((c.allowed_ips||[]).join(', ')||'Any IP')+'</div></div>'
+      +'<div class="stat-card"><div class="label">Status</div><div class="value">'+(c.is_active?'<span style="color:#10b981;font-weight:700;">Active</span>':'<span style="color:#ef4444;">Disabled</span>')+'</div></div>'
       +'<div class="stat-card"><div class="label">Created</div><div class="value" style="font-size:13px;">'+fmtDate(c.created_at)+'</div></div>'
+      +'</div>'
+      +'<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap;">'
+      +'<span style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.05em;">ALLOWED IPs <span id="ipCount_'+esc(c.id)+'" style="background:rgba(16,185,129,0.2);color:#10b981;border-radius:10px;padding:1px 7px;font-size:11px;">'+(c.allowed_ips||[]).length+'</span></span>'
+      +'<div style="display:flex;gap:6px;">'
+      +'<button onclick="downloadWhitelistCertForClient(\''+esc(c.id)+'\',\''+esc(c.name || c.id)+'\')" style="font-size:11px;padding:3px 10px;background:rgba(201,168,76,0.12);color:#C9A84C;border:1px solid rgba(201,168,76,0.4);border-radius:6px;cursor:pointer;" title="Download IP Whitelist Certificate">&#128196; Certificate</button>'
+      +'<button onclick="clearAllIps(\''+esc(c.id)+'\')" style="font-size:11px;padding:3px 10px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:6px;cursor:pointer;" title="Remove all IPs (allow any IP)">Clear All</button>'
+      +'</div>'
+      +'</div>'
+      +'<div id="ipTagsContainer_'+esc(c.id)+'">'
+      +(ipTags || '<span style="color:var(--muted);font-size:12px;">No IP restriction — any IP allowed</span>')
+      +'</div>'
       +'</div>'
       +'<h4>Login Accounts</h4><div class="table-wrap"><table><thead><tr><th>ID</th><th>Identifier</th><th>Status</th><th>Created</th><th>Action</th></tr></thead><tbody>'+accountHtml+'</tbody></table></div>'
       +'<h4 style="margin-top:18px;">Client Transactions</h4><div class="table-wrap"><table><thead><tr><th>ID</th><th>Reference</th><th>Provider</th><th>Status</th><th>Fiat</th><th>Crypto</th><th>Invoice</th></tr></thead><tbody>'+orderHtml+'</tbody></table></div>'

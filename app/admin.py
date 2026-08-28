@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.auth import (
     create_api_key,
@@ -1505,12 +1506,14 @@ async def whitelist_client_ip(
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    current_ips = list(client.allowed_ips or [])
+    # Deduplicate existing IPs first (fixes any prior duplicate accumulation)
+    current_ips = list(dict.fromkeys(client.allowed_ips or []))
     if ip_address in current_ips:
         return {"status": "already_whitelisted", "allowed_ips": current_ips, "client_name": client.name}
 
     current_ips.append(ip_address)
     client.allowed_ips = current_ips
+    flag_modified(client, "allowed_ips")   # ensure SQLAlchemy detects JSON mutation
     await db.commit()
     await db.refresh(client)
 
@@ -1523,6 +1526,59 @@ async def whitelist_client_ip(
     )
 
     return {"status": "whitelisted", "allowed_ips": current_ips, "client_name": client.name}
+
+
+@router.delete("/clients/{client_id}/whitelist-ip")
+async def remove_client_ip(
+    client_id: str,
+    ip: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove a single IP address from a client's whitelist."""
+    result = await db.execute(select(ApiClient).where(ApiClient.id == client_id))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # Deduplicate and remove
+    current_ips = list(dict.fromkeys(client.allowed_ips or []))
+    if ip not in current_ips:
+        raise HTTPException(status_code=404, detail="IP not found in whitelist")
+
+    current_ips.remove(ip)
+    client.allowed_ips = current_ips
+    flag_modified(client, "allowed_ips")
+    await db.commit()
+
+    await log_event(
+        db,
+        "IP_REMOVED",
+        {"client_id": str(client.id), "client_name": client.name, "ip_removed": ip, "remaining_ips": current_ips},
+        None,
+        client_id=client.id,
+    )
+
+    return {"status": "removed", "ip": ip, "allowed_ips": current_ips, "client_name": client.name}
+
+
+@router.delete("/clients/{client_id}/whitelist-ip/all")
+async def clear_client_ips(
+    client_id: str,
+    _: AdminKey,
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove ALL IP restrictions from a client (allow any IP)."""
+    result = await db.execute(select(ApiClient).where(ApiClient.id == client_id))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    client.allowed_ips = []
+    flag_modified(client, "allowed_ips")
+    await db.commit()
+
+    return {"status": "cleared", "allowed_ips": [], "client_name": client.name}
 
 
 @router.get("/clients/{client_id}/whitelist-certificate")
@@ -1564,31 +1620,104 @@ async def whitelist_certificate(
     c = rl_canvas.Canvas(buf, pagesize=A4)
 
     LOGO = os.path.join(os.path.dirname(__file__), "static", "company-logo.png")
+    import math as _math
 
-    # ── Header ─────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────
+    # HEADER — styled to match system reports
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # 1. Thin gold top bar
+    c.setFillColor(GOLD)
+    c.rect(0, H - 0.22*cm, W, 0.22*cm, fill=1, stroke=0)
+
+    # 2. Navy main header block
+    HEADER_H = 3.5*cm
     c.setFillColor(NAVY)
-    c.rect(0, H - 3.2*cm, W, 3.2*cm, fill=1, stroke=0)
+    c.rect(0, H - HEADER_H - 0.22*cm, W, HEADER_H, fill=1, stroke=0)
+
+    # 3. Logo in gold-bordered box (left)
+    logo_box_x = ML
+    logo_box_y = H - HEADER_H - 0.22*cm + 0.35*cm
+    logo_box_w = 2.0*cm
+    logo_box_h = 2.0*cm
+    c.setStrokeColor(GOLD)
+    c.setLineWidth(1.5)
+    c.rect(logo_box_x, logo_box_y, logo_box_w, logo_box_h, fill=0, stroke=1)
     if os.path.exists(LOGO):
-        c.drawImage(LOGO, ML, H - 2.9*cm, width=2.2*cm, height=2.2*cm,
+        c.drawImage(LOGO, logo_box_x + 0.12*cm, logo_box_y + 0.12*cm,
+                    width=logo_box_w - 0.24*cm, height=logo_box_h - 0.24*cm,
                     preserveAspectRatio=True, mask="auto")
+
+    # 4. Company name & tagline (centre of header)
+    tx = logo_box_x + logo_box_w + 0.5*cm
     c.setFillColor(WHITE)
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(ML + 2.6*cm, H - 1.35*cm, "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT")
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(tx, H - 0.22*cm - 1.15*cm, "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT")
     c.setFont("Helvetica", 8)
     c.setFillColor(LGOLD)
-    c.drawString(ML + 2.6*cm, H - 1.85*cm,
-                 "Technology & Compliance Division  |  api.alshumookh-pay.com  |  Dubai, UAE")
-    c.setFillColor(GOLD)
-    c.rect(0, H - 3.35*cm, W, 0.18*cm, fill=1, stroke=0)
+    c.drawString(tx, H - 0.22*cm - 1.68*cm,
+                 "Technology & Compliance Division  •  api.alshumookh-pay.com  •  Dubai, UAE")
+    c.setFont("Helvetica", 7.5)
+    c.setFillColor(colors.HexColor("#9AACCE"))
+    c.drawString(tx, H - 0.22*cm - 2.15*cm, "LICENSE NO. 887065  •  ISO 27001:2022 CERTIFIED  •  CBUAE REGULATED")
 
-    # ── Gold title banner ───────────────────────────────────────────────────────
-    y = H - 4.0*cm
+    # 5. Gear seal on the right (drawn with reportlab primitives)
+    sx = W - ML - 1.5*cm     # seal centre x
+    sy = H - 0.22*cm - HEADER_H / 2   # seal centre y
+    SR = 1.15*cm              # outer gear radius
+
+    # Gear teeth polygon (16 teeth)
+    N_TEETH = 16
+    OR = SR; IR = SR * 0.82
+    pts = []
+    for i in range(N_TEETH * 2):
+        ang = _math.pi / 2 + i * _math.pi / N_TEETH
+        r = OR if i % 2 == 0 else IR
+        pts.append(sx + r * _math.cos(ang))
+        pts.append(sy + r * _math.sin(ang))
     c.setFillColor(GOLD)
-    c.rect(ML, y, CW, 0.75*cm, fill=1, stroke=0)
+    c.setStrokeColor(GOLD)
+    c.setLineWidth(0.3)
+    path = c.beginPath()
+    path.moveTo(pts[0], pts[1])
+    for k in range(2, len(pts), 2):
+        path.lineTo(pts[k], pts[k+1])
+    path.close()
+    c.drawPath(path, fill=1, stroke=0)
+
+    # Inner navy circle
     c.setFillColor(NAVY)
-    c.setFont("Helvetica-Bold", 12)
-    c.drawCentredString(W / 2, y + 0.2*cm, "IP WHITELIST AUTHORIZATION CERTIFICATE")
-    y -= 0.6*cm
+    c.circle(sx, sy, IR * 0.78, fill=1, stroke=0)
+    # Gold ring
+    c.setStrokeColor(GOLD); c.setLineWidth(0.7)
+    c.circle(sx, sy, IR * 0.78, fill=0, stroke=1)
+
+    # SIG monogram
+    c.setFillColor(GOLD)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawCentredString(sx, sy - 0.14*cm, "SIG")
+    c.setFont("Helvetica", 5)
+    c.setFillColor(LGOLD)
+    c.drawCentredString(sx, sy - 0.6*cm, "OFFICIAL")
+
+    # 6. Gold bottom separator of header
+    c.setFillColor(GOLD)
+    c.rect(0, H - HEADER_H - 0.22*cm - 0.12*cm, W, 0.12*cm, fill=1, stroke=0)
+
+    # 7. Cert-band — dark blue strip with doc type label
+    BAND_H = 0.65*cm
+    BAND_Y = H - HEADER_H - 0.22*cm - 0.12*cm - BAND_H
+    c.setFillColor(colors.HexColor("#142150"))
+    c.rect(0, BAND_Y, W, BAND_H, fill=1, stroke=0)
+    c.setFillColor(WHITE)
+    c.setFont("Helvetica-Bold", 9.5)
+    c.drawCentredString(W / 2, BAND_Y + 0.18*cm, "IP WHITELIST AUTHORIZATION CERTIFICATE")
+    # Gold left/right accents in band
+    c.setFillColor(GOLD)
+    c.rect(0, BAND_Y, 0.4*cm, BAND_H, fill=1, stroke=0)
+    c.rect(W - 0.4*cm, BAND_Y, 0.4*cm, BAND_H, fill=1, stroke=0)
+
+    y = BAND_Y - 0.65*cm
 
     # ── Parse IP list ───────────────────────────────────────────────────────────
     ip_list = [x.strip() for x in ip.split(",") if x.strip()]
