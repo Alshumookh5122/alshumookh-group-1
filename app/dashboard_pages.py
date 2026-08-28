@@ -4118,7 +4118,7 @@ function removeClientIp(clientId, ip){
         container.innerHTML=remaining.map(function(sip){
           return '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:3px 8px;border-radius:20px;font-size:11px;font-family:monospace;margin:3px;">'
             +esc(sip)
-            +'<button onclick="removeClientIp(\''+esc(clientId)+'\',\''+esc(sip)+'\')" title="Remove" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:13px;line-height:1;padding:0 0 0 2px;font-weight:700;">&#215;</button>'
+            +'<button onclick="removeClientIp(this.dataset.cid,this.dataset.ip)" data-cid="'+esc(clientId)+'" data-ip="'+esc(sip)+'" title="Remove" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:13px;line-height:1;padding:0 0 0 2px;font-weight:700;">&#215;</button>'
             +'</span>';
         }).join('');
       }
@@ -4182,7 +4182,7 @@ function openClientDetails(id){
     var ipTags=(c.allowed_ips||[]).map(function(ip){
       return '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:3px 8px;border-radius:20px;font-size:11px;font-family:monospace;margin:3px;">'
         +esc(ip)
-        +'<button onclick="removeClientIp(\''+esc(c.id)+'\',\''+esc(ip)+'\')" title="Remove this IP" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:13px;line-height:1;padding:0 0 0 2px;font-weight:700;">&#215;</button>'
+        +'<button onclick="removeClientIp(this.dataset.cid,this.dataset.ip)" data-cid="'+esc(c.id)+'" data-ip="'+esc(ip)+'" title="Remove this IP" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:13px;line-height:1;padding:0 0 0 2px;font-weight:700;">&#215;</button>'
         +'</span>';
     }).join('');
     body.innerHTML=
@@ -4195,8 +4195,8 @@ function openClientDetails(id){
       +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap;">'
       +'<span style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.05em;">ALLOWED IPs <span id="ipCount_'+esc(c.id)+'" style="background:rgba(16,185,129,0.2);color:#10b981;border-radius:10px;padding:1px 7px;font-size:11px;">'+(c.allowed_ips||[]).length+'</span></span>'
       +'<div style="display:flex;gap:6px;">'
-      +'<button onclick="downloadWhitelistCertForClient(\''+esc(c.id)+'\',\''+esc(c.name || c.id)+'\')" style="font-size:11px;padding:3px 10px;background:rgba(201,168,76,0.12);color:#C9A84C;border:1px solid rgba(201,168,76,0.4);border-radius:6px;cursor:pointer;" title="Download IP Whitelist Certificate">&#128196; Certificate</button>'
-      +'<button onclick="clearAllIps(\''+esc(c.id)+'\')" style="font-size:11px;padding:3px 10px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:6px;cursor:pointer;" title="Remove all IPs (allow any IP)">Clear All</button>'
+      +'<button onclick="downloadWhitelistCertForClient(this.dataset.cid,this.dataset.cname)" data-cid="'+esc(c.id)+'" data-cname="'+esc(c.name || c.id)+'" style="font-size:11px;padding:3px 10px;background:rgba(201,168,76,0.12);color:#C9A84C;border:1px solid rgba(201,168,76,0.4);border-radius:6px;cursor:pointer;" title="Download IP Whitelist Certificate">&#128196; Certificate</button>'
+      +'<button onclick="clearAllIps(this.dataset.cid)" data-cid="'+esc(c.id)+'" style="font-size:11px;padding:3px 10px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:6px;cursor:pointer;" title="Remove all IPs (allow any IP)">Clear All</button>'
       +'</div>'
       +'</div>'
       +'<div id="ipTagsContainer_'+esc(c.id)+'">'

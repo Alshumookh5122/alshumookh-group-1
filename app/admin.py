@@ -1623,99 +1623,207 @@ async def whitelist_certificate(
     import math as _math
 
     # ─────────────────────────────────────────────────────────────────────────
-    # HEADER — styled to match system reports
+    # HEADER — identical to Private Report style
     # ─────────────────────────────────────────────────────────────────────────
+    CREAM  = colors.HexColor("#fdf8ef")
+    GOLD2  = colors.HexColor("#c9a227")
+    DGOLD  = colors.HexColor("#7a5400")
+    LGOLD2 = colors.HexColor("#e2c97e")
+    TEAL   = colors.HexColor("#065f46")
+    TEALBG = colors.HexColor("#f0fdf4")
+    TEALBD = colors.HexColor("#bbf7d0")
+    BLUE   = colors.HexColor("#1e40af")
+    BLUEBG = colors.HexColor("#eff6ff")
+    BLUEBD = colors.HexColor("#bfdbfe")
+    SUB    = colors.HexColor("#5a6a80")
 
-    # 1. Thin gold top bar
-    c.setFillColor(GOLD)
-    c.rect(0, H - 0.22*cm, W, 0.22*cm, fill=1, stroke=0)
+    # ── 1. Thin gold gradient bar (top edge) ─────────────────────────────────
+    GBAR_H = 0.21*cm
+    c.setFillColor(GOLD2)
+    c.rect(0, H - GBAR_H, W, GBAR_H, fill=1, stroke=0)
+    # Simulate gradient: darker at edges, lighter centre
+    c.setFillColor(DGOLD)
+    c.rect(0,           H - GBAR_H, W * 0.12, GBAR_H, fill=1, stroke=0)
+    c.rect(W * 0.88,    H - GBAR_H, W * 0.12, GBAR_H, fill=1, stroke=0)
+    c.setFillColor(colors.HexColor("#f0c040"))
+    c.rect(W * 0.35, H - GBAR_H, W * 0.30, GBAR_H, fill=1, stroke=0)
 
-    # 2. Navy main header block
-    HEADER_H = 3.5*cm
+    # ── 2. Navy cert-band (just below gold bar) ───────────────────────────────
+    CBAND_H = 0.68*cm
+    CBAND_Y = H - GBAR_H - CBAND_H
     c.setFillColor(NAVY)
-    c.rect(0, H - HEADER_H - 0.22*cm, W, HEADER_H, fill=1, stroke=0)
+    c.rect(0, CBAND_Y, W, CBAND_H, fill=1, stroke=0)
+    c.setFillColor(LGOLD2)
+    c.setFont("Helvetica-Bold", 7)
+    band_left = "\u{1F512} ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT  •  PRIVATE & CONFIDENTIAL  •  NOT FOR DISTRIBUTION"
+    # Use ASCII fallback since some PDF fonts don't support emoji
+    band_left = "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT  •  PRIVATE & CONFIDENTIAL  •  NOT FOR DISTRIBUTION"
+    c.drawString(ML, CBAND_Y + 0.22*cm, band_left)
+    # Right side: cert number (computed later — store y for now)
+    CBAND_RIGHT_Y = CBAND_Y + 0.22*cm   # used after cert_num is known
 
-    # 3. Logo in gold-bordered box (left)
-    logo_box_x = ML
-    logo_box_y = H - HEADER_H - 0.22*cm + 0.35*cm
-    logo_box_w = 2.0*cm
-    logo_box_h = 2.0*cm
-    c.setStrokeColor(GOLD)
-    c.setLineWidth(1.5)
-    c.rect(logo_box_x, logo_box_y, logo_box_w, logo_box_h, fill=0, stroke=1)
+    # ── 3. White header block ─────────────────────────────────────────────────
+    HDR_H  = 3.1*cm
+    HDR_Y  = CBAND_Y - HDR_H            # bottom of header block
+    # White background is just the page, no fill needed (already white)
+
+    # ── 3a. Logo ─────────────────────────────────────────────────────────────
+    LOGO_H = 1.65*cm
+    LOGO_W = 2.2*cm
+    logo_x = ML
+    logo_y = HDR_Y + (HDR_H - LOGO_H) / 2
     if os.path.exists(LOGO):
-        c.drawImage(LOGO, logo_box_x + 0.12*cm, logo_box_y + 0.12*cm,
-                    width=logo_box_w - 0.24*cm, height=logo_box_h - 0.24*cm,
+        c.drawImage(LOGO, logo_x, logo_y,
+                    width=LOGO_W, height=LOGO_H,
                     preserveAspectRatio=True, mask="auto")
 
-    # 4. Company name & tagline (centre of header)
-    tx = logo_box_x + logo_box_w + 0.5*cm
-    c.setFillColor(WHITE)
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(tx, H - 0.22*cm - 1.15*cm, "ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT")
-    c.setFont("Helvetica", 8)
-    c.setFillColor(LGOLD)
-    c.drawString(tx, H - 0.22*cm - 1.68*cm,
-                 "Technology & Compliance Division  •  api.alshumookh-pay.com  •  Dubai, UAE")
-    c.setFont("Helvetica", 7.5)
-    c.setFillColor(colors.HexColor("#9AACCE"))
-    c.drawString(tx, H - 0.22*cm - 2.15*cm, "LICENSE NO. 887065  •  ISO 27001:2022 CERTIFIED  •  CBUAE REGULATED")
+    # ── 3b. Company name + subtitle + badges ──────────────────────────────────
+    tx = logo_x + LOGO_W + 0.45*cm
+    ty = HDR_Y + HDR_H - 0.55*cm        # start near top of header
 
-    # 5. Gear seal on the right (drawn with reportlab primitives)
-    sx = W - ML - 1.5*cm     # seal centre x
-    sy = H - 0.22*cm - HEADER_H / 2   # seal centre y
-    SR = 1.15*cm              # outer gear radius
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 13.5)
+    c.drawString(tx, ty, "ALSHUMOOKH GLOBAL — Banking Finance & Credit")
 
-    # Gear teeth polygon (16 teeth)
-    N_TEETH = 16
-    OR = SR; IR = SR * 0.82
-    pts = []
-    for i in range(N_TEETH * 2):
-        ang = _math.pi / 2 + i * _math.pi / N_TEETH
-        r = OR if i % 2 == 0 else IR
-        pts.append(sx + r * _math.cos(ang))
-        pts.append(sy + r * _math.sin(ang))
-    c.setFillColor(GOLD)
-    c.setStrokeColor(GOLD)
-    c.setLineWidth(0.3)
+    ty -= 0.48*cm
+    c.setFillColor(SUB)
+    c.setFont("Helvetica", 7.8)
+    c.drawString(tx, ty, "IP WHITELIST AUTHORIZATION CERTIFICATE  •  Dubai, UAE  •  api.alshumookh-pay.com")
+
+    # Badges row
+    ty -= 0.52*cm
+    bx = tx
+    def _badge(c, x, y, label, bg, fg, border):
+        bw = c.stringWidth(label, "Helvetica-Bold", 6.5) + 10
+        bh = 0.34*cm
+        c.setFillColor(bg)
+        c.roundRect(x, y, bw, bh, 2, fill=1, stroke=0)
+        c.setStrokeColor(border); c.setLineWidth(0.5)
+        c.roundRect(x, y, bw, bh, 2, fill=0, stroke=1)
+        c.setFillColor(fg)
+        c.setFont("Helvetica-Bold", 6.5)
+        c.drawString(x + 5, y + 0.09*cm, label)
+        return bw + 6
+
+    bx += _badge(c, bx, ty, "CONFIDENTIAL",     NAVY,   LGOLD2, LGOLD2)
+    bx += _badge(c, bx, ty, "WHITELIST CERTIFIED", TEALBG, TEAL, TEALBD)
+
+    # ── 3c. Official seal (right side, matching private report SVG) ───────────
+    # Scale: SVG viewBox 0 0 140 140 → ReportLab target 2.5cm x 2.5cm
+    SEAL_D  = 2.55*cm                    # diameter (circle fits inside)
+    SEAL_CX = W - ML - SEAL_D / 2 - 0.1*cm
+    SEAL_CY = HDR_Y + HDR_H / 2
+    SEAL_R  = SEAL_D / 2                 # outer polygon radius
+    SVG_R   = 70.0                       # SVG viewBox centre at 70,70; polygon outer ~70px
+
+    def _svg_to_pdf(px, py):
+        """Map SVG point (cx=70,cy=70) to ReportLab point (SEAL_CX, SEAL_CY)."""
+        sx2 = SEAL_CX + (px - SVG_R) * (SEAL_R / SVG_R)
+        sy2 = SEAL_CY - (py - SVG_R) * (SEAL_R / SVG_R)   # flip Y
+        return sx2, sy2
+
+    # Star/gear polygon (from SVG)
+    poly_pts = [
+        70.00,3.00,74.79,9.19,80.48,3.82,84.24,10.69,90.70,6.28,93.34,13.64,
+        100.42,10.30,101.87,17.99,109.38,15.80,109.62,23.62,117.38,22.62,116.38,30.38,
+        124.20,30.62,122.01,38.13,129.70,39.58,126.36,46.66,133.72,49.30,129.31,55.76,
+        136.18,59.52,130.81,65.21,137.00,70.00,130.81,74.79,136.18,80.48,129.31,84.24,
+        133.72,90.70,126.36,93.34,129.70,100.42,122.01,101.87,124.20,109.38,116.38,109.62,
+        117.38,117.38,109.62,116.38,109.38,124.20,101.87,122.01,100.42,129.70,93.34,126.36,
+        90.70,133.72,84.24,129.31,80.48,136.18,74.79,130.81,70.00,137.00,65.21,130.81,
+        59.52,136.18,55.76,129.31,49.30,133.72,46.66,126.36,39.58,129.70,38.13,122.01,
+        30.62,124.20,30.38,116.38,22.62,117.38,23.62,109.62,15.80,109.38,17.99,101.87,
+        10.30,100.42,13.64,93.34,6.28,90.70,10.69,84.24,3.82,80.48,9.19,74.79,
+        3.00,70.00,9.19,65.21,3.82,59.52,10.69,55.76,6.28,49.30,13.64,46.66,
+        10.30,39.58,17.99,38.13,15.80,30.62,23.62,30.38,22.62,22.62,30.38,23.62,
+        30.62,15.80,38.13,17.99,39.58,10.30,46.66,13.64,49.30,6.28,55.76,10.69,
+        59.52,3.82,65.21,9.19,
+    ]
+    c.setFillColor(NAVY); c.setStrokeColor(NAVY); c.setLineWidth(0)
     path = c.beginPath()
-    path.moveTo(pts[0], pts[1])
-    for k in range(2, len(pts), 2):
-        path.lineTo(pts[k], pts[k+1])
+    px0, py0 = _svg_to_pdf(poly_pts[0], poly_pts[1])
+    path.moveTo(px0, py0)
+    for ki in range(2, len(poly_pts), 2):
+        px2, py2 = _svg_to_pdf(poly_pts[ki], poly_pts[ki+1])
+        path.lineTo(px2, py2)
     path.close()
     c.drawPath(path, fill=1, stroke=0)
 
-    # Inner navy circle
-    c.setFillColor(NAVY)
-    c.circle(sx, sy, IR * 0.78, fill=1, stroke=0)
-    # Gold ring
-    c.setStrokeColor(GOLD); c.setLineWidth(0.7)
-    c.circle(sx, sy, IR * 0.78, fill=0, stroke=1)
+    # Outer cream circle (r=63 in SVG → scaled)
+    r_cream = SEAL_R * (63 / SVG_R)
+    c.setFillColor(CREAM); c.setStrokeColor(GOLD); c.setLineWidth(0.4)
+    c.circle(SEAL_CX, SEAL_CY, r_cream, fill=1, stroke=1)
 
-    # SIG monogram
+    # Small gold dots on circumference (every 7.5°, alternating sizes)
+    import math as _math
+    DOT_R = SEAL_R * (63 / SVG_R)          # same as cream radius
+    for di in range(48):
+        ang2 = _math.pi / 2 - di * 2 * _math.pi / 48
+        dr = 1.6 * SEAL_R / SVG_R if di % 2 == 0 else 0.9 * SEAL_R / SVG_R
+        dx2 = SEAL_CX + DOT_R * _math.cos(ang2)
+        dy2 = SEAL_CY + DOT_R * _math.sin(ang2)
+        c.setFillColor(GOLD)
+        c.circle(dx2, dy2, dr, fill=1, stroke=0)
+
+    # Thin inner decorative ring
+    r_ring = SEAL_R * (55 / SVG_R)
+    c.setStrokeColor(colors.HexColor("#b8860b")); c.setLineWidth(0.5)
+    c.circle(SEAL_CX, SEAL_CY, r_ring, fill=0, stroke=1)
+
+    # Inner navy disc
+    r_inner = SEAL_R * (47 / SVG_R)
+    c.setFillColor(NAVY); c.setStrokeColor(GOLD); c.setLineWidth(0.8)
+    c.circle(SEAL_CX, SEAL_CY, r_inner, fill=1, stroke=1)
+
+    # Seal text — "ALSHUMOOKH" arc-approximated as horizontal
+    c.setFillColor(LGOLD2)
+    c.setFont("Helvetica-Bold", SEAL_R * 0.19)
+    c.drawCentredString(SEAL_CX, SEAL_CY + SEAL_R * 0.28, "ALSHUMOOKH")
+
+    # Lines above/below SIG
+    line_hw = SEAL_R * 0.55
+    c.setStrokeColor(GOLD); c.setLineWidth(0.6)
+    c.line(SEAL_CX - line_hw, SEAL_CY + SEAL_R * 0.08,
+           SEAL_CX + line_hw, SEAL_CY + SEAL_R * 0.08)
+    c.line(SEAL_CX - line_hw * 0.9, SEAL_CY + SEAL_R * 0.065,
+           SEAL_CX + line_hw * 0.9, SEAL_CY + SEAL_R * 0.065)
+
+    # SIG text (large)
+    c.setFillColor(LGOLD2)
+    c.setFont("Times-Bold", SEAL_R * 0.47)
+    c.drawCentredString(SEAL_CX, SEAL_CY - SEAL_R * 0.17, "SIG")
+
+    # Lines below SIG
+    c.setStrokeColor(colors.HexColor("#b8860b")); c.setLineWidth(0.3)
+    c.line(SEAL_CX - line_hw * 0.9, SEAL_CY - SEAL_R * 0.25,
+           SEAL_CX + line_hw * 0.9, SEAL_CY - SEAL_R * 0.25)
+    c.setStrokeColor(GOLD); c.setLineWidth(0.6)
+    c.line(SEAL_CX - line_hw, SEAL_CY - SEAL_R * 0.27,
+           SEAL_CX + line_hw, SEAL_CY - SEAL_R * 0.27)
+
+    # "OFFICIAL" + "BANKING SEAL" text
+    c.setFillColor(LGOLD2)
+    c.setFont("Helvetica-Bold", SEAL_R * 0.17)
+    c.drawCentredString(SEAL_CX, SEAL_CY - SEAL_R * 0.41, "OFFICIAL")
     c.setFillColor(GOLD)
-    c.setFont("Helvetica-Bold", 11)
-    c.drawCentredString(sx, sy - 0.14*cm, "SIG")
-    c.setFont("Helvetica", 5)
-    c.setFillColor(LGOLD)
-    c.drawCentredString(sx, sy - 0.6*cm, "OFFICIAL")
+    c.setFont("Helvetica-Bold", SEAL_R * 0.14)
+    c.drawCentredString(SEAL_CX, SEAL_CY - SEAL_R * 0.56, "BANKING SEAL")
 
-    # 6. Gold bottom separator of header
-    c.setFillColor(GOLD)
-    c.rect(0, H - HEADER_H - 0.22*cm - 0.12*cm, W, 0.12*cm, fill=1, stroke=0)
+    # ── 4. Navy bottom border line of header ──────────────────────────────────
+    c.setStrokeColor(NAVY); c.setLineWidth(2.0)
+    c.line(0, HDR_Y, W, HDR_Y)
 
-    # 7. Cert-band — dark blue strip with doc type label
-    BAND_H = 0.65*cm
-    BAND_Y = H - HEADER_H - 0.22*cm - 0.12*cm - BAND_H
+    # ── 5. Cert-band — title strip below header ───────────────────────────────
+    BAND_H = 0.62*cm
+    BAND_Y = HDR_Y - BAND_H
     c.setFillColor(colors.HexColor("#142150"))
     c.rect(0, BAND_Y, W, BAND_H, fill=1, stroke=0)
     c.setFillColor(WHITE)
     c.setFont("Helvetica-Bold", 9.5)
-    c.drawCentredString(W / 2, BAND_Y + 0.18*cm, "IP WHITELIST AUTHORIZATION CERTIFICATE")
-    # Gold left/right accents in band
+    c.drawCentredString(W / 2, BAND_Y + 0.16*cm, "IP WHITELIST AUTHORIZATION CERTIFICATE")
     c.setFillColor(GOLD)
-    c.rect(0, BAND_Y, 0.4*cm, BAND_H, fill=1, stroke=0)
-    c.rect(W - 0.4*cm, BAND_Y, 0.4*cm, BAND_H, fill=1, stroke=0)
+    c.rect(0,           BAND_Y, 0.4*cm, BAND_H, fill=1, stroke=0)
+    c.rect(W - 0.4*cm,  BAND_Y, 0.4*cm, BAND_H, fill=1, stroke=0)
 
     y = BAND_Y - 0.65*cm
 
@@ -1727,6 +1835,11 @@ async def whitelist_certificate(
     # ── Cert number & date ──────────────────────────────────────────────────────
     cert_num = "ALSH-WL-" + str(client.id).upper()[:8] + "-" + first_ip.replace(".", "")
     issued = datetime.now(timezone.utc).strftime("%d %B %Y")
+    # Draw cert number on right side of navy cband (now that cert_num is known)
+    c.setFillColor(LGOLD2)
+    c.setFont("Helvetica-Bold", 7)
+    c.drawRightString(W - ML, CBAND_RIGHT_Y, "Cert Ref: " + cert_num)
+    # Also add cert ref badge next to other badges in header
     c.setFont("Helvetica", 8)
     c.setFillColor(MGRAY)
     c.drawCentredString(W / 2, y, f"Certificate No: {cert_num}   |   Issued: {issued}")
