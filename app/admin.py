@@ -1590,8 +1590,13 @@ async def whitelist_certificate(
     c.drawCentredString(W / 2, y + 0.2*cm, "IP WHITELIST AUTHORIZATION CERTIFICATE")
     y -= 0.6*cm
 
+    # ── Parse IP list ───────────────────────────────────────────────────────────
+    ip_list = [x.strip() for x in ip.split(",") if x.strip()]
+    ip_count = len(ip_list)
+    first_ip = ip_list[0] if ip_list else ip
+
     # ── Cert number & date ──────────────────────────────────────────────────────
-    cert_num = "ALSH-WL-" + str(client.id).upper()[:8] + "-" + ip.replace(".", "")
+    cert_num = "ALSH-WL-" + str(client.id).upper()[:8] + "-" + first_ip.replace(".", "")
     issued = datetime.now(timezone.utc).strftime("%d %B %Y")
     c.setFont("Helvetica", 8)
     c.setFillColor(MGRAY)
@@ -1599,11 +1604,12 @@ async def whitelist_certificate(
     y -= 0.9*cm
 
     # ── Intro text ──────────────────────────────────────────────────────────────
+    plural = "addresses" if ip_count > 1 else "address"
     intro = (
-        "This certificate confirms that the IP address specified herein has been formally reviewed, "
+        f"This certificate confirms that the IP {plural} specified herein have been formally reviewed, "
         "approved, and added to the authorized access whitelist of ALSHUMOOKH Global Banking Finance & Credit. "
         "The bearer of this certificate is authorized to establish connections to the Alshumookh Pay API "
-        "gateway from the whitelisted IP address stated below."
+        f"gateway from the whitelisted IP {plural} stated below."
     )
     c.setFont("Helvetica", 9)
     c.setFillColor(DKGRAY)
@@ -1621,53 +1627,152 @@ async def whitelist_certificate(
         c.drawCentredString(W / 2, y, line)
     y -= 0.7*cm
 
-    # ── Main IP box ─────────────────────────────────────────────────────────────
-    box_h = 2.8*cm
+    # ── Main IP box (dynamic height, 2-column for 5+ IPs) ───────────────────────
+    two_col = ip_count >= 5          # use 2-column layout for many IPs
+    ip_font_sz = 16 if ip_count == 1 else (12 if ip_count <= 4 else 10)
+    ip_line_h = 0.54*cm
+
+    if two_col:
+        rows_in_box = (ip_count + 1) // 2   # number of rows when 2-col
+    else:
+        rows_in_box = ip_count
+
+    box_padding_top = 0.65*cm
+    box_padding_bot = 0.50*cm
+    box_h = box_padding_top + (rows_in_box * ip_line_h) + box_padding_bot
+    box_h = max(box_h, 2.6*cm)
+
     c.setFillColor(GREENBG)
     c.roundRect(ML, y - box_h, CW, box_h, 6, fill=1, stroke=0)
     c.setStrokeColor(GREEN)
     c.setLineWidth(1.5)
     c.roundRect(ML, y - box_h, CW, box_h, 6, fill=0, stroke=1)
 
-    c.setFont("Helvetica", 9)
-    c.setFillColor(GREEN)
-    c.drawCentredString(W / 2, y - 0.55*cm, "AUTHORIZED IP ADDRESS")
-    c.setFont("Helvetica-Bold", 22)
-    c.setFillColor(NAVY)
-    c.drawCentredString(W / 2, y - 1.35*cm, ip)
+    # Header label
+    box_label = "AUTHORIZED IP ADDRESS" if ip_count == 1 else f"AUTHORIZED IP ADDRESSES  ({ip_count} IPs)"
     c.setFont("Helvetica", 8.5)
     c.setFillColor(GREEN)
-    c.drawCentredString(W / 2, y - 1.95*cm, "STATUS: ACTIVE — AUTHORIZED FOR API ACCESS")
+    c.drawCentredString(W / 2, y - 0.46*cm, box_label)
+
+    c.setFont("Helvetica-Bold", ip_font_sz)
+    c.setFillColor(NAVY)
+
+    if two_col:
+        # Split into left and right columns
+        half = (ip_count + 1) // 2
+        left_ips  = ip_list[:half]
+        right_ips = ip_list[half:]
+        col_w = CW / 2
+        for row_idx in range(half):
+            row_y = y - box_padding_top - (row_idx * ip_line_h) - 0.06*cm
+            # Left column
+            li = left_ips[row_idx]
+            c.setFont("Helvetica", 7)
+            c.setFillColor(MGRAY)
+            c.drawString(ML + 0.3*cm, row_y, f"{row_idx + 1}.")
+            c.setFont("Helvetica-Bold", ip_font_sz)
+            c.setFillColor(NAVY)
+            c.drawString(ML + 0.75*cm, row_y, li)
+            # Right column (if exists)
+            if row_idx < len(right_ips):
+                ri = right_ips[row_idx]
+                ri_num = half + row_idx + 1
+                c.setFont("Helvetica", 7)
+                c.setFillColor(MGRAY)
+                c.drawString(ML + col_w + 0.3*cm, row_y, f"{ri_num}.")
+                c.setFont("Helvetica-Bold", ip_font_sz)
+                c.setFillColor(NAVY)
+                c.drawString(ML + col_w + 0.75*cm, row_y, ri)
+    else:
+        for idx, single_ip in enumerate(ip_list):
+            ip_y = y - box_padding_top - (idx * ip_line_h) - 0.06*cm
+            if ip_count > 1:
+                c.setFont("Helvetica", 7)
+                c.setFillColor(MGRAY)
+                c.drawString(ML + 0.5*cm, ip_y, f"{idx + 1}.")
+                c.setFont("Helvetica-Bold", ip_font_sz)
+                c.setFillColor(NAVY)
+            c.drawCentredString(W / 2, ip_y, single_ip)
+
+    # Status badge at bottom of box
+    c.setFont("Helvetica", 8)
+    c.setFillColor(GREEN)
+    c.drawCentredString(W / 2, y - box_h + 0.18*cm, "STATUS: ACTIVE — AUTHORIZED FOR API ACCESS")
     y -= box_h + 0.7*cm
 
     # ── Details table ───────────────────────────────────────────────────────────
-    rows = [
-        ("Client Name",    client.name),
-        ("Client ID",      str(client.id)),
-        ("IP Address",     ip),
-        ("Access Level",   "Full API Gateway Access — ISO 20022 / Settlement Channel"),
-        ("Issued By",      "ALSHUMOOKH Global Banking Finance & Credit — Technology Division"),
-        ("Date Issued",    issued),
-        ("Valid Until",    datetime.now(timezone.utc).replace(year=datetime.now(timezone.utc).year + 1).strftime("%d %B %Y")),
-        ("License No.",    "887065"),
-    ]
-    row_h = 0.52*cm
-    col1_w = 5.5*cm
-
-    for i, (label, value) in enumerate(rows):
-        bg = LGRAY if i % 2 == 0 else WHITE
+    def _draw_table_row(c, x, y, row_h, col1_w, label, value_lines, bg, NAVY, DKGRAY, LGRAY, WHITE):
+        """Draw a table row that may span multiple value lines."""
+        actual_h = row_h * len(value_lines)
         c.setFillColor(bg)
-        c.rect(ML, y - row_h, CW, row_h, fill=1, stroke=0)
+        c.rect(x, y - actual_h, CW, actual_h, fill=1, stroke=0)
         c.setStrokeColor(colors.HexColor("#DEE2EA"))
         c.setLineWidth(0.4)
-        c.line(ML, y - row_h, ML + CW, y - row_h)
+        c.line(x, y - actual_h, x + CW, y - actual_h)
+        # Vertically centre the label
+        label_y = y - (actual_h / 2) - 0.13*cm
         c.setFont("Helvetica-Bold", 8.3)
         c.setFillColor(NAVY)
-        c.drawString(ML + 0.3*cm, y - 0.35*cm, label)
+        c.drawString(x + 0.3*cm, label_y, label)
+        # Value lines
         c.setFont("Helvetica", 8.3)
         c.setFillColor(DKGRAY)
-        c.drawString(ML + col1_w, y - 0.35*cm, value[:80])
-        y -= row_h
+        for li, vline in enumerate(value_lines):
+            c.drawString(x + col1_w, y - (li * row_h) - 0.35*cm, vline)
+        return actual_h
+
+    row_h = 0.52*cm
+    col1_w = 5.5*cm
+    val_max_w = CW - col1_w - 0.4*cm   # available width for value text
+
+    def _wrap_value(c, text, font, size, max_w):
+        """Break text into lines that fit within max_w."""
+        words = text.split()
+        lines = []
+        cur = ""
+        for w in words:
+            test = (cur + " " + w).strip()
+            if c.stringWidth(test, font, size) <= max_w:
+                cur = test
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+        return lines or [text]
+
+    # IP address value: 1 per line for ≤4, pair them up for 5+ IPs
+    if ip_count == 1:
+        ip_value_lines = [first_ip]
+    elif ip_count <= 4:
+        ip_value_lines = [f"{i+1}.  {addr}" for i, addr in enumerate(ip_list)]
+    else:
+        # Pair IPs: "1. ip1     2. ip2"
+        ip_value_lines = []
+        for i in range(0, ip_count, 2):
+            left = f"{i+1}.  {ip_list[i]}"
+            if i + 1 < ip_count:
+                right = f"{i+2}.  {ip_list[i+1]}"
+                ip_value_lines.append(f"{left:<32}{right}")
+            else:
+                ip_value_lines.append(left)
+
+    rows = [
+        ("Client Name",  _wrap_value(c, client.name, "Helvetica", 8.3, val_max_w)),
+        ("Client ID",    [str(client.id)]),
+        ("IP Address",   ip_value_lines),
+        ("Access Level", _wrap_value(c, "Full API Gateway Access — ISO 20022 / Settlement Channel", "Helvetica", 8.3, val_max_w)),
+        ("Issued By",    _wrap_value(c, "ALSHUMOOKH Global Banking Finance & Credit — Technology Division", "Helvetica", 8.3, val_max_w)),
+        ("Date Issued",  [issued]),
+        ("Valid Until",  [datetime.now(timezone.utc).replace(year=datetime.now(timezone.utc).year + 1).strftime("%d %B %Y")]),
+        ("License No.",  ["887065"]),
+    ]
+
+    for i, (label, value_lines) in enumerate(rows):
+        bg = LGRAY if i % 2 == 0 else WHITE
+        actual_h = _draw_table_row(c, ML, y, row_h, col1_w, label, value_lines, bg, NAVY, DKGRAY, LGRAY, WHITE)
+        y -= actual_h
 
     y -= 0.5*cm
 
@@ -1728,7 +1833,10 @@ async def whitelist_certificate(
     c.save()
     buf.seek(0)
 
-    safe_name = f"IP_Whitelist_Certificate_{ip.replace('.', '_')}.pdf"
+    # Short filename: use first IP + count suffix if multiple
+    fname_ip = first_ip.replace(".", "_")
+    fname_suffix = f"_and_{ip_count - 1}_more" if ip_count > 1 else ""
+    safe_name = f"IP_Whitelist_Certificate_{fname_ip}{fname_suffix}.pdf"
     return Response(
         content=buf.read(),
         media_type="application/pdf",
