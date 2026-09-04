@@ -62,6 +62,7 @@ from app.dashboard_pages import router as dashboard_pages_router
 from app.client_pages import router as client_pages_router
 from app.tasks.transfer_confirmations import transfer_confirmation_monitor_loop
 from app.chat_routes import router as chat_router
+from app.partner_dispatch import router as partner_dispatch_router
 
 # مهم جداً: استيراد الموديلز حتى يتم تسجيل الجداول قبل create_all
 import app.models  # noqa: F401
@@ -558,6 +559,7 @@ app.include_router(fnfcu_router, prefix=settings.api_prefix)
 app.include_router(ingest_router, prefix=settings.api_prefix)
 app.include_router(admin_payloads_router, prefix=settings.api_prefix)
 app.include_router(settlement_webhooks_router, prefix=settings.api_prefix)
+app.include_router(partner_dispatch_router, prefix=settings.api_prefix)
 
 # Webhooks and public pages
 app.include_router(webhooks_router)
