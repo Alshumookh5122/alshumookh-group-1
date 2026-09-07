@@ -188,21 +188,28 @@ def print_result(status, body, payload):
 
 def main():
     parser = argparse.ArgumentParser(description="ALSHUMOOKH SWIFT Terminal Test")
-    parser.add_argument("--amount", type=float, default=1000.0,
+    parser.add_argument("--amount",  type=float, default=1000.0,
                         help="Amount in EUR (default: 1000)")
-    parser.add_argument("--live",   action="store_true",
+    parser.add_argument("--live",    action="store_true",
                         help="Use LIVE mode (default: SANDBOX)")
-    parser.add_argument("--url",    default=BASE_URL,
+    parser.add_argument("--url",     default=BASE_URL,
                         help="API base URL override")
-    parser.add_argument("--key",    default="SANDBOX",
-                        help="Admin API key (wrap in single quotes if it has special chars)")
+    parser.add_argument("--key",     default="SANDBOX",
+                        help="ALSHUMOOKH Admin API key for X-Admin-Api-Key header")
+    parser.add_argument("--gsf-key", default="",
+                        help="Goodwill partner API key (payload api_key field). "
+                             "Defaults to SANDBOX if not set.")
     args = parser.parse_args()
 
     banner()
 
-    endpoint  = "%s%s/admin/partner-transfer" % (args.url.rstrip("/"), API_PREFIX)
-    api_key   = "SANDBOX" if not args.live else args.key
-    payload   = build_payload(args.amount, api_key)
+    endpoint = "%s%s/admin/partner-transfer" % (args.url.rstrip("/"), API_PREFIX)
+
+    # ── Determine Goodwill API key (payload) ─────────────────────────────────
+    gsf_key = getattr(args, 'gsf_key', '') or ''
+    if not gsf_key:
+        gsf_key = "SANDBOX" if not args.live else args.key
+    payload = build_payload(args.amount, gsf_key)
 
     headers = {
         "Content-Type":    "application/json",
@@ -222,10 +229,12 @@ def main():
     }
 
     mode_label = "%sSANDBOX%s" % (YELLOW, RESET) if not args.live else "%sLIVE%s" % (RED, RESET)
-    print("  Mode    : %s" % mode_label)
-    print("  Endpoint: %s" % endpoint)
-    print("  Key     : %s…%s" % (args.key[:4], args.key[-4:]) if len(args.key) > 8 else "  Key     : %s" % args.key)
-    print("  Amount  : EUR {:,.2f}\n".format(args.amount))
+    gsf_display = gsf_key if gsf_key == "SANDBOX" else ("%s...%s" % (gsf_key[:4], gsf_key[-4:]) if len(gsf_key) > 8 else gsf_key)
+    print("  Mode        : %s" % mode_label)
+    print("  Endpoint    : %s" % endpoint)
+    print("  Admin Key   : %s" % (("%s...%s" % (args.key[:4], args.key[-4:])) if len(args.key) > 8 else args.key))
+    print("  Goodwill Key: %s" % gsf_display)
+    print("  Amount      : EUR {:,.2f}\n".format(args.amount))
     print("%sSending SWIFT test transfer...%s\n" % (CYAN, RESET))
 
     try:
