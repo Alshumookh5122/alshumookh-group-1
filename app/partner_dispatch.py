@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit_service import log_event
 from app.database import get_db
 from app.deps import AdminKey
+from app.models import ExternalPayload
 from app.request_utils import get_client_ip
 
 log = logging.getLogger(__name__)
@@ -280,6 +281,50 @@ async def dispatch_partner_transfer(
         request_id=request_id,
     )
 
+    # ── Save to ExternalPayload so it appears in SWIFT Terminal ───────────
+    try:
+        full_record = {
+            "partner":            partner_key,
+            "partner_name":       partner_info.get("name", partner_key),
+            "target_url":         target_url,
+            "transfer_reference": transfer_ref,
+            "outbound_payload":   outbound,
+            "partner_response":   response_body if isinstance(response_body, dict) else {"raw": str(response_body)[:2000]},
+            "delivery_status":    delivery_status,
+            "http_status":        response_status,
+            "sandbox":            is_sandbox,
+            "actor":              actor,
+            "uetr":               uetr,
+            "trn":                trn,
+            "error":              error_detail or None,
+        }
+        ep = ExternalPayload(
+            id=str(uuid.uuid4()),
+            settlement_type="PARTNER_DISPATCH_OUTBOUND",
+            transaction_reference=transfer_ref,
+            tx_hash=uetr or transfer_ref,
+            sender_wallet=outbound.get("sender_account") or outbound["sender_swift"],
+            receiver_wallet=outbound["receiver_account"],
+            amount=amount,
+            asset=outbound["currency"],
+            network_name=f"{partner_info.get('name', partner_key)} / {outbound['receiver_swift']}",
+            raw_payload=json.dumps(full_record),
+            pretty_payload=json.dumps(full_record, indent=2),
+            parsed_payload=full_record,
+            parsing_status="COMPLETE",
+            verification_status=delivery_status,
+            security_level="admin_dispatch",
+            client_ip=client_ip,
+            request_id=request_id or transfer_ref,
+        )
+        db.add(ep)
+        await db.commit()
+        log.info("PARTNER_DISPATCH_SAVED | ep_id=%s | ref=%s", ep.id, transfer_ref)
+        _ep_id = ep.id  # expose to response so browser can attach files
+    except Exception as save_exc:
+        log.warning("Failed to save ExternalPayload for partner dispatch: %s", save_exc)
+        _ep_id = None
+
     # ── Return result ──────────────────────────────────────────────────────
     result: dict[str, Any] = {
         "transfer_reference": transfer_ref,
@@ -291,6 +336,7 @@ async def dispatch_partner_transfer(
         "sandbox":            is_sandbox,
         "dispatched_by":      actor,
         "dispatched_at":      datetime.now(timezone.utc).isoformat(),
+        "ep_id":              _ep_id,  # ExternalPayload UUID — used by browser to attach files
     }
 
     if uetr:

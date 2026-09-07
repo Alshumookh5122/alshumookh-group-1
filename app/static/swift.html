@@ -342,6 +342,17 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .error-code{font-size:14px;font-weight:700;margin-bottom:6px}
 .no-results{text-align:center;color:var(--txt2);padding:40px;font-size:11px;letter-spacing:.06em}
 
+/* COLLAPSIBLE CARDS */
+.card-header{cursor:pointer;user-select:none;transition:background .15s}
+.card-header:hover{background:var(--bg4)}
+.card-toggle-icon{font-size:13px;color:var(--grn);min-width:18px;text-align:center;transition:transform .2s;display:inline-block;margin-right:4px}
+.card-content{overflow:hidden}
+.card-content.collapsed{display:none}
+/* ATTACH FILE IN MODAL */
+.tx-file-drop{border:1px dashed var(--bdr2);padding:14px;text-align:center;cursor:pointer;transition:all .2s;color:var(--txt2);font-size:10px;letter-spacing:.04em}
+.tx-file-drop:hover,.tx-file-drop.drag{border-color:var(--grn);background:var(--grn-d);color:var(--grn)}
+.tx-file-selected{display:none;margin-top:8px;background:var(--bg3);border:1px solid var(--bdr2);padding:8px 12px;font-size:10px;align-items:center;gap:10px}
+
 /* PRINT */
 @media print{
   @page{size:A4;margin:16mm 20mm}
@@ -888,6 +899,8 @@ function doSearch() {
       return;
     }
     pane.innerHTML = _results.map(function(r,i){ return renderCard(r,i); }).join('');
+    // Auto-expand first card (or only card)
+    toggleCard(0);
   }).catch(function(err) {
     pane.innerHTML = errScr(0,'Network error: '+err.message);
   }).finally(function() {
@@ -1135,16 +1148,18 @@ function renderCard(r, idx) {
 
   return '<div class="swt-card" id="card-'+idx+'">' +
 
-    '<div class="card-header">' +
+    '<div class="card-header" onclick="toggleCard('+idx+')" title="Click to expand / collapse">' +
+      '<span class="card-toggle-icon" id="card-toggle-'+idx+'">&#9658;</span>' +
       '<span class="card-msgtype">'+esc(msgType)+'</span>' +
       '<span class="card-ref">'+esc(r.reference||r.id)+'</span>' +
       '<span class="card-status '+sc+'">'+esc(r.status||'—')+'</span>' +
       '<button class="btn-transmit" style="font-size:9px;padding:3px 9px;margin-left:4px" ' +
-        'onclick="openTransmitModal('+JSON.stringify(r.id)+','+JSON.stringify(r.reference||r.id)+','+JSON.stringify(r)+')" ' +
+        'onclick="event.stopPropagation();openTransmitModal('+JSON.stringify(r.id)+','+JSON.stringify(r.reference||r.id)+','+JSON.stringify(r)+')" ' +
         'title="Transmit via SWIFT to external endpoint">&#8658; TRANSMIT</button>' +
       '<span class="card-idx">#'+(idx+1)+' of '+_results.length+'</span>' +
     '</div>' +
 
+    '<div class="card-content collapsed" id="card-content-'+idx+'">' +
     '<div class="card-body">' +
       '<div class="mt-col">' +
         '<div class="mt-col-head">&#9672; '+esc(msgLabel)+'</div>' +
@@ -1198,7 +1213,18 @@ function renderCard(r, idx) {
       '</table>' +
     '</div>' +
 
+    '</div>' + // close card-content
     '</div>';
+}
+
+// ── Toggle card expand/collapse
+function toggleCard(idx) {
+  var content = document.getElementById('card-content-' + idx);
+  var icon    = document.getElementById('card-toggle-' + idx);
+  if (!content) return;
+  var isCollapsed = content.classList.contains('collapsed');
+  content.classList.toggle('collapsed', !isCollapsed);
+  if (icon) icon.innerHTML = isCollapsed ? '&#9660;' : '&#9658;';
 }
 
 // ── Status change
@@ -1871,6 +1897,7 @@ function searchFromImport(ref) {
 // SWIFT TRANSMITTER
 // ──────────────────────────────────────────────────────────────────
 var TX_STORAGE_KEY = 'swt_saved_endpoints_v1';
+var _txAttachFile  = null;  // file to attach after dispatch
 
 function txSavedEndpoints() {
   try { return JSON.parse(localStorage.getItem(TX_STORAGE_KEY) || '[]'); }
@@ -1888,6 +1915,39 @@ function txDeleteEndpoint(name) {
   var list = txSavedEndpoints().filter(function(e) { return e.name !== name; });
   localStorage.setItem(TX_STORAGE_KEY, JSON.stringify(list));
   renderTransmitSavedEndpoints();
+}
+
+// ── Attach file helpers
+function txSetFile(file) {
+  if (file.size > 20 * 1024 * 1024) { showToast('File too large — max 20 MB', 'error'); return; }
+  _txAttachFile = file;
+  var ext = file.name.toLowerCase();
+  var ico = ext.endsWith('.pdf') ? '&#128213;' : (ext.endsWith('.json') ? '&#128202;' : '&#128444;');
+  document.getElementById('txFileIcon').innerHTML  = ico;
+  document.getElementById('txFileName').textContent = file.name;
+  document.getElementById('txFileSize').textContent = fmtSize(file.size);
+  document.getElementById('txFileDropZone').style.display  = 'none';
+  document.getElementById('txFilePreview').style.display   = 'flex';
+}
+function txClearFile() {
+  _txAttachFile = null;
+  try { document.getElementById('txFileInput').value = ''; } catch(e){}
+  document.getElementById('txFileDropZone').style.display  = '';
+  document.getElementById('txFilePreview').style.display   = 'none';
+}
+function txUploadFile(epId, ref) {
+  if (!_txAttachFile || !epId) return;
+  var fd = new FormData();
+  fd.append('file', _txAttachFile);
+  fd.append('description', 'Attached to transfer: ' + (ref || epId));
+  fd.append('transaction_ref', ref || epId);
+  fetch(API_BASE + '/admin/swift/' + encodeURIComponent(epId) + '/files', {
+    method: 'POST', headers: authHdr(), credentials: 'include', body: fd
+  }).then(function(r) {
+    if (r.ok) showToast('&#128206; File attached to transfer record');
+    else showToast('File upload failed', 'warn');
+  }).catch(function() { showToast('File upload error', 'warn'); });
+  txClearFile();
 }
 
 function openTransmitModal(recordId, ref, data) {
@@ -1946,6 +2006,7 @@ function openTransmitModal(recordId, ref, data) {
   setTimeout(function() { document.getElementById('txToEndpoint').focus(); }, 80);
 }
 function closeTransmitModal() {
+  txClearFile();
   document.getElementById('transmitModal').classList.remove('open');
 }
 
@@ -2309,6 +2370,13 @@ function doPartnerDispatch() {
 
     if (code >= 200 && code < 300 && d.delivery_status) {
       showToast('Goodwill: ' + d.delivery_status + ' — ' + (d.uetr || ref), 'ok');
+      // Upload attached file if present (ep_id comes from partner_dispatch response)
+      if (_txAttachFile && d.ep_id) {
+        txUploadFile(d.ep_id, d.transfer_reference || ref);
+      } else if (_txAttachFile) {
+        showToast('&#128206; File saved — link it manually after searching the reference', 'warn');
+        txClearFile();
+      }
       // Store for receipt print
       _lastTransmit = {
         transmission_id: d.transfer_reference || ref,
@@ -2623,6 +2691,22 @@ function txSaveAdminKey() {
   txRefreshAdminKeyBanner();
   showToast('Admin key saved — you can now transmit', 'ok');
 }
+
+// ── Transmit modal file input listener
+document.addEventListener('DOMContentLoaded', function() {
+  var fi = document.getElementById('txFileInput');
+  if (fi) fi.addEventListener('change', function() { if (this.files[0]) txSetFile(this.files[0]); });
+  // Drag and drop on the transmit file drop zone
+  var dz2 = document.getElementById('txFileDropZone');
+  if (dz2) {
+    dz2.addEventListener('dragover',  function(e){ e.preventDefault(); dz2.classList.add('drag'); });
+    dz2.addEventListener('dragleave', function()  { dz2.classList.remove('drag'); });
+    dz2.addEventListener('drop', function(e) {
+      e.preventDefault(); dz2.classList.remove('drag');
+      if (e.dataTransfer.files[0]) txSetFile(e.dataTransfer.files[0]);
+    });
+  }
+});
 </script>
 
 <!-- ═══════════════════════════ TRANSMIT MODAL ═══════════════════════════ -->
@@ -2899,6 +2983,24 @@ function txSaveAdminKey() {
       <div class="tx-section-title" style="margin-top:16px">&#9654; PAYLOAD PREVIEW (JSON envelope)</div>
       <textarea id="txPayloadPreview" class="tx-payload-box" rows="10" readonly></textarea>
       <div class="tx-field-hint">This envelope is sent to the destination endpoint</div>
+
+      <!-- ATTACH FILE -->
+      <div class="tx-section-title" style="margin-top:16px">&#9654; ATTACH DOCUMENT TO TRANSFER (optional)</div>
+      <div class="field-row">
+        <div class="field-label">PDF &#183; IMAGE (JPG/PNG) &#183; JSON &#8212; max 20 MB &#8212; linked to the transaction record</div>
+        <div class="tx-file-drop" id="txFileDropZone" onclick="document.getElementById('txFileInput').click()">
+          <span style="font-size:18px">&#128206;</span>&nbsp; CLICK TO ATTACH A FILE
+          <div class="drop-hint">PDF &#183; JPEG &#183; PNG &#183; JSON &#8212; Saved and linked to this transfer automatically</div>
+        </div>
+        <input id="txFileInput" type="file" style="display:none"
+               accept=".pdf,.jpg,.jpeg,.png,.json,application/json,application/pdf,image/jpeg,image/png"/>
+        <div class="tx-file-selected" id="txFilePreview">
+          <span id="txFileIcon" style="font-size:18px">&#128196;</span>
+          <span id="txFileName" style="color:var(--txt);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          <span id="txFileSize" style="color:var(--txt3);white-space:nowrap"></span>
+          <button onclick="txClearFile()" style="background:none;border:1px solid var(--red);color:var(--red);font-family:var(--mono);font-size:9px;padding:2px 8px;cursor:pointer;white-space:nowrap">&#10005; REMOVE</button>
+        </div>
+      </div>
 
       <!-- SEND -->
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;flex-wrap:wrap">
