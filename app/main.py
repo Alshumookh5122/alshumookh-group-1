@@ -1437,7 +1437,14 @@ async def swift_terminal(request: Request):
     if not is_admin_request_authenticated(request):
         return RedirectResponse("/login?type=admin", status_code=status.HTTP_303_SEE_OTHER)
 
-    return FileResponse("app/static/swift.html")
+    return FileResponse(
+        "app/static/swift.html",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma":        "no-cache",
+            "Expires":       "0",
+        },
+    )
 
 
 @app.get("/health", tags=["system"])

@@ -651,10 +651,13 @@ var _lastQuery    = '';
 var _stats        = { q:0, res:0, files:0, notes:0, status:0 };
 
 function authHdr() {
-  // Read key same way as dashboard: sessionStorage → localStorage → cookie
+  // Read key from all possible storage locations (support dashboard key names too)
   var k = '';
   try { k = sessionStorage.getItem('als_admin_key') || ''; } catch(e){}
   if (!k) { try { k = localStorage.getItem('als_admin_key') || ''; } catch(e){} }
+  // Fallback: dashboard stores key under 'adminApiKey'
+  if (!k) { try { k = sessionStorage.getItem('adminApiKey') || ''; } catch(e){} }
+  if (!k) { try { k = localStorage.getItem('adminApiKey') || ''; } catch(e){} }
   if (!k) { try { var m = document.cookie.match(/als_ak=([^;]+)/); k = m ? decodeURIComponent(m[1]) : ''; } catch(e){} }
   return { 'X-Admin-API-Key': k };
 }
@@ -1904,13 +1907,19 @@ function openTransmitModal(recordId, ref, data) {
   document.getElementById('txCurrency').value     = 'USD';
   document.getElementById('txValueDate').value    = new Date().toISOString().slice(0,10);
   document.getElementById('txRemittance').value   = '';
-  document.getElementById('txFromBIC').value      = 'ALSHUAEXAXXX';
-  document.getElementById('txFromBankName').value = 'ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT';
-  document.getElementById('txFromAddress').value  = 'ALSHUMOOKH GLOBAL\nDUBAI INTERNATIONAL FINANCIAL CENTRE\nDUBAI, UAE';
-  document.getElementById('txToBIC').value        = '';
-  document.getElementById('txToBankName').value   = '';
-  document.getElementById('txToAddress').value    = '';
-  document.getElementById('txIntermBIC').value    = '';
+  // Pre-fill Sender (Deutsche Bank / ALSHUMOOKH)
+  document.getElementById('txFromBIC').value      = 'DEUTDEDB101';
+  document.getElementById('txFromBankName').value = 'DEUTSCHE BANK AG';
+  document.getElementById('txFromAccount').value  = 'DE1910070124000326B3500';
+  document.getElementById('txFromAddress').value  = 'ADASDA DEUTSCHLAND GMBH\nKAISER-WILHELM-PLATZ 1-2\nBERLIN, GERMANY';
+  // Pre-fill Receiver (buronkz01 / Global Server Funds)
+  document.getElementById('txToBIC').value        = 'GSFDUS33';
+  document.getElementById('txToBankName').value   = 'Global Server Funds';
+  document.getElementById('txToAccount').value    = 'GS22GSFD00003646229939';
+  document.getElementById('txToAddress').value    = 'buronkz01\n280 Park Ave\nNew York, NY 10017, USA';
+  document.getElementById('txIntermBIC').value    = 'DEUTDEFF';
+  document.getElementById('txCurrency').value     = 'EUR';
+  document.getElementById('txAmount').value       = '1000';
   document.getElementById('txCharges').value      = 'SHA';
   document.getElementById('txHash').value         = '';
   document.getElementById('txUETR').value         = '';
@@ -1932,6 +1941,7 @@ function openTransmitModal(recordId, ref, data) {
 
   updatePayloadPreview();
   renderTransmitSavedEndpoints();
+  txRefreshAdminKeyBanner();
   document.getElementById('transmitModal').classList.add('open');
   setTimeout(function() { document.getElementById('txToEndpoint').focus(); }, 80);
 }
@@ -2206,6 +2216,141 @@ function renderTransmitResponse(httpStatus, data) {
   }
 }
 
+// ── Partner Dispatch (Goodwill API) ─────────────────────────────────────────
+function doPartnerDispatch() {
+  var adminKey  = authHdr()['X-Admin-API-Key'] || '';
+  if (!adminKey) {
+    showToast('Admin key not set — enter it in the key field above', 'error');
+    txRefreshAdminKeyBanner();
+    return;
+  }
+
+  // Collect fields from the transmit modal
+  var senderSwift   = (document.getElementById('txFromBIC').value        || '').trim().toUpperCase();
+  var senderBank    = (document.getElementById('txFromBankName').value    || '').trim();
+  var senderAcct    = (document.getElementById('txFromAccount').value     || '').trim();
+  var senderName    = (document.getElementById('txFromAddress').value     || '').split('\n')[0].trim();
+
+  var receiverSwift = (document.getElementById('txToBIC').value           || '').trim().toUpperCase();
+  var receiverBank  = (document.getElementById('txToBankName').value      || '').trim();
+  var receiverAcct  = (document.getElementById('txToAccount').value       || '').trim();
+  var receiverName  = (document.getElementById('txToAddress').value       || '').split('\n')[0].trim();
+
+  var amount        = parseFloat(document.getElementById('txAmount').value || '0');
+  var currency      = (document.getElementById('txCurrency').value         || 'EUR').trim().toUpperCase();
+  var charges       = (document.getElementById('txCharges').value          || 'SHA').trim().toUpperCase();
+  var remittance    = (document.getElementById('txRemittance').value       || '').trim();
+  var useApiKey     = adminKey; // default to SANDBOX if blank
+
+  // Minimal validation
+  if (!senderSwift || !receiverSwift || !receiverAcct || amount <= 0) {
+    showToast('Fill in: Sender BIC, Recipient BIC, Recipient Account, and Amount', 'warn');
+    return;
+  }
+  if (!receiverName) receiverName = receiverAcct; // fallback
+
+  var now       = new Date();
+  var stamp     = now.getUTCFullYear().toString() +
+                  String(now.getUTCMonth()+1).padStart(2,'0') +
+                  String(now.getUTCDate()).padStart(2,'0') +
+                  String(now.getUTCHours()).padStart(2,'0') +
+                  String(now.getUTCMinutes()).padStart(2,'0') +
+                  String(now.getUTCSeconds()).padStart(2,'0');
+  var ref       = 'ALSH-' + stamp + '-' + Math.random().toString(36).slice(2,8).toUpperCase();
+
+  var payload = {
+    partner:            'goodwill',
+    api_key:            'SANDBOX',       // always sandbox from Terminal
+    sender_bank:        senderBank    || 'ALSHUMOOKH GLOBAL BANKING FINANCE & CREDIT',
+    sender_swift:       senderSwift,
+    sender_name:        senderName    || 'ALSHUMOOKH GLOBAL',
+    receiver_bank:      receiverBank,
+    receiver_swift:     receiverSwift,
+    receiver_account:   receiverAcct,
+    receiver_name:      receiverName,
+    amount:             amount,
+    currency:           currency,
+    charge_bearer:      charges,
+    purpose_code:       'INTC',
+    priority:           'NORMAL',
+    transfer_reference: ref,
+    note:               remittance || ('[SWIFT-TERMINAL] ' + ref)
+  };
+  if (senderAcct) payload.sender_account = senderAcct;
+
+  var btn = document.getElementById('txGsfBtn');
+  btn.disabled = true;
+  btn.textContent = 'SENDING...';
+  document.getElementById('txRespPanel').classList.remove('show');
+
+  fetch(API_BASE + '/admin/partner-transfer', {
+    method:  'POST',
+    headers: Object.assign({'Content-Type': 'application/json'}, authHdr()),
+    credentials: 'include',
+    body:    JSON.stringify(payload)
+  }).then(function(res) {
+    return res.json().then(function(d) { return { status: res.status, data: d }; });
+  }).then(function(r) {
+    // Display in the standard response panel
+    var panel   = document.getElementById('txRespPanel');
+    var codeEl  = document.getElementById('txRespCode');
+    var durEl   = document.getElementById('txRespDur');
+    var bodyEl  = document.getElementById('txRespBody');
+    var printBtn= document.getElementById('txPrintReceiptBtn');
+
+    var code = r.status;
+    var d    = r.data;
+    var cls  = code >= 200 && code < 300 ? 'ok' : code >= 400 ? 'bad' : 'warn';
+    codeEl.textContent = 'HTTP ' + code;
+    codeEl.className   = 'tx-resp-code ' + cls;
+    durEl.textContent  = d.dispatched_at ? 'via partner-dispatch' : '';
+    bodyEl.textContent = JSON.stringify(d, null, 2);
+    panel.classList.add('show');
+
+    if (code >= 200 && code < 300 && d.delivery_status) {
+      showToast('Goodwill: ' + d.delivery_status + ' — ' + (d.uetr || ref), 'ok');
+      // Store for receipt print
+      _lastTransmit = {
+        transmission_id: d.transfer_reference || ref,
+        msg_ref:         d.transfer_reference || ref,
+        trn:             d.trn || ref,
+        uetr:            d.uetr || '',
+        status_code:     code,
+        duration_ms:     0,
+        from_endpoint:   API_BASE + '/admin/partner-transfer',
+        from_account:    senderAcct,
+        to_endpoint:     'https://api.goodwillglobalgroup.com/api/public/v1/transfers',
+        to_account:      receiverAcct,
+        msg_type:        'MT103',
+        amount:          amount,
+        currency:        currency,
+        value_date:      now.toISOString().slice(0,10).replace(/-/g,''),
+        remittance:      remittance || ref,
+        from_bic:        senderSwift,
+        from_bank_name:  senderBank,
+        from_address:    senderName,
+        to_bic:          receiverSwift,
+        to_bank_name:    receiverBank,
+        to_address:      receiverName,
+        interm_bic:      '',
+        charges:         charges,
+        tx_hash:         '',
+        timestamp:       new Date().toISOString(),
+        response_body:   JSON.stringify(d)
+      };
+      if (printBtn) printBtn.style.display = 'inline-flex';
+    } else {
+      if (printBtn) printBtn.style.display = 'none';
+      showToast('Partner dispatch failed — ' + code, 'error');
+    }
+  }).catch(function(e) {
+    showToast('Network error: ' + e.message, 'error');
+  }).finally(function() {
+    btn.disabled = false;
+    btn.textContent = '\u25B6 SEND VIA GOODWILL API';
+  });
+}
+
 // ── SWIFT Receipt Printer — Full Authentic MT Format ──────────────
 function printSwiftReceipt() {
   if (!_lastTransmit) { showToast('No transmission data to print', 'warn'); return; }
@@ -2445,6 +2590,39 @@ function mtLine(code, label, value) {
 // ── Init
 renderSideHist();
 document.getElementById('qInput').focus();
+
+// ── Admin Key helper for transmit modal ──────────────────────────────────────
+function txRefreshAdminKeyBanner() {
+  var k = authHdr()['X-Admin-API-Key'] || '';
+  var banner = document.getElementById('txAdminKeyBanner');
+  var setRow = document.getElementById('txAdminKeySetRow');
+  if (!banner) return;
+  if (k && k.length > 4) {
+    var masked = k.slice(0,4) + '…' + k.slice(-4);
+    banner.style.background = 'rgba(0,200,80,.12)';
+    banner.style.border = '1px solid rgba(0,200,80,.35)';
+    banner.style.color = '#00c850';
+    banner.innerHTML = '&#10003; ADMIN KEY LOADED — <span style="opacity:.7">' + masked + '</span>';
+    if (setRow) setRow.style.display = 'none';
+  } else {
+    banner.style.background = 'rgba(255,80,60,.12)';
+    banner.style.border = '1px solid rgba(255,80,60,.35)';
+    banner.style.color = '#ff5040';
+    banner.innerHTML = '&#9888; NO ADMIN KEY — Requests will be rejected (HTTP 401 / HTTP 0)';
+    if (setRow) setRow.style.display = 'block';
+  }
+}
+
+function txSaveAdminKey() {
+  var k = (document.getElementById('txAdminKeyInput').value || '').trim();
+  if (!k) { showToast('Enter a key first', 'warn'); return; }
+  try { localStorage.setItem('als_admin_key', k); } catch(e){}
+  try { localStorage.setItem('adminApiKey', k); } catch(e){}
+  try { sessionStorage.setItem('als_admin_key', k); } catch(e){}
+  document.getElementById('txAdminKeyInput').value = '';
+  txRefreshAdminKeyBanner();
+  showToast('Admin key saved — you can now transmit', 'ok');
+}
 </script>
 
 <!-- ═══════════════════════════ TRANSMIT MODAL ═══════════════════════════ -->
@@ -2455,6 +2633,17 @@ document.getElementById('qInput').focus();
       <button class="modal-close" onclick="closeTransmitModal()">&#10005; CLOSE</button>
     </div>
     <div class="modal-body">
+
+      <!-- ADMIN KEY STATUS BANNER -->
+      <div id="txAdminKeyBanner" style="margin-bottom:12px;padding:8px 12px;border-radius:4px;font-size:11px;font-family:monospace;display:flex;align-items:center;gap:10px;flex-wrap:wrap"></div>
+      <div id="txAdminKeySetRow" style="display:none;margin-bottom:14px">
+        <div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">&#9888; ADMIN API KEY NOT SET — enter key to enable transmission:</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="txAdminKeyInput" type="password" placeholder="Enter ALSHUMOOKH Admin API Key…"
+                 style="flex:1;padding:6px 10px;background:var(--bg2);border:1px solid var(--acc);color:var(--txt1);font-family:monospace;font-size:12px;border-radius:3px"/>
+          <button onclick="txSaveAdminKey()" style="padding:6px 14px;background:var(--acc);color:#fff;border:none;border-radius:3px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">SAVE KEY</button>
+        </div>
+      </div>
 
       <!-- FROM (SENDER) -->
       <div class="tx-section-title">&#9654; SENDER (FROM)</div>
@@ -2712,7 +2901,13 @@ document.getElementById('qInput').focus();
       <div class="tx-field-hint">This envelope is sent to the destination endpoint</div>
 
       <!-- SEND -->
-      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;flex-wrap:wrap">
+        <button id="txGsfBtn" onclick="doPartnerDispatch()"
+                style="padding:10px 20px;background:#1a6e3a;color:#fff;border:none;border-radius:4px;
+                       font-family:monospace;font-size:12px;font-weight:700;cursor:pointer;
+                       letter-spacing:.06em;white-space:nowrap">
+          &#9654; SEND VIA GOODWILL API
+        </button>
         <button id="txSendBtn" class="btn-tx-send" onclick="doTransmit()">
           &#8658; SEND TO API
         </button>
