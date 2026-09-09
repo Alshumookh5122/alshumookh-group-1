@@ -6893,7 +6893,7 @@ function prRender() {
       var st = String(d.status || d.verification_status || '');
       var srch = String(d.id || '') + amt + st + String(d.tx_hash || '') + String(d.external_id || d.payment_reference || d.sender_reference || '');
       if (q && srch.toLowerCase().indexOf(q) === -1) { return; }
-      var mk = t + '_' + i;
+      var mk = t + '_' + (d.id || i);
       var sel = (PR_SEL.idx === i && PR_SEL.type === t);
       var hasAnnot = !!PR_META[mk];
       var ref = '';
@@ -7149,7 +7149,7 @@ function prSelect(idx, type) {
   /* Private Annotations panel */
   h+='<div style="background:var(--panel);border:1px solid rgba(201,168,76,.3);border-radius:12px;padding:16px;margin-bottom:13px;">';
   h+='<div style="font-size:10px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;">&#128274; Private Annotations</div>';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:start;">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:start;">';
   /* Liq Rate */
   h+='<div style="background:rgba(30,64,175,.08);border:1px solid rgba(30,64,175,.2);border-radius:8px;padding:10px;">';
   h+='<div style="font-size:9px;font-weight:800;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Liquidation Rate</div>';
@@ -7165,6 +7165,11 @@ function prSelect(idx, type) {
   h+='<div style="font-size:9px;font-weight:800;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Status Stamp</div>';
   h+='<div id="prStampLabel" style="font-size:12px;color:'+(m.stamp?(sc2[m.stamp]||'var(--ink)'):'var(--muted)')+';font-weight:'+(m.stamp?'700':'400')+';margin-bottom:7px;">'+(m.stamp||'Not set')+'</div>';
   h+='<button onclick="prAskStamp()" style="background:#6d28d9;color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set Stamp</button></div>';
+  /* TX Hash */
+  h+='<div style="background:rgba(133,77,14,.08);border:1px solid rgba(133,77,14,.25);border-radius:8px;padding:10px;">';
+  h+='<div style="font-size:9px;font-weight:800;color:#fbbf24;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">&#128279; TX Hash</div>';
+  h+='<div id="prHashLabel" style="font-size:8.5px;font-family:monospace;color:'+(m.extra_hash?'#60a5fa':'var(--muted)')+';margin-bottom:7px;word-break:break-all;">'+(m.extra_hash?m.extra_hash:'Not set')+'</div>';
+  h+='<button onclick="prAskHash()" style="background:#92400e;color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Set Hash</button></div>';
   /* Action btns */
   h+='<div style="display:flex;flex-direction:column;gap:7px;padding-top:2px;">';
   h+='<button onclick="prPrintOne()" style="background:#0d2240;color:#c9a84c;border:none;padding:9px 12px;border-radius:8px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128424; Print &amp; Save</button>';
@@ -7188,7 +7193,8 @@ function prClearSelection() {
 /* ── Annotation labels ──────────────────────────────────────────── */
 function prKey() {
   if (PR_SEL.idx === null) { return ''; }
-  return PR_SEL.type + '_' + PR_SEL.idx;
+  var d = PR_DATA[PR_SEL.type] ? PR_DATA[PR_SEL.type][PR_SEL.idx] : null;
+  return PR_SEL.type + '_' + (d ? (d.id || PR_SEL.idx) : PR_SEL.idx);
 }
 
 function prRefreshAnnotLabels() {
@@ -7196,6 +7202,7 @@ function prRefreshAnnotLabels() {
   var ll  = document.getElementById('prLiqLabel');
   var al  = document.getElementById('prAmtLabel');
   var sl  = document.getElementById('prStampLabel');
+  var hl  = document.getElementById('prHashLabel');
   var sc  = { APPROVED:'#34d399', CANCELLED:'#f87171', REJECTED:'#f87171', PENDING:'#fbbf24', PROCESSING:'#60a5fa' };
   if (ll) { ll.textContent = m.liq_pct ? m.liq_pct + '%' : 'Not set'; }
   if (al) { al.textContent = m.custom_amt ? m.custom_amt + ' ' + (m.custom_cur || 'USD') : 'Not set'; }
@@ -7204,11 +7211,16 @@ function prRefreshAnnotLabels() {
     sl.style.color  = m.stamp ? (sc[m.stamp] || 'var(--ink)') : 'var(--muted)';
     sl.style.fontWeight = m.stamp ? '700' : '400';
   }
+  if (hl) {
+    hl.textContent = m.extra_hash || 'Not set';
+    hl.style.color = m.extra_hash ? '#60a5fa' : 'var(--muted)';
+  }
 }
 
 function prClearAnnot() {
   if (PR_SEL.idx === null) { return; }
   delete PR_META[prKey()];
+  try { localStorage.setItem('PR_META', JSON.stringify(PR_META)); } catch(e) {}
   prRefreshAnnotLabels();
   prRender();
 }
@@ -7250,6 +7262,7 @@ function prOpenModal(title, fields, onSave) {
     });
     var mk = prKey();
     PR_META[mk] = Object.assign(PR_META[mk] || {}, vals);
+    try { localStorage.setItem('PR_META', JSON.stringify(PR_META)); } catch(e) {}
     if (onSave) { onSave(vals); }
     prCloseModal();
     prRefreshAnnotLabels();
@@ -7280,6 +7293,13 @@ function prAskAmt() {
 
 function prAskStamp() {
   prOpenModal('Status Stamp', [{ k:'stamp', label:'Select Status', options:['APPROVED','PENDING','PROCESSING','REJECTED','CANCELLED'] }], null);
+}
+
+function prAskHash() {
+  prOpenModal('TX Hash / USDC Hash', [
+    { k:'extra_hash',       label:'Transaction Hash (on-chain / USDC / contract)', placeholder:'0x4faFCaf0840F49f91Fc23cFc0EE4C115E71cd4Dc' },
+    { k:'extra_hash_label', label:'Hash Label (optional)',                          placeholder:'e.g. USDC Contract Hash' }
+  ], null);
 }
 
 /* ── Build print rows ───────────────────────────────────────────── */
@@ -7831,7 +7851,7 @@ function prPrintAll() {
   types.forEach(function(t) {
     var arr = PR_DATA[t] || [];
     arr.forEach(function(d, i) {
-      allItems.push({ type:t, idx:i, d:d, lbl:lblMap[t], meta:PR_META[t+'_'+i]||{} });
+      allItems.push({ type:t, idx:i, d:d, lbl:lblMap[t], meta:PR_META[t+'_'+(d.id||i)]||{} });
     });
   });
   if (!allItems.length) { alert('No transactions loaded. Please wait for data to load.'); return; }
@@ -7893,6 +7913,19 @@ function prPrintAll() {
 
 /* ── Init ───────────────────────────────────────────────────────── */
 (function init() {
+  /* Load persisted annotations from localStorage */
+  try {
+    var stored = JSON.parse(localStorage.getItem('PR_META') || '{}');
+    Object.assign(PR_META, stored);
+  } catch(e) {}
+  /* Pre-seed M1 Tokenization Job USDC hash */
+  var m1Key = 'm1_5f918fac-19b4-4ead-8ff1-05dcc6c95852';
+  if (!PR_META[m1Key]) { PR_META[m1Key] = {}; }
+  if (!PR_META[m1Key].extra_hash) {
+    PR_META[m1Key].extra_hash       = '0x4faFCaf0840F49f91Fc23cFc0EE4C115E71cd4Dc';
+    PR_META[m1Key].extra_hash_label = 'USDC Contract Hash';
+    try { localStorage.setItem('PR_META', JSON.stringify(PR_META)); } catch(e) {}
+  }
   prLoadAll();
 })();
 </script>
