@@ -470,6 +470,14 @@ _PRIVATE_PANEL_UNUSED = """
         </div>
         <button onclick="_prOpenStamp()" style="background:#6d28d9;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">Set</button>
       </div>
+      <!-- TX Hash / USDC Hash -->
+      <div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;">
+          <div style="font-size:9px;font-weight:800;color:#854d0e;text-transform:uppercase;">&#128279; TX Hash / USDC Hash</div>
+          <div id="_prHashDisp" style="font-size:8.5px;font-family:monospace;color:#555;margin-top:2px;word-break:break-all;">Not set</div>
+        </div>
+        <button onclick="_prOpenHash()" style="background:#854d0e;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">Set</button>
+      </div>
     </div>
     <!-- Action Buttons -->
     <div style="padding:0 14px 14px;display:flex;gap:8px;">
@@ -483,11 +491,26 @@ _PRIVATE_PANEL_UNUSED = """
 /* ══ PRIVATE REPORT PANEL — self-contained ═══════════════════ */
 var _pr={
   data:{orders:[],m1:[],payloads:[],transfers:[]},
-  meta:{},
+  meta:(function(){
+    try{
+      var stored=JSON.parse(localStorage.getItem('_pr_meta')||'{}');
+      /* Pre-seed M1 Tokenization Job hash if not already set */
+      var m1Key='m1_5f918fac-19b4-4ead-8ff1-05dcc6c95852';
+      if(!stored[m1Key]) stored[m1Key]={};
+      if(!stored[m1Key].extra_hash){
+        stored[m1Key].extra_hash='0x4faFCaf0840F49f91Fc23cFc0EE4C115E71cd4Dc';
+        stored[m1Key].extra_hash_label='USDC Contract Hash';
+      }
+      return stored;
+    }catch(e){
+      return {'m1_5f918fac-19b4-4ead-8ff1-05dcc6c95852':{extra_hash:'0x4faFCaf0840F49f91Fc23cFc0EE4C115E71cd4Dc',extra_hash_label:'USDC Contract Hash'}};
+    }
+  })(),
   idx:null, type:null,
   filter:'all',
   loaded:false
 };
+function _prSaveMeta(){try{localStorage.setItem('_pr_meta',JSON.stringify(_pr.meta));}catch(e){}}
 function _prEsc(v){var d=document.createElement('div');d.textContent=String(v||'');return d.innerHTML;}
 function _prFmt(n){if(!n&&n!==0)return '—';var x=parseFloat(n);return isNaN(x)?String(n):x.toLocaleString('en-US',{maximumFractionDigits:6});}
 function _prKey(idx,type){
@@ -613,6 +636,8 @@ function _prRefreshAnnot(){
   if(ld) ld.textContent=m.liq_pct?m.liq_pct+'%':'Not set';
   if(ad) ad.textContent=m.custom_amt?m.custom_amt+' '+(m.custom_cur||'USD'):'Not set';
   if(sd){sd.textContent=m.stamp||'Not set';sd.style.color=m.stamp?(sc[m.stamp]||'#555'):'#aaa';sd.style.fontWeight=m.stamp?'700':'400';}
+  var hd=document.getElementById('_prHashDisp');
+  if(hd){hd.textContent=m.extra_hash||'Not set';hd.style.color=m.extra_hash?'#1565C0':'#aaa';}
 }
 function _prModal(title,fields,key,cb){
   var ex=_pr.meta[key]||{};
@@ -645,6 +670,7 @@ function _prModal(title,fields,key,cb){
   document.getElementById('_prMSv').onclick=function(){
     var vals={};fields.forEach(function(f){var el=document.getElementById('_prMF_'+f.k);if(el)vals[f.k]=el.value.trim();});
     _pr.meta[key]=Object.assign(_pr.meta[key]||{},vals);cb(vals);
+    _prSaveMeta();
     document.getElementById('_prMM').remove();
     _prRefreshAnnot();
     _prRenderList();
@@ -660,9 +686,16 @@ function _prOpenAmt(){
 function _prOpenStamp(){
   _prModal('&#128396; Status Stamp',[{k:'stamp',lbl:'Select Transaction Status',opts:['APPROVED','PENDING','PROCESSING','REJECTED','CANCELLED']}],_prKey(_pr.idx,_pr.type),function(){} );
 }
+function _prOpenHash(){
+  _prModal('&#128279; TX Hash / USDC Hash',[
+    {k:'extra_hash',lbl:'Transaction Hash (on-chain / USDC / contract)',ph:'0x4faFCaf0840F49f91Fc23cFc0EE4C115E71cd4Dc'},
+    {k:'extra_hash_label',lbl:'Hash Label (optional)',ph:'e.g. USDC Contract Hash'}
+  ],_prKey(_pr.idx,_pr.type),function(){});
+}
 function _prClear(){
   if(_pr.idx===null) return;
   delete _pr.meta[_prKey(_pr.idx,_pr.type)];
+  _prSaveMeta();
   _prRefreshAnnot();
   _prRenderList();
 }
@@ -803,11 +836,12 @@ function _prPrint(){
     ];
   }
   /* Add custom annotations */
-  if(m.liq_pct||m.custom_amt||m.stamp){
+  if(m.liq_pct||m.custom_amt||m.stamp||m.extra_hash){
     rows.push({h:'PRIVATE ANNOTATIONS'});
     if(m.liq_pct) rows.push({l:'Liquidation Rate',v:'<strong>'+pEsc(m.liq_pct)+'%</strong>'});
     if(m.custom_amt) rows.push({l:'Post-Liquidation Amount',v:'<strong>'+pEsc(m.custom_amt)+' '+pEsc(m.custom_cur||'USD')+'</strong>'});
     if(m.stamp) rows.push({l:'Status Stamp',v:'<strong style="color:'+(stampColors[m.stamp]||'#555')+';">'+pEsc(m.stamp)+'</strong>'});
+    if(m.extra_hash) rows.push({l:m.extra_hash_label||'TX Hash',v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;color:#1565C0;">'+pEsc(m.extra_hash)+'</span>'});
   }
   var rowsHTML=rows.map(function(r){
     if(r.h) return '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:9px;font-weight:800;letter-spacing:.8px;padding:5px 12px;text-transform:uppercase;">'+r.h+'</td></tr>';
@@ -7373,11 +7407,12 @@ function prBuildPrintHTML(type, d, meta, titleStr, ref) {
   var sColors = { APPROVED:'#065f46', CANCELLED:'#b91c1c', REJECTED:'#b91c1c', PENDING:'#92400e', PROCESSING:'#1e40af' };
   var sBg     = { APPROVED:'#d1fae5', CANCELLED:'#fee2e2', REJECTED:'#fee2e2', PENDING:'#fef3c7', PROCESSING:'#dbeafe' };
   var rows = prBuildRows(type, d);
-  if (m.liq_pct || m.custom_amt || m.stamp) {
+  if (m.liq_pct || m.custom_amt || m.stamp || m.extra_hash) {
     rows.push({ h:'PRIVATE ANNOTATIONS' });
     if (m.liq_pct)     { rows.push({ l:'Liquidation Rate',       v:'<strong>' + m.liq_pct + '%</strong>' }); }
     if (m.custom_amt)  { rows.push({ l:'Post-Liquidation Amount', v:'<strong>' + m.custom_amt + ' ' + (m.custom_cur || 'USD') + '</strong>' }); }
     if (m.stamp)       { rows.push({ l:'Status Stamp',            v:'<strong style="color:' + (sColors[m.stamp] || '#555') + ';">' + m.stamp + '</strong>' }); }
+    if (m.extra_hash)  { rows.push({ l: m.extra_hash_label || 'TX Hash', v:'<span style="font-family:monospace;font-size:9px;word-break:break-all;color:#1565C0;">' + m.extra_hash + '</span>' }); }
   }
 
   /* ── All fields shown — no filtering — every field must appear ── */
@@ -7818,11 +7853,12 @@ function prPrintAll() {
   var body = allItems.map(function(item) {
     var rows = prBuildRows(item.type, item.d);
     var m = item.meta;
-    if (m.liq_pct || m.custom_amt || m.stamp) {
+    if (m.liq_pct || m.custom_amt || m.stamp || m.extra_hash) {
       rows.push({ h:'PRIVATE ANNOTATIONS' });
       if (m.liq_pct)    { rows.push({ l:'Liquidation Rate',       v:'<strong>' + m.liq_pct + '%</strong>' }); }
       if (m.custom_amt) { rows.push({ l:'Post-Liquidation Amount', v:'<strong>' + m.custom_amt + ' ' + (m.custom_cur || 'USD') + '</strong>' }); }
       if (m.stamp)      { rows.push({ l:'Status Stamp',            v:'<strong>' + m.stamp + '</strong>' }); }
+      if (m.extra_hash) { rows.push({ l: m.extra_hash_label || 'TX Hash', v:'<span style="font-family:monospace;font-size:8px;word-break:break-all;color:#1565C0;">' + m.extra_hash + '</span>' }); }
     }
     var rHTML = rows.map(function(r) {
       if (r.h) { return '<tr><td colspan="2" style="background:#0d2240;color:#c9a84c;font-size:8px;font-weight:800;letter-spacing:.8px;padding:4px 10px;text-transform:uppercase;">' + r.h + '</td></tr>'; }
