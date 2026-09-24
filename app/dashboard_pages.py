@@ -4161,21 +4161,34 @@ function removeClientIp(clientId, ip){
   }).catch(function(e){showToast('Error: '+e.message,'error');});
 }
 function downloadWhitelistCertForClient(clientId, clientName){
-  // Fetch current IPs then open cert
+  // Fetch current IPs then download cert via fetch (so auth headers are sent)
   api('/api/v1/admin/clients/'+clientId+'/details').then(function(data){
     var ips=(data.client||{}).allowed_ips||[];
     if(!ips.length){showToast('No IPs whitelisted for this client','error');return;}
-    var adminKey=(document.cookie.match(/admin_key=([^;]+)/)||[])[1]||'';
     var url='/api/v1/admin/clients/'+clientId+'/whitelist-certificate'
-      +'?ip='+encodeURIComponent(ips.join(', '))
-      +'&admin_key='+encodeURIComponent(adminKey);
-    var a=document.createElement('a');
-    a.href=url;
-    a.target='_blank';
-    a.download='IP_Whitelist_Certificate_'+clientName.replace(/[^a-zA-Z0-9]/g,'_')+'.pdf';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+      +'?ip='+encodeURIComponent(ips.join(', '));
+    var ak='';
+    try{ak=sessionStorage.getItem('als_admin_key')||localStorage.getItem('als_admin_key')||'';}catch(e){}
+    var hdrs={'Accept':'application/pdf'};
+    if(ak) hdrs['X-Admin-API-Key']=ak;
+    showToast('Generating certificate…','ok');
+    fetch(url,{headers:hdrs,credentials:'include'})
+      .then(function(r){
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        return r.blob();
+      })
+      .then(function(blob){
+        var burl=URL.createObjectURL(blob);
+        var a=document.createElement('a');
+        a.href=burl;
+        a.download='IP_Whitelist_Certificate_'+clientName.replace(/[^a-zA-Z0-9]/g,'_')+'.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function(){URL.revokeObjectURL(burl);},5000);
+        showToast('Certificate downloaded','ok');
+      })
+      .catch(function(e){showToast('Certificate error: '+e.message,'error');});
   }).catch(function(e){showToast('Error fetching client data: '+e.message,'error');});
 }
 function clearAllIps(clientId){
@@ -4322,10 +4335,28 @@ function approveWhitelistIp(){
 function downloadWhitelistCert(){
   if(!_wlApprovedIp||!_wlClientId){showToast('No approved IP','error');return;}
   var url='/api/v1/admin/clients/'+_wlClientId+'/whitelist-certificate?ip='+encodeURIComponent(_wlApprovedIp);
-  var a=document.createElement('a');
-  a.href=url+'&admin_key='+encodeURIComponent(document.cookie.match(/admin_key=([^;]+)/)?document.cookie.match(/admin_key=([^;]+)/)[1]:'');
-  a.target='_blank';
-  a.click();
+  var ak='';
+  try{ak=sessionStorage.getItem('als_admin_key')||localStorage.getItem('als_admin_key')||'';}catch(e){}
+  var hdrs={'Accept':'application/pdf'};
+  if(ak) hdrs['X-Admin-API-Key']=ak;
+  showToast('Generating certificate…','ok');
+  fetch(url,{headers:hdrs,credentials:'include'})
+    .then(function(r){
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      return r.blob();
+    })
+    .then(function(blob){
+      var burl=URL.createObjectURL(blob);
+      var a=document.createElement('a');
+      a.href=burl;
+      a.download='IP_Whitelist_Certificate_'+(_wlApprovedIp||'cert').replace(/[^a-zA-Z0-9]/g,'_')+'.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(burl);},5000);
+      showToast('Certificate downloaded','ok');
+    })
+    .catch(function(e){showToast('Certificate error: '+e.message,'error');});
 }
 
 loadClients();
