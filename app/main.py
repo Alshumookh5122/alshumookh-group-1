@@ -634,6 +634,12 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
                 status_code=500,
                 content={"detail": f"Stripe endpoint error: {type(exc).__name__}: {str(exc)[:300]}"},
             )
+        if "whitelist-certificate" in request.url.path:
+            import traceback as _tb
+            return JSONResponse(
+                status_code=500,
+                content={"detail": f"Certificate error: {type(exc).__name__}: {str(exc)[:500]}", "trace": _tb.format_exc()[:2000]},
+            )
         return JSONResponse(
             status_code=500,
             content={"detail": "Internal server error"},

@@ -1589,11 +1589,14 @@ async def whitelist_certificate(
     db: AsyncSession = Depends(get_db),
 ):
     """Generate a professional PDF IP Whitelist Authorization Certificate."""
-    import io, os
-    from reportlab.pdfgen import canvas as rl_canvas
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.units import cm
+    import io, os, traceback
+    try:
+        from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.units import cm
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail=f"ReportLab not installed: {e}")
 
     result = await db.execute(select(ApiClient).where(cast(ApiClient.id, String) == str(client_id)))
     client = result.scalar_one_or_none()
@@ -1894,7 +1897,7 @@ async def whitelist_certificate(
                 ip_value_lines.append(left)
 
     rows = [
-        ("Client Name",  _wrap_value(c, client.name, "Helvetica", 8.3, val_max_w)),
+        ("Client Name",  _wrap_value(c, client.name or "—", "Helvetica", 8.3, val_max_w)),
         ("Client ID",    [str(client.id)]),
         ("IP Address",   ip_value_lines),
         ("Access Level", _wrap_value(c, "Full API Gateway Access — ISO 20022 / Settlement Channel", "Helvetica", 8.3, val_max_w)),
@@ -1965,7 +1968,10 @@ async def whitelist_certificate(
     c.setFillColor(MGRAY)
     c.drawCentredString(W / 2, 0.38*cm, f"Certificate No: {cert_num}  —  This document is digitally authorized and legally binding.")
 
-    c.save()
+    try:
+        c.save()
+    except Exception as _pdf_err:
+        raise HTTPException(status_code=500, detail=f"PDF generation error: {traceback.format_exc()}")
     buf.seek(0)
 
     # Short filename: use first IP + count suffix if multiple

@@ -4174,7 +4174,11 @@ function downloadWhitelistCertForClient(clientId, clientName){
     showToast('Generating certificate…','ok');
     fetch(url,{headers:hdrs,credentials:'include'})
       .then(function(r){
-        if(!r.ok) throw new Error('HTTP '+r.status);
+        if(!r.ok){
+          return r.json().then(function(j){
+            throw new Error((j.detail||'HTTP '+r.status).toString().substring(0,200));
+          }).catch(function(){throw new Error('HTTP '+r.status);});
+        }
         return r.blob();
       })
       .then(function(blob){
@@ -4342,7 +4346,11 @@ function downloadWhitelistCert(){
   showToast('Generating certificate…','ok');
   fetch(url,{headers:hdrs,credentials:'include'})
     .then(function(r){
-      if(!r.ok) throw new Error('HTTP '+r.status);
+      if(!r.ok){
+        return r.json().then(function(j){
+          throw new Error((j.detail||'HTTP '+r.status).toString().substring(0,200));
+        }).catch(function(){throw new Error('HTTP '+r.status);});
+      }
       return r.blob();
     })
     .then(function(blob){
